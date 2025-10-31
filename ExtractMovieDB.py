@@ -1,10 +1,12 @@
 import requests
 import pandas as pd
 import time
+import os
 from tqdm import tqdm
+from dotenv import load_dotenv
 
 # === CONFIGURATION ===
-API_KEY = "af70f5d29ef9ca3e025e5f7d24461895"
+API_KEY = os.environ.get("TMDB_API_KEY")
 BASE_URL = "https://api.themoviedb.org/3"
 # Using relative paths, as we discussed
 INPUT_FILE = "data\\mock\\wikidata_movies.csv"
@@ -12,16 +14,17 @@ OUTPUT_FILE = "data\\mock\\tmdb_movies.csv"
 
 # === FUNCTIONS ===
 
+
 def get_movie_details(imdb_id):
     """
     Finds a movie on TMDB using its IMDb ID (e.g., "tt0068646")
     and downloads its full details and reviews.
     (This function expects an ALREADY FORMATTED ID)
     """
-    
+
     imdb_id = str(imdb_id).strip()
-    if not imdb_id.startswith('tt'):
-        return None # Skip invalid IDs
+    if not imdb_id.startswith("tt"):
+        return None  # Skip invalid IDs
 
     # 1. USE THE /find ENDPOINT TO FIND THE TMDB ID
     find_url = f"{BASE_URL}/find/{imdb_id}?api_key={API_KEY}&language=en-US&external_source=imdb_id"
@@ -43,17 +46,17 @@ def get_movie_details(imdb_id):
     details_response = requests.get(details_url)
 
     if details_response.status_code != 200:
-        return None 
+        return None
 
     data = details_response.json()
-    
+
     # ==========================================================
     # === 4. (NEW) GET REVIEWS FOR THIS MOVIE ===
     # ==========================================================
     reviews_url = f"{BASE_URL}/movie/{tmdb_id}/reviews?api_key={API_KEY}"
     reviews_response = requests.get(reviews_url)
-    
-    reviews_content = "" # Default: empty string
+
+    reviews_content = ""  # Default: empty string
     if reviews_response.status_code == 200:
         reviews_data = reviews_response.json()
         review_list = []
@@ -63,20 +66,19 @@ def get_movie_details(imdb_id):
             content = review.get("content", "No content").strip()
             # Format this review
             review_list.append(f"Author: {author}\nReview: {content}")
-        
+
         # Join all reviews with a clear separator
         reviews_content = "\n\n---\n\n".join(review_list)
     # ==========================================================
     # === END OF NEW BLOCK =====================================
     # ==========================================================
 
-    
     # Create the final movie object
     movie = {
         "id": data.get("id"),
         "title": data.get("title"),
         "imdb_id_source": imdb_id,
-        "reviews": reviews_content 
+        "reviews": reviews_content,
     }
     return movie
 
@@ -98,7 +100,7 @@ def main():
         details = get_movie_details(movie_id)
         if details:
             movies.append(details)
-        time.sleep(0.25) # Be nice to the API
+        time.sleep(0.25)  # Be nice to the API
 
     # === SAVING CSV ===
     if not movies:
@@ -108,6 +110,7 @@ def main():
     out_df = pd.DataFrame(movies)
     out_df.to_csv(OUTPUT_FILE, index=False, encoding="utf-8")
     print(f"\n✅ Data saved to '{OUTPUT_FILE}' ({len(out_df)} total movies)")
+
 
 if __name__ == "__main__":
     main()
