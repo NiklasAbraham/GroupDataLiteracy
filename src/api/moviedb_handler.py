@@ -21,6 +21,7 @@ from typing import List, Dict, Optional
 # Try to load environment variables from .env file if available
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass  # python-dotenv not installed, use system environment variables
@@ -44,10 +45,51 @@ def get_tmdb_api_key() -> str:
 
 def get_tmdb_headers() -> Dict[str, str]:
     """Get headers for TMDb API requests."""
-    return {
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-    }
+    return {"Accept": "application/json", "Content-Type": "application/json"}
+
+
+async def get_movie_by_wiki_id(
+    session: aiohttp.ClientSession, wiki_id: int, api_key: str, verbose: bool = False
+) -> Optional[Dict]:
+    """
+    Fetch detailed movie information by Wikipedia ID (e.g. Q123456789)
+
+    Args:
+        session: aiohttp ClientSession for making HTTP requests
+        wiki_id: Wikipedia ID
+        api_key: TMDb API key
+        verbose: Whether to print progress messages (default: False)
+
+    Returns:
+        Dictionary containing detailed movie information, or None if not found
+    """
+    url = f"https://api.themoviedb.org/3/find/{wiki_id}?external_source=wikidata_id&language=en&api_key={api_key}"
+
+    try:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data
+            elif response.status == 404:
+                if verbose:
+                    print(f"✗ Movie Wiki ID {wiki_id}: Not found")
+                return None
+            elif response.status == 429:
+                if verbose:
+                    print(f"✗ Movie Wiki ID {wiki_id}: Rate limit exceeded, waiting...")
+                await asyncio.sleep(10)
+                return await get_movie_by_wiki_id(session, wiki_id, api_key, verbose)
+            else:
+                if verbose:
+                    error_text = await response.text()
+                    print(
+                        f"✗ Movie Wiki ID {wiki_id}: HTTP Error {response.status} - {error_text}"
+                    )
+    except Exception as e:
+        if verbose:
+            print(f"✗ Movie Wiki ID {wiki_id}: Error - {e}")
+
+    return None
 
 
 async def get_movie_by_id(
@@ -55,7 +97,7 @@ async def get_movie_by_id(
     movie_id: int,
     api_key: str,
     include_additional: bool = True,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> Optional[Dict]:
     """
     Fetch detailed movie information by TMDb movie ID.
@@ -72,7 +114,7 @@ async def get_movie_by_id(
     """
     url = f"{TMDB_API_BASE_URL}/movie/{movie_id}"
     params = {"api_key": api_key, "language": "en-US"}
-    
+
     if include_additional:
         params["append_to_response"] = "credits,external_ids"
 
@@ -91,11 +133,15 @@ async def get_movie_by_id(
                 if verbose:
                     print(f"✗ Movie ID {movie_id}: Rate limit exceeded, waiting...")
                 await asyncio.sleep(10)
-                return await get_movie_by_id(session, movie_id, api_key, include_additional, verbose)
+                return await get_movie_by_id(
+                    session, movie_id, api_key, include_additional, verbose
+                )
             else:
                 if verbose:
                     error_text = await response.text()
-                    print(f"✗ Movie ID {movie_id}: HTTP Error {response.status} - {error_text}")
+                    print(
+                        f"✗ Movie ID {movie_id}: HTTP Error {response.status} - {error_text}"
+                    )
     except Exception as e:
         if verbose:
             print(f"✗ Movie ID {movie_id}: Error - {e}")
@@ -109,7 +155,7 @@ async def search_movies(
     api_key: str,
     year: Optional[int] = None,
     page: int = 1,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> List[Dict]:
     """
     Search for movies by title.
@@ -126,13 +172,8 @@ async def search_movies(
         List of movie dictionaries matching the search query
     """
     url = f"{TMDB_API_BASE_URL}/search/movie"
-    params = {
-        "api_key": api_key,
-        "query": query,
-        "language": "en-US",
-        "page": page
-    }
-    
+    params = {"api_key": api_key, "query": query, "language": "en-US", "page": page}
+
     if year:
         params["year"] = year
 
@@ -151,7 +192,9 @@ async def search_movies(
             else:
                 if verbose:
                     error_text = await response.text()
-                    print(f"✗ Search '{query}': HTTP Error {response.status} - {error_text}")
+                    print(
+                        f"✗ Search '{query}': HTTP Error {response.status} - {error_text}"
+                    )
     except Exception as e:
         if verbose:
             print(f"✗ Search '{query}': Error - {e}")
@@ -165,7 +208,7 @@ async def get_movies_by_year(
     api_key: str,
     limit: int = 50,
     sort_by: str = "popularity.desc",
-    verbose: bool = False
+    verbose: bool = False,
 ) -> List[Dict]:
     """
     Fetch movies from TMDb for a specific year, sorted by popularity or other criteria.
@@ -188,7 +231,7 @@ async def get_movies_by_year(
         "sort_by": sort_by,
         "language": "en-US",
         "page": 1,
-        "include_adult": False
+        "include_adult": False,
     }
 
     headers = get_tmdb_headers()
@@ -196,29 +239,29 @@ async def get_movies_by_year(
     try:
         movies = []
         page = 1
-        
+
         while len(movies) < limit:
             params["page"] = page
             async with session.get(url, params=params, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
                     results = data.get("results", [])
-                    
+
                     if not results:
                         break
-                    
-                    movies.extend(results[:limit - len(movies)])
-                    
+
+                    movies.extend(results[: limit - len(movies)])
+
                     # Check if there are more pages
                     total_pages = data.get("total_pages", 1)
                     if page >= total_pages:
                         break
-                    
+
                     page += 1
-                    
+
                     # Small delay to avoid rate limiting
                     await asyncio.sleep(0.25)
-                    
+
                 elif response.status == 429:
                     if verbose:
                         print(f"✗ {year}: Rate limit exceeded, waiting...")
@@ -229,12 +272,12 @@ async def get_movies_by_year(
                         error_text = await response.text()
                         print(f"✗ {year}: HTTP Error {response.status} - {error_text}")
                     break
-        
+
         if verbose:
             print(f"✓ {year}: {len(movies)} movies fetched")
-        
+
         return movies[:limit]
-        
+
     except Exception as e:
         if verbose:
             print(f"✗ {year}: Error - {e}")
@@ -248,7 +291,7 @@ async def get_movies_comprehensive_by_year(
     api_key: str,
     limit: int = 50,
     sort_by: str = "popularity.desc",
-    verbose: bool = False
+    verbose: bool = False,
 ) -> List[Dict[str, Optional[str]]]:
     """
     Fetch comprehensive movie data from TMDb for a specific year with detailed information.
@@ -276,84 +319,123 @@ async def get_movies_comprehensive_by_year(
         List of dictionaries containing comprehensive movie information
     """
     # First get the list of movies
-    movies_list = await get_movies_by_year(session, year, api_key, limit, sort_by, verbose)
-    
+    movies_list = await get_movies_by_year(
+        session, year, api_key, limit, sort_by, verbose
+    )
+
     if not movies_list:
         return []
-    
+
     # Then fetch detailed information for each movie
     tasks = []
     for movie in movies_list:
         movie_id = movie.get("id")
         if movie_id:
             tasks.append(
-                get_movie_by_id(session, movie_id, api_key, include_additional=True, verbose=False)
+                get_movie_by_id(
+                    session, movie_id, api_key, include_additional=True, verbose=False
+                )
             )
             # Small delay to avoid rate limiting
             await asyncio.sleep(0.25)
-    
+
     if verbose:
         print(f"  Fetching detailed information for {len(tasks)} movies...")
-    
+
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     comprehensive_movies = []
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             if verbose:
                 print(f"  ✗ Error fetching details for movie: {result}")
             continue
-        
+
         if not result:
             continue
-        
+
         # Extract comprehensive data
         credits = result.get("credits", {})
         external_ids = result.get("external_ids", {})
-        
+
         # Extract cast
         cast_list = credits.get("cast", [])
-        cast = "|".join([actor.get("name", "") for actor in cast_list[:10]]) if cast_list else None
-        
+        cast = (
+            "|".join([actor.get("name", "") for actor in cast_list[:10]])
+            if cast_list
+            else None
+        )
+
         # Extract crew
         crew_list = credits.get("crew", [])
-        directors = "|".join([
-            person.get("name", "") for person in crew_list
-            if person.get("job", "").lower() == "director"
-        ]) if crew_list else None
-        
-        producers = "|".join([
-            person.get("name", "") for person in crew_list
-            if person.get("job", "").lower() in ["producer", "executive producer"]
-        ]) if crew_list else None
-        
-        writers = "|".join([
-            person.get("name", "") for person in crew_list
-            if person.get("job", "").lower() in ["screenplay", "writer", "screenwriter"]
-        ]) if crew_list else None
-        
+        directors = (
+            "|".join(
+                [
+                    person.get("name", "")
+                    for person in crew_list
+                    if person.get("job", "").lower() == "director"
+                ]
+            )
+            if crew_list
+            else None
+        )
+
+        producers = (
+            "|".join(
+                [
+                    person.get("name", "")
+                    for person in crew_list
+                    if person.get("job", "").lower()
+                    in ["producer", "executive producer"]
+                ]
+            )
+            if crew_list
+            else None
+        )
+
+        writers = (
+            "|".join(
+                [
+                    person.get("name", "")
+                    for person in crew_list
+                    if person.get("job", "").lower()
+                    in ["screenplay", "writer", "screenwriter"]
+                ]
+            )
+            if crew_list
+            else None
+        )
+
         # Extract genres
         genres_list = result.get("genres", [])
-        genres = "|".join([g.get("name", "") for g in genres_list]) if genres_list else None
-        
+        genres = (
+            "|".join([g.get("name", "") for g in genres_list]) if genres_list else None
+        )
+
         # Extract production companies
         production_companies_list = result.get("production_companies", [])
-        production_companies = "|".join([
-            company.get("name", "") for company in production_companies_list
-        ]) if production_companies_list else None
-        
+        production_companies = (
+            "|".join([company.get("name", "") for company in production_companies_list])
+            if production_companies_list
+            else None
+        )
+
         # Extract production countries
         production_countries_list = result.get("production_countries", [])
-        production_countries = "|".join([
-            country.get("name", "") for country in production_countries_list
-        ]) if production_countries_list else None
-        
+        production_countries = (
+            "|".join([country.get("name", "") for country in production_countries_list])
+            if production_countries_list
+            else None
+        )
+
         # Extract spoken languages
         spoken_languages_list = result.get("spoken_languages", [])
-        spoken_languages = "|".join([
-            lang.get("name", "") for lang in spoken_languages_list
-        ]) if spoken_languages_list else None
-        
+        spoken_languages = (
+            "|".join([lang.get("name", "") for lang in spoken_languages_list])
+            if spoken_languages_list
+            else None
+        )
+
         movie_data = {
             # Basic info
             "title": result.get("title"),
@@ -363,34 +445,33 @@ async def get_movies_comprehensive_by_year(
             "release_date": result.get("release_date"),
             "runtime": result.get("runtime"),
             "year": year,
-            
             # Ratings
             "vote_average": result.get("vote_average"),
             "vote_count": result.get("vote_count"),
             "popularity": result.get("popularity"),
-            
             # Financial
             "budget": result.get("budget"),
             "revenue": result.get("revenue"),
-            
             # Cast & Crew
             "cast": cast,
             "director": directors,
             "producer": producers,
             "writer": writers,
-            
             # Classification
             "genre": genres,
             "language": spoken_languages,
             "production_country": production_countries,
-            "certification": result.get("release_dates", {}).get("results", [{}])[0].get(
-                "release_dates", [{}]
-            )[0].get("certification") if result.get("release_dates") else None,
-            
+            "certification": (
+                result.get("release_dates", {})
+                .get("results", [{}])[0]
+                .get("release_dates", [{}])[0]
+                .get("certification")
+                if result.get("release_dates")
+                else None
+            ),
             # Production
             "production_company": production_companies,
             "status": result.get("status"),
-            
             # External IDs
             "tmdb_id": result.get("id"),
             "imdb_id": external_ids.get("imdb_id") or result.get("imdb_id"),
@@ -398,23 +479,21 @@ async def get_movies_comprehensive_by_year(
             "instagram_id": external_ids.get("instagram_id"),
             "twitter_id": external_ids.get("twitter_id"),
             "wikipedia_id": external_ids.get("wikipedia_id"),
-            
             # Technical
             "original_language": result.get("original_language"),
             "video": result.get("video"),
             "adult": result.get("adult"),
-            
             # Media
             "poster_path": result.get("poster_path"),
             "backdrop_path": result.get("backdrop_path"),
             "homepage": result.get("homepage"),
         }
-        
+
         comprehensive_movies.append(movie_data)
-    
+
     if verbose:
         print(f"✓ {year}: {len(comprehensive_movies)} movies with comprehensive data")
-    
+
     return comprehensive_movies
 
 
@@ -424,7 +503,7 @@ async def fetch_movies_for_years(
     end_year: int,
     api_key: str,
     verbose: bool = False,
-    delay: float = 0.25
+    delay: float = 0.25,
 ) -> List[Dict]:
     """
     Fetch movies for multiple years concurrently.
@@ -444,7 +523,9 @@ async def fetch_movies_for_years(
         tasks = []
         for year in range(start_year, end_year + 1):
             tasks.append(
-                get_movies_by_year(session, year, api_key, movies_per_year, verbose=verbose)
+                get_movies_by_year(
+                    session, year, api_key, movies_per_year, verbose=verbose
+                )
             )
             # Small delay to avoid rate limiting
             if delay > 0:
@@ -467,7 +548,7 @@ async def fetch_movies_comprehensive_for_years(
     end_year: int,
     api_key: str,
     verbose: bool = False,
-    delay: float = 0.25
+    delay: float = 0.25,
 ) -> List[Dict[str, Optional[str]]]:
     """
     Fetch comprehensive movie data for multiple years concurrently.
@@ -512,7 +593,7 @@ async def fetch_movies(
     start_year: int = 2000,
     end_year: int = 2024,
     verbose: bool = True,
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
 ) -> List[Dict]:
     """
     Main function to fetch movies from TMDb for a range of years.
@@ -529,9 +610,11 @@ async def fetch_movies(
     """
     if api_key is None:
         api_key = get_tmdb_api_key()
-    
+
     if verbose:
-        print(f"Fetching top {movies_per_year} most popular movies per year ({start_year}-{end_year})...\n")
+        print(
+            f"Fetching top {movies_per_year} most popular movies per year ({start_year}-{end_year})...\n"
+        )
 
     all_movies = await fetch_movies_for_years(
         movies_per_year, start_year, end_year, api_key, verbose=verbose
@@ -549,7 +632,7 @@ async def fetch_movies_comprehensive(
     start_year: int = 2000,
     end_year: int = 2024,
     verbose: bool = True,
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
 ) -> List[Dict[str, Optional[str]]]:
     """
     Main function to fetch comprehensive movie data from TMDb for a range of years.
@@ -567,9 +650,11 @@ async def fetch_movies_comprehensive(
     """
     if api_key is None:
         api_key = get_tmdb_api_key()
-    
+
     if verbose:
-        print(f"Fetching comprehensive data for top {movies_per_year} most popular movies per year ({start_year}-{end_year})...\n")
+        print(
+            f"Fetching comprehensive data for top {movies_per_year} most popular movies per year ({start_year}-{end_year})...\n"
+        )
         print("Note: This may take some time due to API rate limits.\n")
 
     all_movies = await fetch_movies_comprehensive_for_years(
@@ -586,7 +671,7 @@ async def fetch_movies_comprehensive(
 def save_movies_to_csv(
     movies: List[Dict[str, Optional[str]]],
     filename: str = "tmdb_movies.csv",
-    comprehensive: bool = False
+    comprehensive: bool = False,
 ) -> None:
     """
     Save movies data to a CSV file.
@@ -597,42 +682,79 @@ def save_movies_to_csv(
         comprehensive: If True, uses comprehensive field names (default: False, auto-detects)
     """
     import csv
-    
+
     if not movies:
         print("No movies to save")
         return
-    
+
     # Auto-detect if comprehensive format
     if not comprehensive:
         sample_keys = set(movies[0].keys())
-        comprehensive = "budget" in sample_keys or "cast" in sample_keys or "producer" in sample_keys
-    
+        comprehensive = (
+            "budget" in sample_keys
+            or "cast" in sample_keys
+            or "producer" in sample_keys
+        )
+
     if comprehensive:
         fieldnames = [
-            "title", "original_title", "overview", "tagline", "release_date", "runtime", "year",
-            "vote_average", "vote_count", "popularity",
-            "budget", "revenue",
-            "cast", "director", "producer", "writer",
-            "genre", "language", "production_country", "certification",
-            "production_company", "status",
-            "tmdb_id", "imdb_id", "facebook_id", "instagram_id", "twitter_id", "wikipedia_id",
-            "original_language", "video", "adult",
-            "poster_path", "backdrop_path", "homepage"
+            "title",
+            "original_title",
+            "overview",
+            "tagline",
+            "release_date",
+            "runtime",
+            "year",
+            "vote_average",
+            "vote_count",
+            "popularity",
+            "budget",
+            "revenue",
+            "cast",
+            "director",
+            "producer",
+            "writer",
+            "genre",
+            "language",
+            "production_country",
+            "certification",
+            "production_company",
+            "status",
+            "tmdb_id",
+            "imdb_id",
+            "facebook_id",
+            "instagram_id",
+            "twitter_id",
+            "wikipedia_id",
+            "original_language",
+            "video",
+            "adult",
+            "poster_path",
+            "backdrop_path",
+            "homepage",
         ]
     else:
         fieldnames = [
-            "title", "overview", "release_date", "popularity", "vote_average", "vote_count",
-            "genre", "year", "tmdb_id", "imdb_id"
+            "title",
+            "overview",
+            "release_date",
+            "popularity",
+            "vote_average",
+            "vote_count",
+            "genre",
+            "year",
+            "tmdb_id",
+            "imdb_id",
         ]
         # Use only fields that exist in the data
         available_fields = [f for f in fieldnames if f in movies[0]]
         fieldnames = available_fields
-    
+
     with open(filename, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(movies)
-    
+
     print(f"Saved {len(movies)} movies to {filename}")
 
 
@@ -649,10 +771,12 @@ async def main(movies_per_year: int = 50, start_year: int = 2020, end_year: int 
     save_movies_to_csv(movies)
 
 
-async def main_comprehensive(movies_per_year: int = 50, start_year: int = 2020, end_year: int = 2024):
+async def main_comprehensive(
+    movies_per_year: int = 50, start_year: int = 2020, end_year: int = 2024
+):
     """
     Example main function that fetches comprehensive movie data and saves to CSV.
-    
+
     This fetches extensive features useful for data science analysis including:
     - Cast and crew (actors, directors, producers, writers)
     - Financial data (budget, revenue)
@@ -672,6 +796,6 @@ async def main_comprehensive(movies_per_year: int = 50, start_year: int = 2020, 
 if __name__ == "__main__":
     # Example usage - basic mode
     asyncio.run(main(movies_per_year=50, start_year=2020, end_year=2024))
-    
+
     # Example usage - comprehensive mode (recommended for data science)
     # asyncio.run(main_comprehensive(movies_per_year=50, start_year=2020, end_year=2024))
