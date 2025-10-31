@@ -6,7 +6,7 @@ from tqdm import tqdm
 from dotenv import load_dotenv
 
 # === CONFIGURATION ===
-API_KEY = os.environ.get("TMDB_API_KEY")
+API_KEY = os.getenv("TMDB_API_KEY")
 BASE_URL = "https://api.themoviedb.org/3"
 # Using relative paths, as we discussed
 INPUT_FILE = "data\\mock\\wikidata_movies.csv"
