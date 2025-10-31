@@ -10,6 +10,7 @@ import asyncio
 import aiohttp
 import os
 import logging
+import urllib.parse
 from typing import List, Dict, Optional
 
 # Setup logging
@@ -80,6 +81,7 @@ async def get_movies_by_year(
         ?genre rdfs:label ?genreLabel.
         ?director rdfs:label ?directorLabel.
       }}
+      FILTER(BOUND(?movieLabel) && ?movieLabel != "")
     }}
     GROUP BY ?movie ?movieLabel ?plotSummary ?releaseDate ?imdbID ?countryLabel ?duration ?sitelinks
     ORDER BY DESC(?sitelinks)
@@ -136,19 +138,30 @@ async def get_movies_by_year(
                         
                         seen_titles.add(title)
                         
-                        # Extract sitelinks - ensure we get the actual value
+                        # Extract sitelinks - must be present since we filter by ?sitelinks > 0
                         sitelinks_raw = r.get('sitelinks', {})
                         sitelinks_value = sitelinks_raw.get('value') if sitelinks_raw else None
                         
-                        # Convert to string, ensuring it's not None
                         if sitelinks_value is None:
-                            logger.warning(f"Year {year}, result {idx+1}: Missing sitelinks for '{title}'")
-                            sitelinks = ''
+                            logger.error(f"Year {year}, result {idx+1}: CRITICAL - Missing sitelinks for '{title}' despite filter!")
+                            sitelinks = '0'  # Fallback - shouldn't happen due to filter
                         else:
-                            sitelinks = str(sitelinks_value)
+                            # Convert to string and ensure it's not empty
+                            sitelinks = str(sitelinks_value).strip()
+                            if not sitelinks:
+                                logger.warning(f"Year {year}, result {idx+1}: Empty sitelinks string for '{title}'")
+                                sitelinks = '0'
                         
                         logger.debug(f"Year {year}, result {idx+1}: Added '{title}' (sitelinks: {sitelinks})")
 
+                        # Construct Wikipedia link from title
+                        # Since we filter by sitelinks > 0, we know there's a Wikipedia page
+                        # URL encode the title for Wikipedia URL (Wikipedia uses spaces as underscores)
+                        title_encoded = title.replace(' ', '_')
+                        # Handle special characters while preserving underscores and parentheses
+                        title_encoded = urllib.parse.quote(title_encoded, safe='_()')
+                        wikipedia_link = f"https://en.wikipedia.org/wiki/{title_encoded}"
+                        
                         movies.append({
                             'title': title,
                             'summary': r.get('plotSummary', {}).get('value') or '',
@@ -159,6 +172,7 @@ async def get_movies_by_year(
                             'imdb_id': r.get('imdbID', {}).get('value') or '',
                             'country': r.get('countryLabel', {}).get('value') or '',
                             'sitelinks': sitelinks,
+                            'wikipedia_link': wikipedia_link,
                             'year': year
                         })
                     
@@ -298,7 +312,7 @@ def save_movies_to_csv(
     
     fieldnames = [
         'title', 'summary', 'release_date', 'genre', 'director',
-        'duration', 'imdb_id', 'country', 'sitelinks', 'year'
+        'duration', 'imdb_id', 'country', 'sitelinks', 'wikipedia_link', 'year'
     ]
     
     with open(filename, 'w', newline='', encoding='utf-8') as f:
@@ -324,4 +338,4 @@ async def main(movies_per_year: int = 50, start_year: int = 1950, end_year: int 
 
 if __name__ == "__main__":
     # Example usage - basic mode
-    asyncio.run(main(movies_per_year=1000, start_year=2020, end_year=2024))
+    asyncio.run(main(movies_per_year=1000, start_year=2023, end_year=2024))
