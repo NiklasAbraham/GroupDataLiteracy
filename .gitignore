@@ -10,6 +10,15 @@ __pycache__/
 *.npy
 *.csv
 
+# Report
+*.aux
+*.log
+*.out
+*.toc
+*.lot
+*.lof
+*.fls
+
 # Distribution / packaging
 .Python
 build/
