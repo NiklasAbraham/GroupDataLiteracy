@@ -215,8 +215,9 @@ def main():
         return
 
     # 3. Initialize the embedding service
-    # This will download and load the model into memory (on CPU)
-    service = EmbeddingService(model_name=MODEL_NAME)
+    # This will automatically select the appropriate strategy based on the model name
+    # and load the model into memory
+    service = EmbeddingService(model_name=MODEL_NAME, target_devices=TARGET_DEVICES)
 
     # 4. Run the parallel encoding process
     logger.info("--- Starting Parallel Encoding ---")
