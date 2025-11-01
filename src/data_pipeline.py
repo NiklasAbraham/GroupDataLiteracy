@@ -15,6 +15,7 @@ import aiohttp
 import os
 import sys
 import csv
+import re
 import pandas as pd
 import numpy as np
 import logging
@@ -112,12 +113,49 @@ def load_existing_csv(year: int) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+def clean_plot_text(plot: str) -> str:
+    """
+    Clean plot text for CSV storage.
+    Removes line breaks and normalizes whitespace.
+    
+    Args:
+        plot: Raw plot text with line breaks
+        
+    Returns:
+        Cleaned plot text with line breaks replaced by spaces
+    """
+    if not plot or pd.isna(plot):
+        return ''
+    
+    # Convert to string if not already
+    plot_str = str(plot)
+    
+    # Replace all types of line breaks with spaces
+    plot_str = re.sub(r'\r\n|\r|\n', ' ', plot_str)
+    
+    # Replace multiple consecutive spaces with single space
+    plot_str = re.sub(r' +', ' ', plot_str)
+    
+    # Strip leading/trailing whitespace
+    plot_str = plot_str.strip()
+    
+    return plot_str
+
+
 def save_csv(df: pd.DataFrame, year: int) -> None:
     """Save DataFrame to CSV file for a specific year."""
     csv_path = get_csv_path(year)
     os.makedirs(DATA_DIR, exist_ok=True)
-    df.to_csv(csv_path, index=False, encoding='utf-8')
-    logger.info(f"Saved {len(df)} movies to {csv_path}")
+    
+    # Clean plot column if it exists (remove line breaks, normalize whitespace)
+    # Make a copy to avoid modifying the original DataFrame
+    df_to_save = df.copy() if 'plot' in df.columns else df
+    if 'plot' in df.columns:
+        df_to_save['plot'] = df_to_save['plot'].apply(lambda x: clean_plot_text(x) if pd.notna(x) else x)
+    
+    # pandas default quoting (QUOTE_MINIMAL) handles commas correctly by quoting fields that contain commas
+    df_to_save.to_csv(csv_path, index=False, encoding='utf-8')
+    logger.info(f"Saved {len(df_to_save)} movies to {csv_path}")
 
 
 def get_existing_movie_ids(df: pd.DataFrame) -> Set[str]:
@@ -161,12 +199,12 @@ async def step1_wikidata(
         csv_path = get_csv_path(year)
         
         if not force_refresh and os.path.exists(csv_path):
-            logger.info(f"Year {year}: CSV file already exists, skipping...")
+            logger.info(f"Year {year}: CSV file already exists, skipping Wikidata fetch...")
             df = load_existing_csv(year)
             year_dataframes[year] = df
             continue
         
-        logger.info(f"Year {year}: Fetching movies from Wikidata...")
+        logger.info(f"Year {year}: CSV file not found, fetching movies from Wikidata...")
         
         async with aiohttp.ClientSession() as session:
             movies = await fetch_movies_for_years(
@@ -237,15 +275,22 @@ async def step2_moviedb(
                 else pd.Series([False] * len(df), index=df.index)
             )
             
+            # Count movies with and without TMDb data
+            num_with_tmdb = has_tmdb_data.sum()
+            num_without_tmdb = (~has_tmdb_data).sum()
+            
             # Process movies that don't have TMDb data
             movies_to_process = df[~has_tmdb_data]
             
             if movies_to_process.empty:
-                logger.info(f"Year {year}: All movies already have TMDb data")
+                logger.info(f"Year {year}: All {len(df)} movies already have TMDb data, skipping...")
                 enriched_dataframes[year] = df
                 continue
             
-            logger.info(f"Year {year}: Processing {len(movies_to_process)} movies without TMDb data")
+            logger.info(
+                f"Year {year}: {num_with_tmdb} movies already have TMDb data, "
+                f"processing {num_without_tmdb} movies without TMDb data"
+            )
             
             # Initialize new columns if they don't exist
             if 'popularity' not in df.columns:
@@ -360,17 +405,25 @@ def step3_wikipedia(
             df['plot'] = None
         
         # Check which movies already have plots
-        has_plot = df['plot'].notna() & (df['plot'] != '')
+        # Ensure we filter out empty strings and non-string values
+        has_plot = df['plot'].notna() & (df['plot'] != '') & (df['plot'].astype(str).str.strip() != '')
+        
+        # Count movies with and without plots
+        num_with_plot = has_plot.sum()
+        num_without_plot = (~has_plot).sum()
         
         # Process movies that don't have plots
         movies_to_process = df[~has_plot]
         
         if movies_to_process.empty:
-            logger.info(f"Year {year}: All movies already have plots")
+            logger.info(f"Year {year}: All {len(df)} movies already have plots, skipping...")
             enriched_dataframes[year] = df
             continue
         
-        logger.info(f"Year {year}: Processing {len(movies_to_process)} movies without plots")
+        logger.info(
+            f"Year {year}: {num_with_plot} movies already have plots, "
+            f"processing {num_without_plot} movies without plots"
+        )
         
         # Process each movie
         for idx, row in movies_to_process.iterrows():
@@ -387,16 +440,19 @@ def step3_wikipedia(
                 plot = get_plot_section(page)
                 
                 if plot:
-                    df.at[idx, 'plot'] = plot
+                    # Clean the plot text (remove line breaks, normalize whitespace)
+                    cleaned_plot = clean_plot_text(plot)
+                    df.at[idx, 'plot'] = cleaned_plot
                     if verbose:
                         logger.debug(
                             f"Year {year}, {row.get('title', 'Unknown')}: "
-                            f"Retrieved plot ({len(plot)} chars)"
+                            f"Retrieved plot ({len(cleaned_plot)} chars)"
                         )
                 else:
                     # Fallback to summary if plot not found
                     if hasattr(page, 'summary') and page.summary:
-                        df.at[idx, 'plot'] = page.summary
+                        cleaned_summary = clean_plot_text(page.summary)
+                        df.at[idx, 'plot'] = cleaned_summary
                         if verbose:
                             logger.debug(
                                 f"Year {year}, {row.get('title', 'Unknown')}: "
@@ -580,6 +636,16 @@ async def run_pipeline(
     """
     Run the complete data pipeline.
     
+    The pipeline is designed to be flexible and incremental:
+    - Step 1 (Wikidata): Only fetches years where CSV files don't exist (unless force_refresh=True)
+    - Step 2 (MovieDB): Only processes movies that don't already have TMDb data (checks 'popularity' column)
+    - Step 3 (Wikipedia): Only processes movies that don't already have plots
+    - Step 4 (Embeddings): Only processes years where embedding files don't exist
+    
+    Example: If you delete CSV files for 1950 and 1951, only those years will be
+    re-fetched from Wikidata and enriched with MovieDB data. Years 1952+ that already
+    have MovieDB data will be skipped.
+    
     Args:
         start_year: First year to process
         end_year: Last year to process
@@ -599,6 +665,22 @@ async def run_pipeline(
     logger.info("=" * 80)
     logger.info(f"Years: {start_year} to {end_year}")
     logger.info(f"Movies per year: {movies_per_year}")
+    logger.info("")
+    
+    # Pre-scan: Check which years have existing CSV files
+    existing_years = []
+    missing_years = []
+    for year in range(start_year, end_year + 1):
+        csv_path = get_csv_path(year)
+        if os.path.exists(csv_path):
+            existing_years.append(year)
+        else:
+            missing_years.append(year)
+    
+    if existing_years:
+        logger.info(f"Found existing CSV files for {len(existing_years)} years: {existing_years[:5]}{'...' if len(existing_years) > 5 else ''}")
+    if missing_years:
+        logger.info(f"Missing CSV files for {len(missing_years)} years (will be fetched): {missing_years}")
     logger.info("")
     
     # Step 1: Wikidata
