@@ -543,7 +543,8 @@ async def fetch_movies_for_years(
     start_year: int,
     end_year: int,
     verbose: bool = False,
-    delay: float = 0.5
+    delay: float = 0.5,
+    save_per_year: bool = False
 ) -> List[Dict[str, Optional[str]]]:
     """
     Fetch movies for multiple years with rate limiting to avoid 429 errors.
@@ -554,6 +555,7 @@ async def fetch_movies_for_years(
         end_year: Last year to query (inclusive)
         verbose: Whether to print progress messages (default: False)
         delay: Delay in seconds between year requests (default: 0.5)
+        save_per_year: If True, save a CSV file after each year is processed (default: False)
 
     Returns:
         List of all movies from all years
@@ -563,6 +565,12 @@ async def fetch_movies_for_years(
         for year in range(start_year, end_year + 1):
             movies = await get_movies_by_year(session, year, movies_per_year, verbose=verbose)
             all_movies.extend(movies)
+            
+            # Save CSV file for this year if requested
+            if save_per_year and movies:
+                filename = f'wikidata_movies_{year}.csv'
+                save_movies_to_csv(movies, filename=filename)
+                logger.info(f"Saved {len(movies)} movies for year {year} to {filename}")
             
             # Delay between requests to avoid rate limiting
             if delay > 0 and year < end_year:
@@ -610,7 +618,8 @@ async def fetch_movies(
     end_year: int = 2024,
     verbose: bool = True,
     delay: float = 0.5,
-    show_available_counts: bool = False
+    show_available_counts: bool = False,
+    save_per_year: bool = False
 ) -> List[Dict[str, Optional[str]]]:
     """
     Main function to fetch movies from Wikidata for a range of years.
@@ -623,6 +632,7 @@ async def fetch_movies(
         delay: Delay in seconds between year requests (default: 0.5)
         show_available_counts: If True, first count available movies for each year
                               before fetching (default: False)
+        save_per_year: If True, save a CSV file after each year is processed (default: False)
 
     Returns:
         List of dictionaries containing movie information
@@ -639,7 +649,7 @@ async def fetch_movies(
     
     logger.info(f"Fetching top {movies_per_year} most popular movies per year ({start_year}-{end_year})")
     
-    all_movies = await fetch_movies_for_years(movies_per_year, start_year, end_year, verbose=verbose, delay=delay)
+    all_movies = await fetch_movies_for_years(movies_per_year, start_year, end_year, verbose=verbose, delay=delay, save_per_year=save_per_year)
 
     total_years = end_year - start_year + 1
     expected_max = movies_per_year * total_years
@@ -696,7 +706,7 @@ def save_movies_to_csv(
     logger.info(f"Saved {len(movies)} movies to {filename}")
 
 
-async def main(movies_per_year: int = 50, start_year: int = 1950, end_year: int = 2024, show_counts: bool = False):
+async def main(movies_per_year: int = 50, start_year: int = 1950, end_year: int = 2024, show_counts: bool = False, save_per_year: bool = True):
     """
     Example main function that fetches movies and saves them to CSV.
 
@@ -705,15 +715,21 @@ async def main(movies_per_year: int = 50, start_year: int = 1950, end_year: int 
         start_year: First year to query
         end_year: Last year to query
         show_counts: If True, show how many movies are available before fetching
+        save_per_year: If True, save a CSV file for each year (default: True)
     """
     movies = await fetch_movies(
         movies_per_year, 
         start_year, 
         end_year, 
         show_available_counts=show_counts,
-        verbose=True # Enable verbose logging for main execution
+        verbose=True, # Enable verbose logging for main execution
+        save_per_year=save_per_year
     )
-    save_movies_to_csv(movies, filename=f'wikidata_movies_{start_year}_to_{end_year}.csv')
+    
+    # Also save combined file if save_per_year is enabled
+    if save_per_year:
+        save_movies_to_csv(movies, filename=f'wikidata_movies_{start_year}_to_{end_year}.csv')
+        logger.info(f"Also saved combined file with {len(movies)} movies from all years")
 
 
 if __name__ == "__main__":
@@ -736,7 +752,7 @@ if __name__ == "__main__":
     # print("\nTo use this function programmatically, uncomment the code below.\n")
     
     # Fetches up to 1000 movies per year for 2023 and 2024.
-    asyncio.run(main(movies_per_year=1000, start_year=2023, end_year=2024))
+    asyncio.run(main(movies_per_year=8000, start_year=1950, end_year=2024))
     
     # Count all years since 1950 and make a plot, then save the figure.
     # import matplotlib.pyplot as plt
@@ -765,3 +781,5 @@ if __name__ == "__main__":
 
     # total = 1800+1619+1568+1696+1635+1646+1669+1800+1877+1819+1893+1857+1905+1884+2208+2091+2123+2339+2435+2577+2611+2730+2866+2862+3055+2908+2883+3037+3069+3192+3360+3008+3017+2893+3027+3132+3031+3157+3118+3253+3001+2997+2881+2840+2819+2883+2865+3044+3084+3286+3411+3750+3883+4249+4472+5015+5522+5690+5956+6085+6056+6048+6444+6718+6690+6725+8589+6179+6045+5583+3667+3822+4062+3721+3200
     # total = 259932
+
+    # nohup python src/api/wikidata_handler.py > wikidata_handler.log 2>&1 &

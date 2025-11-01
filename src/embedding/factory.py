@@ -21,7 +21,18 @@ import os
 import csv
 import numpy as np
 import torch
-from embedding import EmbeddingService
+
+# Handle imports - try relative import first (when used as module), then absolute (when run directly)
+try:
+    from .embedding import EmbeddingService
+except ImportError:
+    # If relative import fails, try absolute import (when run as script)
+    try:
+        from embedding.embedding import EmbeddingService
+    except ImportError:
+        # Add parent directory to path if needed
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from embedding.embedding import EmbeddingService
 
 # --- Configuration ---
 # Specify the model you wish to use. 'BAAI/bge-m3' is recommended
