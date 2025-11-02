@@ -109,19 +109,70 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
             logger.info(f"Encoding complete. Time taken: {duration:.2f} seconds")
             logger.info(f"Throughput: {docs_per_sec:.2f} docs/sec")
             
+            # Log the raw output structure for debugging
+            if output is None:
+                logger.error("FlagEmbedding model.encode() returned None")
+                return {}
+            
+            # Check if output is a dictionary
+            if not isinstance(output, dict):
+                logger.error(f"FlagEmbedding model.encode() returned non-dict type: {type(output)}. Expected dict.")
+                # Try to convert to dict if it's a tuple or has attributes
+                if isinstance(output, tuple) and len(output) > 0:
+                    logger.warning(f"Output is a tuple with {len(output)} elements. Attempting to extract first element as dense embeddings.")
+                    # If it's a tuple, the first element is usually the dense embeddings
+                    dense_val = output[0]
+                    if isinstance(dense_val, torch.Tensor):
+                        return {'dense': dense_val.cpu().numpy()}
+                    elif isinstance(dense_val, np.ndarray):
+                        return {'dense': dense_val}
+                    else:
+                        logger.error(f"First element of tuple is unexpected type: {type(dense_val)}")
+                        return {}
+                else:
+                    return {}
+            
+            logger.info(f"Raw output type: {type(output)}, keys: {list(output.keys())}")
+            
             # Convert tensors to numpy arrays and return dictionary
             result = {}
             for key, value in output.items():
                 if isinstance(value, torch.Tensor):
-                    result[key] = value.cpu().numpy()
+                    numpy_value = value.cpu().numpy()
+                    result[key] = numpy_value
+                    logger.debug(f"Converted tensor '{key}' to numpy array with shape: {numpy_value.shape}")
                 elif isinstance(value, np.ndarray):
                     result[key] = value
+                    logger.debug(f"Key '{key}' is already numpy array with shape: {value.shape}")
                 elif isinstance(value, list):
                     # Handle sparse embeddings which might be lists of dicts
                     result[key] = value
+                    logger.debug(f"Key '{key}' is a list with length: {len(value)}")
                 else:
                     logger.warning(f"Unexpected output type for key '{key}': {type(value)}")
                     result[key] = value
+            
+            logger.info(f"Returning result dictionary with keys: {list(result.keys())}")
+            for key, value in result.items():
+                if isinstance(value, np.ndarray):
+                    if value.size == 0:
+                        logger.warning(f"  {key}: numpy array is EMPTY (shape: {value.shape})")
+                    else:
+                        logger.info(f"  {key}: numpy array with shape {value.shape}, dtype {value.dtype}")
+                elif value is None:
+                    logger.warning(f"  {key}: value is None")
+                else:
+                    logger.info(f"  {key}: {type(value)}")
+            
+            # Validate that we have at least one non-empty numpy array
+            has_valid_embedding = False
+            for key, value in result.items():
+                if isinstance(value, np.ndarray) and value.size > 0:
+                    has_valid_embedding = True
+                    break
+            
+            if not has_valid_embedding:
+                logger.error("Result dictionary contains no valid (non-empty) embeddings arrays!")
             
             return result
         

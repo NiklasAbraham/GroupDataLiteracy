@@ -109,8 +109,13 @@ class SentenceTransformerStrategy(AbstractEmbeddingStrategy):
         finally:
             # Always ensure the pool is stopped
             if self.pool:
-                logger.info("Stopping multi-process pool...")
-                self.model.stop_multi_process_pool(self.pool)
-                self.pool = None
-                logger.info("Pool stopped.")
+                try:
+                    logger.info("Stopping multi-process pool...")
+                    self.model.stop_multi_process_pool(self.pool)
+                    self.pool = None
+                    logger.info("Pool stopped.")
+                except Exception as e:
+                    logger.error(f"Error stopping multiprocessing pool: {e}")
+                    # Force cleanup by setting to None even if stop failed
+                    self.pool = None
 

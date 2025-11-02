@@ -19,6 +19,7 @@ import re
 import pandas as pd
 import numpy as np
 import logging
+import atexit
 from typing import List, Dict, Optional, Set, Tuple
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -63,6 +64,29 @@ except NameError:
 
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 
+# Global reference for cleanup
+_embedding_service_instance = None
+
+def _cleanup_multiprocessing_resources():
+    """Cleanup function called at exit to free multiprocessing resources."""
+    global _embedding_service_instance
+    if _embedding_service_instance is not None:
+        try:
+            _embedding_service_instance.cleanup()
+        except Exception:
+            pass
+    
+    # Clean up any remaining multiprocessing resources
+    try:
+        import multiprocessing
+        # Force cleanup of any remaining shared resources
+        multiprocessing.active_children()  # Wait for any remaining processes
+    except Exception:
+        pass
+
+# Register cleanup function
+atexit.register(_cleanup_multiprocessing_resources)
+
 # ============================================================================
 # CONFIGURATION VARIABLES
 # ============================================================================
@@ -86,7 +110,7 @@ VERBOSE = True
 
 # Embedding configuration
 MODEL_NAME = 'BAAI/bge-m3'
-BATCH_SIZE = 128
+BATCH_SIZE = 512
 # Target devices for embeddings (None = auto-detect, or specify like ['cuda:0', 'cuda:1'])
 TARGET_DEVICES = None
 
@@ -597,8 +621,10 @@ def step4_embeddings(
         logger.warning(f"Error during GPU setup verification: {e}. Continuing with available devices...")
     
     # Initialize embedding service
+    global _embedding_service_instance
     try:
         embedding_service = EmbeddingService(model_name=model_name)
+        _embedding_service_instance = embedding_service  # Store for cleanup
         logger.info(f"Initialized embedding service with model: {model_name}")
     except Exception as e:
         logger.error(f"Failed to initialize embedding service: {e}")
@@ -713,6 +739,13 @@ def step4_embeddings(
         except Exception as e:
             logger.error(f"Year {year}: Error generating embeddings - {e}", exc_info=verbose)
             continue
+    
+    # Clean up embedding service resources
+    try:
+        embedding_service.cleanup()
+        logger.info("Cleaned up embedding service resources")
+    except Exception as e:
+        logger.warning(f"Error during embedding service cleanup: {e}")
     
     logger.info("Step 4 completed: Embedding generation finished")
 

@@ -72,6 +72,38 @@ class EmbeddingService:
         
         logger.info(f"EmbeddingService initialized with {self.strategy.__class__.__name__}")
 
+    def cleanup(self):
+        """
+        Clean up any multiprocessing resources (pools, semaphores, etc.).
+        This should be called when done with the service to prevent resource leaks.
+        """
+        if hasattr(self.strategy, 'pool') and self.strategy.pool is not None:
+            try:
+                if hasattr(self.strategy.model, 'stop_multi_process_pool'):
+                    logger.info("Cleaning up multiprocessing pool...")
+                    self.strategy.model.stop_multi_process_pool(self.strategy.pool)
+                    self.strategy.pool = None
+                    logger.info("Multiprocessing pool cleaned up")
+            except Exception as e:
+                logger.warning(f"Error cleaning up multiprocessing pool: {e}")
+        
+        # Clean up model resources
+        if hasattr(self.strategy, 'model') and self.strategy.model is not None:
+            try:
+                # Clear CUDA cache if using GPU
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception as e:
+                logger.warning(f"Error clearing CUDA cache: {e}")
+
+    def __del__(self):
+        """Cleanup when object is destroyed."""
+        try:
+            self.cleanup()
+        except Exception:
+            pass  # Ignore errors during cleanup
+
     def encode_parallel(self,
                         corpus: list[str],
                         target_devices: list[str],
@@ -93,7 +125,39 @@ class EmbeddingService:
         """
         # For backwards compatibility, extract dense embeddings
         results = self.encode_corpus(corpus, batch_size)
-        return results.get('dense', np.array([]))
+        
+        # Log what keys are available for debugging
+        if not results:
+            logger.error(f"encode_corpus returned empty dictionary. Expected keys: 'dense', 'sparse', 'colbert_vecs'")
+            return np.array([])
+        
+        logger.info(f"encode_corpus returned keys: {list(results.keys())}")
+        
+        # Try to get dense embeddings - check multiple possible key names
+        # FlagEmbedding returns 'dense_vecs', other models may return 'dense'
+        dense_embeddings = None
+        for key in ['dense_vecs', 'dense', 'dense_embedding']:
+            if key in results:
+                dense_embeddings = results[key]
+                logger.info(f"Found dense embeddings under key '{key}' with shape: {dense_embeddings.shape if hasattr(dense_embeddings, 'shape') else type(dense_embeddings)}")
+                break
+        
+        if dense_embeddings is None:
+            logger.error(f"Dense embeddings not found. Available keys: {list(results.keys())}")
+            # If there's only one key, use it as a fallback
+            if len(results) == 1:
+                key = list(results.keys())[0]
+                logger.warning(f"Using '{key}' as fallback for dense embeddings")
+                dense_embeddings = results[key]
+            else:
+                return np.array([])
+        
+        # Ensure it's a numpy array
+        if not isinstance(dense_embeddings, np.ndarray):
+            logger.error(f"Dense embeddings is not a numpy array: {type(dense_embeddings)}")
+            return np.array([])
+        
+        return dense_embeddings
 
     def encode_corpus(self, corpus: list[str], batch_size: int = 128) -> dict[str, np.ndarray]:
         """
