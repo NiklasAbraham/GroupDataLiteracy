@@ -26,12 +26,15 @@ GroupDataLiteracy/
 │   ├── embedding/                 # Embedding generation module
 │   │   ├── embedding.py          # EmbeddingService class for parallel GPU encoding
 │   │   └── factory.py            # Main pipeline script for generating embeddings
-│   └── data_pipline.py           # Data processing pipeline
+│   ├── data_pipline.py           # Data processing pipeline
+|   └── data_utils.py             # Utility methods for data loading
 │
-├── ansel_test.ipynb              # Testing notebooks
-├── wikidata_vibecoded.ipynb      # Wikidata exploration notebook
-├── wikipedia_example.py          # Wikipedia API usage examples
-└── PresentationDeutscheBahn.md   # Project presentation notes
+├── report/                       # bib and tex files for final report
+├── .gitignore                    # gitignore
+├── environment.yml               # Conda requirements 
+├── requirements.txt              # Pip requirements
+├── .env                          # Environment variables (gitignored)
+└── .env.example                  # Project presentation notes
 ```
 
 ### Folder Structure Rationale
@@ -86,3 +89,10 @@ pip install -r requirements.txt
 conda env create -f environment.yml
 conda activate dataLiteracy
 ```
+
+## Loading data
+Helper methods have been created in `GroupDataLiteracy/src/data_utils.py`.
+
+Use `load_movie_embeddings` to get an ordered array of embeddings and the respective ordered array of movie IDs. 
+
+Use `load_movie_data` to get a pd.DataFrame of movie features. The embeddings can be joined if needed using the movie_id column.
