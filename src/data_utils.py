@@ -60,6 +60,14 @@ def load_movie_embeddings(
 def load_movie_data_1(data_dir, verbose=False):
     """
     Loads movie features, e.g. Year, Director, Rating, etc.
+    
+    DIFFERENCE FROM load_movie_data:
+    - Uses hardcoded year range (1950-2024) and expects files named wikidata_movies_YYYY.csv
+    - Only loads 3 specific columns: movie_id, genre, title
+    - Simpler implementation with less error handling
+    - Less flexible: cannot handle year range files (e.g., "1950_to_2024.csv")
+    
+    Use load_movie_data() instead for more robust file discovery and full column loading.
 
     Parameters:
     - data_dir: absolute path of data_final folder
@@ -117,6 +125,15 @@ def find_year_files(data_dir: str) -> Dict[int, str]:
 def load_movie_data(data_dir: str, verbose: bool = False) -> pd.DataFrame:
     """
     Loads movie features, e.g. Year, Director, Rating, etc.
+    
+    DIFFERENCE FROM load_movie_data_1:
+    - Dynamically discovers CSV files using find_year_files() instead of hardcoded year range
+    - Loads ALL columns from CSV files (not just movie_id, genre, title)
+    - Can handle year range files (e.g., "wikidata_movies_1950_to_2024.csv")
+    - More robust error handling with try/except blocks
+    - Better verbose output showing which files were loaded
+    
+    This is the recommended function to use for loading movie data.
 
     Parameters:
     - data_dir: absolute path of data_final folder

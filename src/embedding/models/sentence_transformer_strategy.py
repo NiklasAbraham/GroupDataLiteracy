@@ -87,7 +87,7 @@ class SentenceTransformerStrategy(AbstractEmbeddingStrategy):
             start_time = time.time()
             
             # Encode the corpus in parallel
-            embeddings = self.model.encode_multi_process(
+            embeddings = self.model.encode(
                 sentences=corpus,
                 pool=self.pool,
                 batch_size=batch_size,

@@ -107,7 +107,8 @@ class EmbeddingService:
     def encode_parallel(self,
                         corpus: list[str],
                         target_devices: list[str],
-                        batch_size: int = 128) -> np.ndarray:
+                        batch_size: int = 128,
+                        chunk_size: int = None) -> np.ndarray:
         """
         Encodes a large corpus of text in parallel across specified GPUs.
         
