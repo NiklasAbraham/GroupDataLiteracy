@@ -47,7 +47,7 @@ from api.moviedb_handler import (
 )
 from api.wikipedia_handler import fetch_plot_from_url
 from embedding.embedding import EmbeddingService
-from embedding.factory import verify_gpu_setup, verify_embeddings
+from embedding.util_embeddings import verify_gpu_setup, verify_embeddings
 
 # Setup logging
 logging.basicConfig(
@@ -591,29 +591,19 @@ def step4_embeddings(
                 target_devices = ['cpu']
                 logger.warning("No CUDA devices found, using CPU (this will be slow)")
         
-        # Verify GPU setup using factory (only if not using CPU)
-        # Note: verify_gpu_setup may modify TARGET_DEVICES in factory module, but we use our own variable
+        # Verify GPU setup using utility function (only if not using CPU)
         if target_devices != ['cpu']:
-            # Temporarily set factory's TARGET_DEVICES for verification
-            import embedding.factory as factory_module
-            original_devices = getattr(factory_module, 'TARGET_DEVICES', None)
-            factory_module.TARGET_DEVICES = target_devices
             try:
-                # verify_gpu_setup may adjust the devices, so update our target_devices if needed
-                verify_gpu_setup()
-                # If factory adjusted devices, use the adjusted list
-                if factory_module.TARGET_DEVICES != target_devices:
-                    target_devices = factory_module.TARGET_DEVICES
+                # verify_gpu_setup returns adjusted devices
+                adjusted_devices = verify_gpu_setup(target_devices)
+                if adjusted_devices != target_devices:
+                    target_devices = adjusted_devices
                     logger.info(f"GPU setup adjusted devices to: {target_devices}")
             except SystemExit:
                 # verify_gpu_setup calls sys.exit(1) if CUDA is required but not available
                 # In pipeline, we'll fall back to CPU instead
-                logger.warning("Factory GPU verification failed, falling back to CPU")
+                logger.warning("GPU verification failed, falling back to CPU")
                 target_devices = ['cpu']
-            finally:
-                # Restore original if it existed
-                if original_devices is not None:
-                    factory_module.TARGET_DEVICES = original_devices
     except ImportError:
         logger.warning("PyTorch not available, using CPU")
         target_devices = ['cpu']
@@ -723,7 +713,7 @@ def step4_embeddings(
             end_time = time.time()
             duration = end_time - start_time
             
-            # Verify embeddings using factory's verification function
+            # Verify embeddings using utility function
             if verify_embeddings(embeddings, plots):
                 # Save embeddings with corresponding movie_ids
                 # Embeddings[i] corresponds to movie_ids_with_plots[i]
