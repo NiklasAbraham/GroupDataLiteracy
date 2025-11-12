@@ -31,7 +31,16 @@ GroupDataLiteracy/
 │   │   ├── stats_analysis.ipynb  # Statistical analysis
 │   │   ├── embedding_vs_feature_per_year.ipynb  # Embedding analysis
 │   │   ├── stats_data.py         # Statistical data utilities
-│   │   └── tokenizer.py          # Tokenization utilities
+│   │   ├── tokenizer.py          # Tokenization utilities
+│   │   └── chunking/             # Embedding bias-variance experiment
+│   │       ├── chunk_base_class.py  # Abstract base class for chunking methods
+│   │       ├── chunk_mean_pooling.py  # Mean pooling implementation
+│   │       ├── chunk_no_chunking_cls_token.py  # CLS token implementation
+│   │       ├── chunk_first_then_embed.py  # Chunk-first embedding
+│   │       ├── chunk_late_chunking.py  # Late chunking implementation
+│   │       ├── calculations.py  # Metrics and analysis functions
+│   │       ├── manager.py  # Experiment orchestration
+│   │       └── test_experiment.py  # Simple test script
 │   ├── embedding/                 # Embedding generation module
 │   │   ├── embedding.py          # EmbeddingService class for parallel GPU encoding
 │   │   ├── util_embeddings.py    # Utility functions for GPU verification and embedding validation
@@ -56,6 +65,8 @@ GroupDataLiteracy/
 │   ├── icml2025.sty             # ICML 2025 style file
 │   └── icml2025.bst             # Bibliography style
 │
+├── outputs/                      # Experiment outputs directory
+│   └── experiment_*/            # Timestamped experiment results
 ├── .gitignore                    # Git ignore rules
 ├── environment.yml               # Conda environment specification
 ├── requirements.txt              # Pip requirements
@@ -85,6 +96,7 @@ The project follows a clear separation of concerns:
     - `load_embeddings.py`: Utilities for loading and verifying embeddings
     - `models/`: Strategy pattern implementation for different embedding models
   - **`analysis/`**: Notebooks and scripts for data analysis, verification, and visualization
+    - `chunking/`: Experimental framework for comparing document embedding aggregation methods (bias-variance analysis)
   - **Root level scripts**:
     - `data_pipeline.py`: Main orchestrator that runs the complete pipeline (Wikidata → MovieDB → Wikipedia → Embeddings)
     - `data_utils.py`: Helper functions for loading movie data and embeddings
@@ -175,3 +187,87 @@ data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
 embeddings, movie_ids = load_movie_embeddings(data_dir, verbose=True)
 movie_data = load_movie_data(data_dir, verbose=True)
 ```
+
+## Embedding Bias-Variance Experiment
+
+The `src/analysis/chunking/` module implements an experimental framework to quantitatively compare document embedding aggregation methods on the movie corpus.
+
+### Methods Implemented
+
+1. **MeanPooling** - Global mean of all token embeddings
+2. **CLSToken** - Use final-layer CLS representation  
+3. **ChunkFirstEmbed** - Classical early chunking: split text, embed chunks independently, pool afterwards
+4. **LateChunking** - Embed full text once, then pool hidden states over overlapping windows
+
+### Metrics Computed
+
+1. **Length-Norm Correlation** - Pearson correlation between text length and embedding L2 norm
+2. **Isotropy (PCA)** - Percentage of variance explained by first principal component
+3. **Within-Film Variance** - Mean intra-film variance for multi-segment texts
+4. **Between-Film Distance** - Mean cosine distance between random pairs of films
+5. **Genre Clustering Quality** - Silhouette score using known genre labels
+6. **Temporal Drift Stability** - Cosine shifts of anchor films across decades
+
+### Running the Experiment
+
+#### Quick Test (10 movies)
+
+```bash
+# Activate conda environment first
+conda activate dataLiteracy
+
+# Run test
+cd /home/nab/GroupDataLiteracy
+python src/analysis/chunking/test_experiment.py
+```
+
+#### Full Experiment
+
+Edit configuration parameters in `src/analysis/chunking/manager.py`:
+- `N_MOVIES`: Number of movies to process (default: 1000)
+- `BATCH_SIZE`: Batch size for embedding processing (default: 128)
+- `MODEL_NAME`: Embedding model to use (default: "BAAI/bge-m3")
+- `RANDOM_SEED`: Random seed for reproducibility (default: 42)
+
+Then run:
+
+```bash
+# Activate conda environment
+conda activate dataLiteracy
+
+# Run experiment
+cd /home/nab/GroupDataLiteracy
+python src/analysis/chunking/manager.py
+```
+
+#### Using as a Module
+
+```python
+from analysis.chunking.manager import main
+
+# Run experiment (uses configuration in manager.py)
+metrics, embeddings = main()
+```
+
+### Output
+
+The experiment generates the following outputs in `outputs/experiment_{timestamp}/`:
+
+- `metrics.csv` - All computed metrics for each method
+- `summary_table.csv` - Summary comparison table
+- `{method}_embeddings.npy` - Embeddings for each method (MeanPooling, CLSToken, ChunkFirstEmbed, LateChunking)
+- `length_norm_corr.png` - Combined length-norm correlation comparison plot
+- `pca_isotropy.png` - Isotropy comparison
+- `variance_boxplot.png` - Variance comparison
+- `genre_silhouette.png` - Genre clustering quality
+- `drift_stability.png` - Temporal drift visualization
+
+### Batch Processing
+
+All embedding operations use batch processing for efficiency. The system is designed to:
+- Process all movies in batches (no individual GPU calls)
+- Batch all chunks together for ChunkFirstEmbed
+- Batch all texts together for LateChunking
+- Batch all segments together for within-film variance computation
+
+This ensures maximum GPU utilization and efficient processing of large datasets.
