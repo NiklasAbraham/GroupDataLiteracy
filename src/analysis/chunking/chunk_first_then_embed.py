@@ -136,7 +136,10 @@ class ChunkFirstEmbed(ChunkBase):
         if not texts:
             return np.array([])
         
+        import time
+        
         # Step 1: Chunk all texts and keep track of which chunks belong to which text
+        start_chunk = time.time()
         all_chunks = []
         
         for text_idx, text in enumerate(texts):
@@ -155,6 +158,10 @@ class ChunkFirstEmbed(ChunkBase):
             flat_chunks.extend(chunks)
             chunk_offsets.append(len(flat_chunks))
         
+        chunk_time = time.time() - start_chunk
+        if len(texts) > 100:
+            print(f"    Chunked {len(texts)} texts into {len(flat_chunks)} chunks in {chunk_time:.2f}s")
+        
         if not flat_chunks:
             # All texts are empty - return zero vectors
             dummy_result = self.embedding_service.encode_corpus(["test"], batch_size=1)
@@ -167,7 +174,13 @@ class ChunkFirstEmbed(ChunkBase):
             return np.zeros((len(texts), emb_dim))
         
         # Step 3: Embed all chunks in batches
+        if len(flat_chunks) > 100:
+            print(f"    Embedding {len(flat_chunks)} chunks in batches of {batch_size}...")
+        start_embed = time.time()
         results = self.embedding_service.encode_corpus(flat_chunks, batch_size=batch_size)
+        embed_time = time.time() - start_embed
+        if len(flat_chunks) > 100:
+            print(f"    Embedded {len(flat_chunks)} chunks in {embed_time:.2f}s ({len(flat_chunks)/embed_time:.1f} chunks/sec)")
         
         # Step 4: Extract dense embeddings for all chunks
         dense_key = None

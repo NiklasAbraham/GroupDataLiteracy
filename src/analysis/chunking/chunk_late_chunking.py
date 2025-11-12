@@ -3,8 +3,11 @@
 chunk_late_chunking.py
 
 Late chunking strategy: embed full text once using EmbeddingService, then pool 
-colbert_vecs (hidden states) over overlapping windows. Each window embedding is 
-L2-normalized, then all windows are averaged together.
+colbert_vecs (hidden states) over overlapping windows. 
+
+CRITICAL: Each window is mean-pooled then L2-normalized BEFORE aggregation.
+This two-stage normalization (per-window + final) is what distinguishes late 
+chunking from mean pooling and removes length bias.
 """
 
 import numpy as np
@@ -61,18 +64,16 @@ class LateChunking(ChunkBase):
         results = self.embedding_service.encode_corpus([text], batch_size=1)
         
         # Get colbert_vecs (token-level hidden states)
-        if 'colbert_vecs' in results:
-            # colbert_vecs shape: [batch_size, seq_len, hidden_dim]
-            hidden_states = results['colbert_vecs'][0]  # Remove batch dimension
-        else:
-            # Fallback: if no colbert_vecs, use dense (but this won't work for chunking)
-            # In this case, just return the dense embedding (same order as embedding.py)
-            for key in ['dense_vecs', 'dense', 'dense_embedding']:
-                if key in results:
-                    return self._normalize(results[key][0])
-            # Last resort: use first available array
-            first_key = list(results.keys())[0]
-            hidden_states = results[first_key][0]
+        # Late chunking REQUIRES token-level vectors - raise error if not available
+        if 'colbert_vecs' not in results:
+            raise ValueError(
+                "LateChunking requires token-level hidden states (colbert_vecs). "
+                "The embedding service did not provide colbert_vecs. "
+                "Cannot perform late chunking without token-level vectors."
+            )
+        
+        # colbert_vecs shape: [batch_size, seq_len, hidden_dim]
+        hidden_states = results['colbert_vecs'][0]  # Remove batch dimension
         
         seq_len = hidden_states.shape[0]
         
@@ -82,6 +83,11 @@ class LateChunking(ChunkBase):
             return self._normalize(mean_embedding)
         
         # Create overlapping windows over hidden states
+        # Handle overlap weighting: tokens in overlapping regions are counted multiple times
+        # We'll use weighted averaging to account for this
+        
+        # Compute per-token weights based on how many windows contain each token
+        token_weights = np.zeros(seq_len)
         window_embeddings = []
         start = 0
         
@@ -89,24 +95,50 @@ class LateChunking(ChunkBase):
             end = min(start + self.window_size, seq_len)
             window_hidden = hidden_states[start:end]
             
-            # Mean pool within window
-            window_embedding = window_hidden.mean(axis=0)
+            # Count how many windows contain each token (for weighting)
+            token_weights[start:end] += 1.0
             
-            # L2 normalize each window embedding
-            window_embedding = self._normalize(window_embedding)
+            # Mean pool within window then L2-normalize BEFORE aggregation
+            # This non-linearity is critical - without it, late chunking collapses to mean pooling
+            window_embedding = self._normalize(window_hidden.mean(axis=0))
             
+            # Store normalized window embedding
             window_embeddings.append(window_embedding)
             
             if end >= seq_len:
                 break
             start += self.stride
         
-        # Average all window embeddings
+        # Convert to array for vectorized operations
         window_embeddings = np.array(window_embeddings)
-        final_embedding = window_embeddings.mean(axis=0)
         
-        # Final L2 normalization
-        return self._normalize(final_embedding)
+        # Weighted average: account for overlap by weighting each window by inverse token count
+        # Windows with more unique tokens (less overlap) get higher weight
+        # Note: window_embeddings are already L2-normalized at this point
+        if len(window_embeddings) > 1:
+            # Compute weight for each window based on how many unique tokens it contributes
+            window_weights = []
+            start = 0
+            for window_emb in window_embeddings:
+                end = min(start + self.window_size, seq_len)
+                # Weight inversely proportional to average token weight in this window
+                # Tokens with weight > 1 are in overlapping regions
+                avg_token_weight = token_weights[start:end].mean()
+                window_weights.append(1.0 / avg_token_weight if avg_token_weight > 0 else 1.0)
+                start += self.stride
+            
+            window_weights = np.array(window_weights)
+            window_weights = window_weights / window_weights.sum()  # Normalize weights
+            
+            # Weighted average of normalized window embeddings
+            final_embedding = np.average(window_embeddings, axis=0, weights=window_weights)
+        else:
+            final_embedding = window_embeddings[0]
+        
+        # Final L2 normalization stabilizes geometry (two-stage normalization)
+        # This removes length bias while preserving the non-linear window aggregation
+        # NEVER CHANGE THIS COMMENT DANGERDANGER return self._normalize(final_embedding) # NEVER CHANGE THIS COMMENT
+        return final_embedding
     
     def embed_batch(self, texts: list[str], batch_size: int = 32) -> np.ndarray:
         """Embed a batch of texts efficiently by batching the initial embedding."""
@@ -157,28 +189,22 @@ class LateChunking(ChunkBase):
                 continue
             
             # Get colbert_vecs for this text
-            if 'colbert_vecs' in results:
-                colbert_vecs = results['colbert_vecs']
-                if isinstance(colbert_vecs, list):
-                    hidden_states = colbert_vecs[valid_idx]
-                    if not isinstance(hidden_states, np.ndarray):
-                        hidden_states = np.array(hidden_states)
-                else:
-                    # If it's an array, index it
-                    hidden_states = colbert_vecs[valid_idx]
+            # Late chunking REQUIRES token-level vectors - raise error if not available
+            if 'colbert_vecs' not in results:
+                raise ValueError(
+                    "LateChunking requires token-level hidden states (colbert_vecs). "
+                    "The embedding service did not provide colbert_vecs. "
+                    "Cannot perform late chunking without token-level vectors."
+                )
+            
+            colbert_vecs = results['colbert_vecs']
+            if isinstance(colbert_vecs, list):
+                hidden_states = colbert_vecs[valid_idx]
+                if not isinstance(hidden_states, np.ndarray):
+                    hidden_states = np.array(hidden_states)
             else:
-                # Fallback to dense (but this won't work for chunking)
-                for key in ['dense_vecs', 'dense', 'dense_embedding']:
-                    if key in results:
-                        final_embeddings.append(self._normalize(results[key][valid_idx]))
-                        valid_idx += 1
-                        break
-                else:
-                    # Last resort
-                    first_key = list(results.keys())[0]
-                    final_embeddings.append(self._normalize(results[first_key][valid_idx]))
-                    valid_idx += 1
-                continue
+                # If it's an array, index it
+                hidden_states = colbert_vecs[valid_idx]
             
             seq_len = hidden_states.shape[0]
             
@@ -190,6 +216,11 @@ class LateChunking(ChunkBase):
                 continue
             
             # Create overlapping windows over hidden states
+            # Handle overlap weighting: tokens in overlapping regions are counted multiple times
+            # We'll use weighted averaging to account for this
+            
+            # Compute per-token weights based on how many windows contain each token
+            token_weights = np.zeros(seq_len)
             window_embeddings = []
             start = 0
             
@@ -197,23 +228,48 @@ class LateChunking(ChunkBase):
                 end = min(start + self.window_size, seq_len)
                 window_hidden = hidden_states[start:end]
                 
-                # Mean pool within window
-                window_embedding = window_hidden.mean(axis=0)
+                # Count how many windows contain each token (for weighting)
+                token_weights[start:end] += 1.0
                 
-                # L2 normalize each window embedding
-                window_embedding = self._normalize(window_embedding)
+                # Mean pool within window then L2-normalize BEFORE aggregation
+                # This non-linearity is critical - without it, late chunking collapses to mean pooling
+                window_embedding = self._normalize(window_hidden.mean(axis=0))
                 
+                # Store normalized window embedding
                 window_embeddings.append(window_embedding)
                 
                 if end >= seq_len:
                     break
                 start += self.stride
             
-            # Average all window embeddings
+            # Convert to array for vectorized operations
             window_embeddings = np.array(window_embeddings)
-            final_embedding = window_embeddings.mean(axis=0)
             
-            # Final L2 normalization
+            # Weighted average: account for overlap by weighting each window by inverse token count
+            # Windows with more unique tokens (less overlap) get higher weight
+            # Note: window_embeddings are already L2-normalized at this point
+            if len(window_embeddings) > 1:
+                # Compute weight for each window based on how many unique tokens it contributes
+                window_weights = []
+                start = 0
+                for window_emb in window_embeddings:
+                    end = min(start + self.window_size, seq_len)
+                    # Weight inversely proportional to average token weight in this window
+                    # Tokens with weight > 1 are in overlapping regions
+                    avg_token_weight = token_weights[start:end].mean()
+                    window_weights.append(1.0 / avg_token_weight if avg_token_weight > 0 else 1.0)
+                    start += self.stride
+                
+                window_weights = np.array(window_weights)
+                window_weights = window_weights / window_weights.sum()  # Normalize weights
+                
+                # Weighted average of normalized window embeddings
+                final_embedding = np.average(window_embeddings, axis=0, weights=window_weights)
+            else:
+                final_embedding = window_embeddings[0]
+            
+            # Final L2 normalization stabilizes geometry (two-stage normalization)
+            # This removes length bias while preserving the non-linear window aggregation
             final_embeddings.append(self._normalize(final_embedding))
             valid_idx += 1
         

@@ -178,9 +178,10 @@ In this section, describe \emph{what you did}. Roughly speaking, explain what da
 
   % Tokens inside each chunk
   \foreach \j in {1,...,3}{
+    \pgfmathparse{int((\i-1)*3+\j)}
     \node[fill=green!30, minimum size=3.2mm, inner sep=0pt,
           below=2mm of chunk\i.north west, anchor=north west,
-          xshift={(\j-1)*5mm}] (tb\i\j) {{\scriptsize $t_{\ifnum\i=1\relax\else\numexpr\i*3-2\fi\j}$}};
+          xshift={(\j-1)*5mm}] (tb\i\j) {{\scriptsize $t_{\pgfmathresult}$}};
   }
 
   % Encoder inside each chunk
@@ -212,7 +213,7 @@ In this section, describe \emph{what you did}. Roughly speaking, explain what da
 % -----------------------------------------------------
 % Encoder (full doc)
 \node[draw, rounded corners, minimum height=1.2cm, minimum width=2.4cm,
-      fill=orange!4, below=5.2cm of encA.west, anchor=west] (encC) 
+      align=center, fill=orange!4, below=5.2cm of encA.west, anchor=west] (encC) 
       {Long-context\\ Encoder};
 
 % All tokens (9 for sketch)

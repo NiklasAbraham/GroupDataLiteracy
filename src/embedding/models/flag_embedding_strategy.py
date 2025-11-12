@@ -24,16 +24,20 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
     which provides sparse and multi-vector embedding capabilities.
     """
     
-    def __init__(self, model_name: str, target_devices: list[str]):
+    def __init__(self, model_name: str, target_devices: list[str], max_length: int = 8192):
         """
         Initialize the FlagEmbedding strategy.
         
         Args:
             model_name (str): The name of the model to load.
             target_devices (list[str]): List of CUDA device identifiers.
+            max_length (int): Maximum sequence length for encoding. Defaults to 8192
+                            (BGE-M3's maximum context window). Set to None to use
+                            FlagEmbedding's default (512).
         """
         super().__init__(model_name, target_devices)
         self.model: Optional[object] = None
+        self.max_length = max_length
     
     def load_model(self) -> None:
         """
@@ -94,13 +98,19 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
             
             # Encode using FlagEmbedding's optimized method
             # This already handles batching and (if wrapped) multi-GPU processing
-            output = self.model.encode(
-                corpus,
-                batch_size=batch_size,
-                return_dense=True,
-                return_sparse=True,
-                return_colbert_vecs=True
-            )
+            # max_length controls the maximum sequence length (default 512, BGE-M3 supports up to 8192)
+            # Note: FlagEmbedding's encode() expects 'sentences' as the first positional/keyword argument
+            encode_kwargs = {
+                'sentences': corpus,  # FlagEmbedding uses 'sentences', not 'corpus'
+                'batch_size': batch_size,
+                'return_dense': True,
+                'return_sparse': True,
+                'return_colbert_vecs': True,
+            }
+            if self.max_length is not None:
+                encode_kwargs['max_length'] = self.max_length
+            
+            output = self.model.encode(**encode_kwargs)
             
             end_time = time.time()
             duration = end_time - start_time

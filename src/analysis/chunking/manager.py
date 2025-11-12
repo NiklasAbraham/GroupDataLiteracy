@@ -37,7 +37,7 @@ from analysis.chunking.chunk_late_chunking import LateChunking
 DATA_DIR = str(BASE_DIR / "data")  # Path to data directory containing movie CSVs
 OUTPUT_DIR = None  # Path to output directory (None = auto-generate timestamped directory)
 MODEL_NAME = "BAAI/bge-m3"  # Model name to use
-N_MOVIES = 1000  # Number of movies to process
+N_MOVIES = 500  # Number of movies to process
 RANDOM_SEED = 42  # Random seed for reproducibility
 # ============================================================================
 
@@ -67,10 +67,48 @@ def main():
                                    model_name=MODEL_NAME),
         'CLSToken': CLSToken(embedding_service=embedding_service,
                             model_name=MODEL_NAME),
-        'ChunkFirstEmbed': ChunkFirstEmbed(embedding_service=embedding_service,
-                                           model_name=MODEL_NAME),
-        'LateChunking': LateChunking(embedding_service=embedding_service,
-                                     model_name=MODEL_NAME)
+        # ChunkFirstEmbed - processes text in chunks before embedding
+        'ChunkFirstEmbed_512_256': ChunkFirstEmbed(embedding_service=embedding_service,
+                                                   model_name=MODEL_NAME,
+                                                   chunk_size=512,
+                                                   stride=256),
+        'ChunkFirstEmbed_1024_512': ChunkFirstEmbed(embedding_service=embedding_service,
+                                                    model_name=MODEL_NAME,
+                                                    chunk_size=1024,
+                                                    stride=512),
+        'ChunkFirstEmbed_2048_1024': ChunkFirstEmbed(embedding_service=embedding_service,
+                                                     model_name=MODEL_NAME,
+                                                     chunk_size=2048,
+                                                     stride=1024),
+        'ChunkFirstEmbed_2048_512': ChunkFirstEmbed(embedding_service=embedding_service,
+                                                    model_name=MODEL_NAME,
+                                                    chunk_size=2048,
+                                                    stride=512),
+        'ChunkFirstEmbed_4096_2048': ChunkFirstEmbed(embedding_service=embedding_service,
+                                                    model_name=MODEL_NAME,
+                                                    chunk_size=4096,
+                                                    stride=2048),
+        
+        'LateChunking_512_256': LateChunking(embedding_service=embedding_service,
+                                            model_name=MODEL_NAME,
+                                            window_size=512,
+                                            stride=256),
+        'LateChunking_1024_512': LateChunking(embedding_service=embedding_service,
+                                            model_name=MODEL_NAME,
+                                            window_size=1024,
+                                            stride=512),
+        'LateChunking_2048_1024': LateChunking(embedding_service=embedding_service,
+                                            model_name=MODEL_NAME,
+                                            window_size=2048,
+                                            stride=1024),
+        'LateChunking_2048_512': LateChunking(embedding_service=embedding_service,
+                                            model_name=MODEL_NAME,
+                                            window_size=2048,
+                                            stride=512),
+        'LateChunking_4096_2048': LateChunking(embedding_service=embedding_service,
+                                            model_name=MODEL_NAME,
+                                            window_size=4096,
+                                            stride=2048),
     }
     
     print(f"Initialized {len(methods)} chunking methods")
@@ -122,7 +160,7 @@ def main():
     all_metrics = {}
     
     # Run each method
-    BATCH_SIZE = 128  # Batch size for embedding processing
+    BATCH_SIZE = 256  # Batch size for embedding processing
     
     for method_name, method_instance in methods.items():
         print(f"\n{'='*80}")
@@ -136,7 +174,12 @@ def main():
             raise ValueError(f"Method {method_name} does not implement embed_batch(). Batch processing is required.")
         
         try:
+            import time
+            start_time = time.time()
             embeddings = method_instance.embed_batch(plots, batch_size=BATCH_SIZE)
+            elapsed_time = time.time() - start_time
+            if elapsed_time > 1.0:  # Only print if it took more than 1 second
+                print(f"  ✓ Embedding completed in {elapsed_time:.2f} seconds ({len(plots)/elapsed_time:.1f} movies/sec)")
         except Exception as e:
             print(f"  ERROR: Batch processing failed for {method_name}: {e}")
             raise RuntimeError(f"Batch processing failed for {method_name}. No individual processing fallback allowed.") from e
