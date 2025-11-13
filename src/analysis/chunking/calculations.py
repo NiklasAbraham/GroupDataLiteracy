@@ -20,19 +20,29 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-def compute_length_norm_correlation(embeddings: np.ndarray, text_lengths: np.ndarray) -> float:
+def compute_length_norm_correlation(embeddings: np.ndarray, text_lengths: np.ndarray, pre_norms: np.ndarray = None) -> float:
     """
-    Compute Pearson correlation between text length and embedding L2 norm.
+    Compute Pearson correlation between text length and embedding norm.
+    If pre_norms provided, uses those (pre-L2 magnitudes). Otherwise uses post-L2 norms.
     
     Args:
         embeddings (np.ndarray): Array of embeddings [n_samples, embedding_dim]
         text_lengths (np.ndarray): Array of text lengths in tokens [n_samples]
+        pre_norms (np.ndarray, optional): Pre-L2 magnitudes [n_samples]. If provided, used instead of post-L2.
         
     Returns:
         float: Pearson correlation coefficient
     """
-    # Compute L2 norms
-    norms = np.linalg.norm(embeddings, axis=1)
+    # Use pre-L2 norms if provided, otherwise compute from embeddings
+    if pre_norms is not None and len(pre_norms) == len(embeddings):
+        norms = pre_norms
+    else:
+        # Compute L2 norms from embeddings (post-L2, should be ~1.0)
+        norms = np.linalg.norm(embeddings, axis=1)
+        
+        # Guard against constant-norm degeneracy
+        if np.allclose(norms, norms[0], rtol=1e-6, atol=1e-8):
+            return 0.0
     
     # Compute correlation
     correlation, _ = pearsonr(text_lengths, norms)
@@ -40,13 +50,51 @@ def compute_length_norm_correlation(embeddings: np.ndarray, text_lengths: np.nda
     return correlation
 
 
-def compute_isotropy(embeddings: np.ndarray) -> float:
+def _postprocess_abtt(X: np.ndarray, n_pc: int = 2) -> np.ndarray:
+    """
+    Apply All-but-the-Top (ABTT) post-processing to remove top principal components.
+    
+    This improves isotropy by removing dominant directions while preserving
+    discriminative power. Standard method from Mu et al. (2017).
+    
+    Args:
+        X (np.ndarray): Embeddings [n_samples, embedding_dim]
+        n_pc (int): Number of top PCs to remove (default: 2)
+        
+    Returns:
+        np.ndarray: Post-processed embeddings [n_samples, embedding_dim]
+    """
+    if X.shape[0] < 2:
+        return X
+    
+    # Convert to float32 for SVD (float16 is not supported by linalg)
+    X = X.astype(np.float32) if X.dtype == np.float16 else X
+    
+    # Center the embeddings
+    Xc = X - X.mean(axis=0, keepdims=True)
+    
+    # Compute SVD
+    U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+    
+    # Remove top n_pc directions
+    if n_pc > 0 and n_pc < Vt.shape[0]:
+        comps = Vt[:n_pc].T  # [embedding_dim, n_pc]
+        # Project out the top components
+        Xp = Xc - Xc @ comps @ comps.T
+    else:
+        Xp = Xc
+    
+    return Xp
+
+
+def compute_isotropy(embeddings: np.ndarray, abtt_pc: int = 0) -> float:
     """
     Compute isotropy: percentage of variance explained by first principal component.
     Lower values indicate more isotropic (uniform) embeddings.
     
     Args:
         embeddings (np.ndarray): Array of embeddings [n_samples, embedding_dim]
+        abtt_pc (int): Number of top PCs to remove via ABTT before computing isotropy (default: 0)
         
     Returns:
         float: Percentage of variance explained by first PC
@@ -54,168 +102,20 @@ def compute_isotropy(embeddings: np.ndarray) -> float:
     if embeddings.shape[0] < 2:
         return 0.0
     
+    # Convert to float32 if needed (float16 may cause issues with PCA)
+    X = embeddings.astype(np.float32) if embeddings.dtype == np.float16 else embeddings
+    
+    # Apply ABTT post-processing if requested
+    if abtt_pc > 0:
+        X = _postprocess_abtt(X, n_pc=abtt_pc)
+    
     pca = PCA(n_components=1)
-    pca.fit(embeddings)
+    pca.fit(X)
     
     # Percentage of variance explained by first PC
     variance_explained = pca.explained_variance_ratio_[0] * 100
     
     return variance_explained
-
-
-def compute_within_film_variance(embeddings: np.ndarray, film_ids: np.ndarray, 
-                                 texts: np.ndarray = None,
-                                 embedding_service = None,
-                                 batch_size: int = 128) -> float:
-    """
-    Compute mean intra-film variance by splitting each film's text into segments.
-    
-    For methods that naturally produce multiple embeddings (like chunking methods),
-    this measures the stability/variance of embeddings within the same film.
-    
-    Args:
-        embeddings (np.ndarray): Array of embeddings [n_samples, embedding_dim]
-        film_ids (np.ndarray): Array of film IDs [n_samples]
-        texts (np.ndarray, optional): Array of original texts [n_samples]
-        embedding_service: EmbeddingService instance for re-embedding segments
-        batch_size (int): Batch size for embedding segments (default: 128)
-        
-    Returns:
-        float: Mean within-film variance
-    """
-    # If we have multiple embeddings per film already, use those
-    unique_films = np.unique(film_ids)
-    within_variances = []
-    
-    # Collect films that need segmentation (single embedding per film)
-    films_needing_segmentation = []
-    film_segments_map = {}  # Maps film_id to list of segment texts
-    
-    # Pre-load tokenizer once (outside the loop)
-    tokenizer = None
-    if texts is not None and embedding_service is not None:
-        from transformers import AutoTokenizer
-        tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
-    
-    # Process films in parallel batches for tokenization
-    
-    def process_film_segmentation(film_id):
-        """Process a single film for segmentation."""
-        film_mask = film_ids == film_id
-        film_embeddings = embeddings[film_mask]
-        
-        if len(film_embeddings) > 1:
-            # Compute variance within this film (multiple embeddings already exist)
-            film_variance = np.var(film_embeddings, axis=0).mean()
-            return ('variance', film_id, film_variance)
-        elif texts is not None and embedding_service is not None and tokenizer is not None:
-            # For single-embedding-per-film: split text into segments
-            film_text_idx = np.where(film_mask)[0][0]
-            film_text = texts[film_text_idx]
-            
-            if isinstance(film_text, str) and len(film_text) > 100:
-                # Split text into 3-5 segments
-                tokens = tokenizer.tokenize(film_text)
-                
-                if len(tokens) > 200:  # Only split if text is long enough
-                    n_segments = min(5, max(3, len(tokens) // 200))
-                    segment_size = len(tokens) // n_segments
-                    
-                    segments = []
-                    for i in range(n_segments):
-                        start = i * segment_size
-                        end = start + segment_size if i < n_segments - 1 else len(tokens)
-                        segment_tokens = tokens[start:end]
-                        segment_text = tokenizer.convert_tokens_to_string(segment_tokens)
-                        
-                        if len(segment_text.strip()) > 0:
-                            segments.append(segment_text)
-                    
-                    if len(segments) > 1:
-                        return ('segments', film_id, segments)
-        return None
-    
-    # Parallelize film processing
-    if len(unique_films) > 50:  # Only parallelize for large datasets
-        print(f"    Processing {len(unique_films)} films for variance computation (parallelized)...")
-        start_seg = time.time()
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(process_film_segmentation, film_id): film_id 
-                      for film_id in unique_films}
-            
-            for future in as_completed(futures):
-                result = future.result()
-                if result is not None:
-                    result_type, film_id, data = result
-                    if result_type == 'variance':
-                        within_variances.append(data)
-                    elif result_type == 'segments':
-                        films_needing_segmentation.append(film_id)
-                        film_segments_map[film_id] = data
-        seg_time = time.time() - start_seg
-        print(f"    Processed {len(unique_films)} films in {seg_time:.2f}s")
-    else:
-        # Sequential processing for small datasets
-        for film_id in unique_films:
-            result = process_film_segmentation(film_id)
-            if result is not None:
-                result_type, film_id, data = result
-                if result_type == 'variance':
-                    within_variances.append(data)
-                elif result_type == 'segments':
-                    films_needing_segmentation.append(film_id)
-                    film_segments_map[film_id] = data
-    
-    # Batch embed all segments from all films at once
-    if films_needing_segmentation and embedding_service is not None:
-        # Collect all segments into a flat list
-        all_segments = []
-        segment_to_film = []  # Maps segment index to film_id
-        
-        for film_id in films_needing_segmentation:
-            segments = film_segments_map[film_id]
-            all_segments.extend(segments)
-            segment_to_film.extend([film_id] * len(segments))
-        
-        if all_segments:
-            try:
-                # Embed all segments in batch
-                results = embedding_service.encode_corpus(all_segments, batch_size=batch_size)
-                
-                # Extract dense embeddings
-                dense_key = None
-                for key in ['dense_vecs', 'dense', 'dense_embedding']:
-                    if key in results:
-                        dense_key = key
-                        break
-                
-                if dense_key:
-                    segment_embeddings = results[dense_key]
-                else:
-                    first_key = list(results.keys())[0]
-                    segment_embeddings = results[first_key]
-                
-                # Reassemble: group segments by film and compute variance (vectorized)
-                segment_embeddings = np.array(segment_embeddings)
-                segment_to_film = np.array(segment_to_film)
-                
-                # Compute variance for all films at once using groupby-like operations
-                for film_id in films_needing_segmentation:
-                    film_segment_mask = segment_to_film == film_id
-                    film_segment_embs = segment_embeddings[film_segment_mask]
-                    
-                    if len(film_segment_embs) > 1:
-                        # Vectorized variance computation
-                        film_variance = np.var(film_segment_embs, axis=0).mean()
-                        within_variances.append(film_variance)
-            except Exception as e:
-                # If batch embedding fails, skip variance computation for these films
-                print(f"Warning: Failed to batch embed segments for variance computation: {e}")
-    
-    if not within_variances:
-        return 0.0
-    
-    return np.mean(within_variances)
 
 
 def compute_between_film_distance(embeddings: np.ndarray, film_ids: np.ndarray, n_samples: int = 1000) -> float:
@@ -413,7 +313,8 @@ def evaluate_method(embeddings: np.ndarray,
                     method_name: str = "unknown",
                     texts: Optional[np.ndarray] = None,
                     embedding_service = None,
-                    batch_size: int = 128) -> Dict[str, float]:
+                    batch_size: int = 8,
+                    pre_norms: Optional[np.ndarray] = None) -> Dict[str, float]:
     """
     Evaluate a single embedding method and compute all metrics.
     Metrics are computed in parallel where possible.
@@ -425,9 +326,10 @@ def evaluate_method(embeddings: np.ndarray,
         genres (Optional[np.ndarray]): Array of genre labels [n_samples]
         years (Optional[np.ndarray]): Array of years [n_samples]
         method_name (str): Name of the method
-        texts (Optional[np.ndarray]): Array of original texts [n_samples] for within-film variance
-        embedding_service: EmbeddingService instance for re-embedding segments
-        batch_size (int): Batch size for embedding segments (default: 128)
+        texts (Optional[np.ndarray]): Array of original texts [n_samples] (unused, kept for compatibility)
+        embedding_service: EmbeddingService instance (unused, kept for compatibility)
+        batch_size (int): Batch size (unused, kept for compatibility)
+        pre_norms (Optional[np.ndarray]): Pre-L2 magnitudes [n_samples] for accurate length correlation
         
     Returns:
         Dict[str, float]: Dictionary of metric names to values
@@ -438,18 +340,15 @@ def evaluate_method(embeddings: np.ndarray,
     # Compute independent metrics in parallel
     with ThreadPoolExecutor(max_workers=4) as executor:
         # Submit all independent metric computations
-        future_length_norm = executor.submit(compute_length_norm_correlation, embeddings, text_lengths)
-        future_isotropy = executor.submit(compute_isotropy, embeddings)
+        future_length_norm = executor.submit(compute_length_norm_correlation, embeddings, text_lengths, pre_norms)
+        future_isotropy_raw = executor.submit(compute_isotropy, embeddings, abtt_pc=0)
+        future_isotropy_abtt2 = executor.submit(compute_isotropy, embeddings, abtt_pc=2)
         future_between = executor.submit(compute_between_film_distance, embeddings, film_ids)
-        
-        # Within-film variance needs embedding_service, so run separately
-        # COMMENTED OUT FOR NOW - too slow
-        within_variance = compute_within_film_variance(embeddings, film_ids, texts, embedding_service, batch_size)
-        #within_variance = 0.0  # Placeholder value
         
         # Get results from parallel computations
         length_norm_corr = future_length_norm.result()
-        isotropy_firstPC = future_isotropy.result()
+        isotropy_firstPC = future_isotropy_raw.result()
+        isotropy_firstPC_abtt2 = future_isotropy_abtt2.result()
         mean_between_distance = future_between.result()
     
     # Genre clustering (if available) - can be slow for large datasets, so run separately
@@ -462,7 +361,7 @@ def evaluate_method(embeddings: np.ndarray,
         'method': method_name,
         'length_norm_corr': length_norm_corr,
         'isotropy_firstPC': isotropy_firstPC,
-        'mean_within_variance': within_variance,
+        'isotropy_firstPC_abtt2': isotropy_firstPC_abtt2,
         'mean_between_distance': mean_between_distance,
         'silhouette_score': silhouette_score_val,
     }
@@ -552,47 +451,34 @@ def plot_length_norm_correlation_combined(embeddings_dict: Dict[str, np.ndarray]
 
 
 def plot_isotropy(metrics_dict: Dict[str, Dict[str, float]], output_path: str) -> None:
-    """Plot isotropy (first PC variance) for all methods."""
+    """Plot isotropy (first PC variance) for all methods, showing both raw and ABTT-2."""
     methods = list(metrics_dict.keys())
-    isotropy_values = [metrics_dict[m]['isotropy_firstPC'] for m in methods]
     
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(methods, isotropy_values, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'][:len(methods)])
+    # Get raw and ABTT-2 isotropy values
+    isotropy_raw = [metrics_dict[m].get('isotropy_firstPC', 0.0) for m in methods]
+    isotropy_abtt2 = [metrics_dict[m].get('isotropy_firstPC_abtt2', 0.0) for m in methods]
+    
+    x = np.arange(len(methods))
+    width = 0.35
+    
+    plt.figure(figsize=(12, 6))
+    bars1 = plt.bar(x - width/2, isotropy_raw, width, label='Raw', color='#1f77b4', alpha=0.8)
+    bars2 = plt.bar(x + width/2, isotropy_abtt2, width, label='ABTT-2', color='#ff7f0e', alpha=0.8)
+    
     plt.xlabel('Method', fontsize=12)
     plt.ylabel('% Variance Explained by First PC', fontsize=12)
-    plt.title('Isotropy: Lower is Better', fontsize=14)
-    plt.xticks(rotation=45, ha='right')
+    plt.title('Isotropy: Lower is Better (Raw vs ABTT-2)', fontsize=14)
+    plt.xticks(x, methods, rotation=45, ha='right')
+    plt.legend()
     plt.grid(True, alpha=0.3, axis='y')
     
     # Add value labels on bars
-    for bar, val in zip(bars, isotropy_values):
-        height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2., height,
-                f'{val:.2f}%', ha='center', va='bottom')
-    
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
-
-
-def plot_variance_boxplot(metrics_dict: Dict[str, Dict[str, float]], output_path: str) -> None:
-    """Plot within-film variance comparison."""
-    methods = list(metrics_dict.keys())
-    variance_values = [metrics_dict[m]['mean_within_variance'] for m in methods]
-    
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(methods, variance_values, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'][:len(methods)])
-    plt.xlabel('Method', fontsize=12)
-    plt.ylabel('Mean Within-Film Variance', fontsize=12)
-    plt.title('Within-Film Variance Comparison', fontsize=14)
-    plt.xticks(rotation=45, ha='right')
-    plt.grid(True, alpha=0.3, axis='y')
-    
-    # Add value labels
-    for bar, val in zip(bars, variance_values):
-        height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2., height,
-                f'{val:.4f}', ha='center', va='bottom')
+    for bars in [bars1, bars2]:
+        for bar in bars:
+            height = bar.get_height()
+            if height > 0:
+                plt.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{height:.2f}%', ha='center', va='bottom', fontsize=8)
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
@@ -638,16 +524,52 @@ def plot_drift_stability(embeddings_dict: Dict[str, np.ndarray],
     """Plot temporal drift stability across methods."""
     plt.figure(figsize=(12, 6))
     
+    # Define line styles for differentiation within same method type
+    line_styles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5)), (0, (1, 1))]
+    
+    # Extract base method names (before first underscore)
+    def get_base_method_name(method_name: str) -> str:
+        """Extract base method name before first underscore."""
+        if '_' in method_name:
+            return method_name.split('_')[0]
+        return method_name
+    
+    # Get unique base method names and assign colors
+    base_methods = set(get_base_method_name(name) for name in embeddings_dict.keys())
+    base_method_list = sorted(list(base_methods))
+    
+    # Assign distinct colors to each base method type
+    color_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
+    base_method_colors = {}
+    for idx, base_method in enumerate(base_method_list):
+        base_method_colors[base_method] = color_palette[idx % len(color_palette)]
+    
+    # Track line style index per base method (for variants)
+    base_method_style_idx = {base: 0 for base in base_method_list}
+    
     for method_name, embeddings in embeddings_dict.items():
         drift_data = compute_temporal_drift(embeddings, years)
         if 'distances' in drift_data and len(drift_data['distances']) > 0:
+            base_method = get_base_method_name(method_name)
+            color = base_method_colors[base_method]
+            
+            # Use different line styles for variants of the same method
+            style_idx = base_method_style_idx[base_method]
+            line_style = line_styles[style_idx % len(line_styles)]
+            base_method_style_idx[base_method] += 1
+            
             plt.plot(drift_data['decades'], drift_data['distances'], 
-                    marker='o', label=method_name, linewidth=2, markersize=6)
+                    marker='o', label=method_name, 
+                    linewidth=3.5,  # Thicker lines
+                    markersize=8,
+                    linestyle=line_style,  # Different line styles for variants
+                    color=color,
+                    alpha=0.3)  # Transparency
     
     plt.xlabel('Decade Transition', fontsize=12)
     plt.ylabel('Cosine Distance', fontsize=12)
     plt.title('Temporal Drift Stability (Lower is Better)', fontsize=14)
-    plt.legend()
+    plt.legend(loc='best', fontsize=10, framealpha=0.9)
     plt.grid(True, alpha=0.3)
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()

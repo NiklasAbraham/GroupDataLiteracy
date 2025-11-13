@@ -96,6 +96,13 @@ class EmbeddingService:
                     torch.cuda.empty_cache()
             except Exception as e:
                 logger.warning(f"Error clearing CUDA cache: {e}")
+        
+        # Clean up separate transformer model if it exists (for Qwen3 strategy)
+        if hasattr(self.strategy, 'cleanup_transformer_model'):
+            try:
+                self.strategy.cleanup_transformer_model()
+            except Exception as e:
+                logger.warning(f"Error cleaning up transformer model: {e}")
 
     def __del__(self):
         """Cleanup when object is destroyed."""
@@ -160,7 +167,8 @@ class EmbeddingService:
         
         return dense_embeddings
 
-    def encode_corpus(self, corpus: list[str], batch_size: int = 128) -> dict[str, np.ndarray]:
+    def encode_corpus(self, corpus: list[str], batch_size: int = 128, 
+                     require_token_embeddings: bool = None) -> dict[str, np.ndarray]:
         """
         Encodes a corpus of documents using the configured strategy.
         
@@ -170,6 +178,9 @@ class EmbeddingService:
         Args:
             corpus (list[str]): A list of documents to encode.
             batch_size (int): The batch size to use for encoding.
+            require_token_embeddings (bool, optional): If True, extract token-level embeddings.
+                                                       If False, skip token extraction (saves memory/time).
+                                                       If None, use strategy default.
 
         Returns:
             dict[str, np.ndarray]: Dictionary mapping embedding type names to numpy arrays.
@@ -177,4 +188,15 @@ class EmbeddingService:
         logger.info(f"Delegating encoding to {self.strategy.__class__.__name__}...")
         logger.info(f"Processing {len(corpus)} documents with batch size {batch_size}")
         
-        return self.strategy.encode(corpus, batch_size)
+        # Temporarily set token extraction if specified
+        old_token_setting = None
+        if require_token_embeddings is not None and hasattr(self.strategy, 'set_token_embeddings_enabled'):
+            old_token_setting = self.strategy._enable_token_embeddings
+            self.strategy.set_token_embeddings_enabled(require_token_embeddings)
+        
+        try:
+            return self.strategy.encode(corpus, batch_size)
+        finally:
+            # Restore original setting
+            if old_token_setting is not None:
+                self.strategy.set_token_embeddings_enabled(old_token_setting)

@@ -8,7 +8,7 @@ All chunking methods must inherit from this class and implement the embed() meth
 
 import abc
 import numpy as np
-from typing import Optional
+from typing import Optional, Dict
 import sys
 from pathlib import Path
 
@@ -28,6 +28,9 @@ class ChunkBase(abc.ABC):
     
     All chunking strategies must implement the embed() method that takes
     a text string and returns a normalized embedding vector.
+    
+    Includes optional instrumentation hooks for recording pre-L2 magnitudes
+    and verifying post-L2 unit norms.
     """
     
     def __init__(self, embedding_service: EmbeddingService = None, 
@@ -47,6 +50,10 @@ class ChunkBase(abc.ABC):
             self.embedding_service = embedding_service
         
         self.model_name = model_name
+        
+        # Instrumentation: optional pre-L2 norm collection
+        self._collect_preL2 = False
+        self._last_preL2_norms = []
     
     @abc.abstractmethod
     def embed(self, text: str) -> np.ndarray:
@@ -93,6 +100,30 @@ class ChunkBase(abc.ABC):
         if norm == 0:
             return vec
         return vec / norm
+    
+    def enable_preL2_collection(self, flag: bool = True):
+        """
+        Enable or disable pre-L2 norm collection during embedding.
+        
+        Args:
+            flag (bool): If True, collect pre-L2 norms in embed_batch calls (default: True)
+        """
+        self._collect_preL2 = flag
+        if flag:
+            self._last_preL2_norms = []
+        else:
+            self._last_preL2_norms = []
+    
+    def fetch_preL2_norms(self) -> np.ndarray:
+        """
+        Fetch collected pre-L2 norms and clear the buffer.
+        
+        Returns:
+            np.ndarray: Array of pre-L2 magnitudes from the last embedding operation
+        """
+        vals = np.array(self._last_preL2_norms) if self._last_preL2_norms else np.array([])
+        self._last_preL2_norms = []
+        return vals
     
     def cleanup(self):
         """Clean up EmbeddingService resources."""

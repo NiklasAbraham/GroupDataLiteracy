@@ -11,6 +11,7 @@ from typing import Optional
 
 from .sentence_transformer_strategy import SentenceTransformerStrategy
 from .flag_embedding_strategy import FlagEmbeddingStrategy
+from .qwen3_strategy import Qwen3EmbeddingStrategy
 from .base_strategy import AbstractEmbeddingStrategy
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,11 @@ def get_embedding_strategy(model_name: str, target_devices: list[str]) -> Abstra
     # Normalize model name for comparison
     model_name_lower = model_name.lower()
     
+    # Qwen3-Embedding models
+    if 'qwen3-embedding' in model_name_lower or 'qwen3_embedding' in model_name_lower:
+        logger.info("Selected Qwen3EmbeddingStrategy")
+        return Qwen3EmbeddingStrategy(model_name, target_devices)
+    
     # FlagEmbedding models (BGE-M3 and similar)
     if 'bge-m3' in model_name_lower or 'flag' in model_name_lower:
         logger.info("Selected FlagEmbeddingStrategy")
@@ -52,7 +58,7 @@ def get_embedding_strategy_by_library(library: str, model_name: str, target_devi
     Factory function to select a strategy by explicitly specifying the library.
     
     Args:
-        library (str): The library name ('sentence-transformers' or 'FlagEmbedding').
+        library (str): The library name ('sentence-transformers', 'FlagEmbedding', or 'qwen3').
         model_name (str): The name of the model to use.
         target_devices (list[str]): List of device identifiers.
     
@@ -64,7 +70,11 @@ def get_embedding_strategy_by_library(library: str, model_name: str, target_devi
     
     library_lower = library.lower()
     
-    if library_lower in ['sentence-transformers', 'sentence_transformer', 'sentence transformer']:
+    if library_lower in ['qwen3', 'qwen3-embedding', 'qwen3_embedding']:
+        logger.info("Selected Qwen3EmbeddingStrategy")
+        return Qwen3EmbeddingStrategy(model_name, target_devices)
+    
+    elif library_lower in ['sentence-transformers', 'sentence_transformer', 'sentence transformer']:
         logger.info("Selected SentenceTransformerStrategy")
         return SentenceTransformerStrategy(model_name, target_devices)
     
