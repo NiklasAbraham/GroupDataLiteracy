@@ -176,3 +176,44 @@ def load_movie_data(data_dir: str, verbose: bool = False) -> pd.DataFrame:
         combined_df = pd.DataFrame()
 
     return combined_df
+
+
+def _load_all_data_with_embeddings(data_dir: str, verbose: bool = False) -> pd.DataFrame:
+    """
+    Helper to load all metadata and merge with all embeddings.
+    """
+    all_embeddings, all_movie_ids = load_movie_embeddings(data_dir, verbose=verbose)
+
+    embeddings_df = pd.DataFrame({
+        'movie_id': all_movie_ids,
+        'embedding': list(all_embeddings)
+    })
+
+    metadata_df = load_movie_data(data_dir, verbose=verbose)
+    combined_df = pd.merge(metadata_df, embeddings_df, on='movie_id', how='inner')
+
+    return combined_df
+
+def load_movie_data_limited(data_dir: str, movies_per_year: int | None, verbose: bool = False) -> pd.DataFrame:
+    """
+    Load a limited number of movies per year from the dataset, including embeddings.
+    """
+    all_movies = _load_all_data_with_embeddings(data_dir, verbose=verbose)
+
+    if all_movies.empty or movies_per_year is None or movies_per_year <= 0:
+        return all_movies
+
+    unique_years = all_movies['year'].unique()
+
+    sampled_dfs = []
+    for year in unique_years:
+        year_movies = all_movies[all_movies['year'] == year]
+
+        # Sample up to movies_per_year from this year
+        n_sample = min(len(year_movies), movies_per_year)
+        sampled = year_movies.sample(n=n_sample, random_state=42)
+        sampled_dfs.append(sampled)
+
+    result_df = pd.concat(sampled_dfs, ignore_index=True)
+
+    return result_df
