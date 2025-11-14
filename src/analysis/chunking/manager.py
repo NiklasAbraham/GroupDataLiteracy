@@ -12,6 +12,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
+import torch
 
 # Add parent directories to path for imports
 # manager.py is in src/analysis/chunking/
@@ -24,6 +25,7 @@ from data_utils import load_movie_data
 from analysis.chunking.chunk_base_class import ChunkBase
 from analysis.chunking import calculations
 from embedding.embedding import EmbeddingService
+from embedding.util_embeddings import verify_gpu_setup
 
 # Import all chunking methods
 from analysis.chunking.chunk_mean_pooling import MeanPooling
@@ -36,9 +38,9 @@ from analysis.chunking.chunk_late_chunking import LateChunking
 # ============================================================================
 DATA_DIR = str(BASE_DIR / "data")  # Path to data directory containing movie CSVs
 OUTPUT_DIR = None  # Path to output directory (None = auto-generate timestamped directory)
-MODEL_NAME = "BAAI/bge-m3"  # Model name to use
-N_MOVIES = 500  # Number of movies to process
-RANDOM_SEED = 42  # Random seed for reproducibility
+MODEL_NAME = "BAAI/bge-m3" #"Qwen/Qwen3-Embedding-0.6B"# "BAAI/bge-m3"  # Model name to use
+N_MOVIES = 1000  # Number of movies to process
+RANDOM_SEED = 11  # Random seed for reproducibility
 # ============================================================================
 
 
@@ -58,8 +60,12 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Output directory: {output_dir}")
     
+    # Use single GPU only for Qwen3 (simple and stable)
+    target_devices = ['cuda:0']
+    print(f"Using single GPU: {target_devices[0]}")
+    
     # Create shared EmbeddingService for all methods
-    embedding_service = EmbeddingService(MODEL_NAME, None)
+    embedding_service = EmbeddingService(MODEL_NAME, target_devices)
     
     # Initialize chunking methods with shared EmbeddingService
     methods = {
@@ -68,26 +74,18 @@ def main():
         'CLSToken': CLSToken(embedding_service=embedding_service,
                             model_name=MODEL_NAME),
         # ChunkFirstEmbed - processes text in chunks before embedding
-        'ChunkFirstEmbed_512_256': ChunkFirstEmbed(embedding_service=embedding_service,
-                                                   model_name=MODEL_NAME,
-                                                   chunk_size=512,
-                                                   stride=256),
-        'ChunkFirstEmbed_1024_512': ChunkFirstEmbed(embedding_service=embedding_service,
-                                                    model_name=MODEL_NAME,
-                                                    chunk_size=1024,
-                                                    stride=512),
-        'ChunkFirstEmbed_2048_1024': ChunkFirstEmbed(embedding_service=embedding_service,
-                                                     model_name=MODEL_NAME,
-                                                     chunk_size=2048,
-                                                     stride=1024),
-        'ChunkFirstEmbed_2048_512': ChunkFirstEmbed(embedding_service=embedding_service,
-                                                    model_name=MODEL_NAME,
-                                                    chunk_size=2048,
-                                                    stride=512),
-        'ChunkFirstEmbed_4096_2048': ChunkFirstEmbed(embedding_service=embedding_service,
-                                                    model_name=MODEL_NAME,
-                                                    chunk_size=4096,
-                                                    stride=2048),
+        #'ChunkFirstEmbed_512_256': ChunkFirstEmbed(embedding_service=embedding_service,
+        #                                              model_name=MODEL_NAME,
+        #                                           chunk_size=512,
+        #                                           stride=256),
+        #'ChunkFirstEmbed_1024_512': ChunkFirstEmbed(embedding_service=embedding_service,
+        #                                            model_name=MODEL_NAME,
+        #                                            chunk_size=1024,
+        #                                            stride=512),
+        #'ChunkFirstEmbed_2048_1024': ChunkFirstEmbed(embedding_service=embedding_service,
+        #                                             model_name=MODEL_NAME,
+        #                                             chunk_size=2048,
+        #                                             stride=1024),
         
         'LateChunking_512_256': LateChunking(embedding_service=embedding_service,
                                             model_name=MODEL_NAME,
@@ -105,10 +103,18 @@ def main():
                                             model_name=MODEL_NAME,
                                             window_size=2048,
                                             stride=512),
-        'LateChunking_4096_2048': LateChunking(embedding_service=embedding_service,
+        'LateChunking_512_0': LateChunking(embedding_service=embedding_service,
                                             model_name=MODEL_NAME,
-                                            window_size=4096,
-                                            stride=2048),
+                                            window_size=512,
+                                            stride=0),
+        'LateChunking_1024_0': LateChunking(embedding_service=embedding_service,
+                                            model_name=MODEL_NAME,
+                                            window_size=512,
+                                            stride=0),
+        'LateChunking_2048_0': LateChunking(embedding_service=embedding_service,
+                                            model_name=MODEL_NAME,
+                                            window_size=512,
+                                            stride=0),
     }
     
     print(f"Initialized {len(methods)} chunking methods")
@@ -159,8 +165,18 @@ def main():
     all_embeddings = {}
     all_metrics = {}
     
+    # Helper function to check embeddings sanity
+    def sanity_check(name, X):
+        """Check that embeddings have proper unit norms."""
+        norms = np.linalg.norm(X, axis=1)
+        print(f"    Sanity check [{name}]: unit-norm (min={norms.min():.6f} max={norms.max():.6f} mean={norms.mean():.6f} zeros={(norms<1e-8).sum()}/{len(norms)})")
+        if not np.allclose(norms, 1.0, rtol=1e-3):
+            print(f"    WARNING: Not all embeddings are unit-norm!")
+        return norms
+    
     # Run each method
-    BATCH_SIZE = 256  # Batch size for embedding processing
+    # Use larger batch size for better throughput, especially for ChunkFirstEmbed
+    BATCH_SIZE = 128  # Batch size for embedding processing
     
     for method_name, method_instance in methods.items():
         print(f"\n{'='*80}")
@@ -175,15 +191,64 @@ def main():
         
         try:
             import time
+            
+            # Enable pre-L2 norm collection
+            method_instance.enable_preL2_collection(True)
+            
             start_time = time.time()
             embeddings = method_instance.embed_batch(plots, batch_size=BATCH_SIZE)
             elapsed_time = time.time() - start_time
             if elapsed_time > 1.0:  # Only print if it took more than 1 second
                 print(f"  ✓ Embedding completed in {elapsed_time:.2f} seconds ({len(plots)/elapsed_time:.1f} movies/sec)")
+            
+            # Fetch pre-L2 norms and run sanity check
+            pre_norms = method_instance.fetch_preL2_norms()
+            sanity_check(method_name, embeddings)
+            
+            # Verify embeddings shape matches texts
+            assert embeddings.shape[0] == len(plots), f"Embedding count mismatch: {embeddings.shape[0]} vs {len(plots)}"
+            
         except Exception as e:
             print(f"  ERROR: Batch processing failed for {method_name}: {e}")
             raise RuntimeError(f"Batch processing failed for {method_name}. No individual processing fallback allowed.") from e
         all_embeddings[method_name] = embeddings
+        
+        # Clear CUDA cache after each method to free memory
+        import torch
+        import gc
+        if torch.cuda.is_available():
+            # Clean up separate transformer model if it exists (for Qwen3)
+            if hasattr(embedding_service.strategy, 'cleanup_transformer_model'):
+                try:
+                    embedding_service.strategy.cleanup_transformer_model()
+                except Exception as e:
+                    print(f"  Warning: Could not cleanup transformer model: {e}")
+            
+            # For single GPU with large models, we need to be very aggressive
+            # The model stays loaded on GPU, so we need to free as much as possible
+            allocated_before = torch.cuda.memory_allocated() / 1024**3
+            reserved_before = torch.cuda.memory_reserved() / 1024**3
+            
+            # Aggressive memory clearing
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            torch.cuda.ipc_collect()  # Clear inter-process cache
+            
+            # Force garbage collection to free Python objects
+            gc.collect()
+            
+            # Clear cache again after GC
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            
+            # Log memory usage
+            allocated_after = torch.cuda.memory_allocated() / 1024**3
+            reserved_after = torch.cuda.memory_reserved() / 1024**3
+            print(f"  GPU memory: {allocated_before:.2f}→{allocated_after:.2f} GB allocated, {reserved_before:.2f}→{reserved_after:.2f} GB reserved")
+            
+            # If memory is still high (>20GB), warn about potential issues
+            if allocated_after > 20.0:
+                print(f"  WARNING: GPU memory still very high ({allocated_after:.2f} GB). Next method may fail with OOM.")
         
         # Save embeddings
         embeddings_path = output_dir / f"{method_name}_embeddings.npy"
@@ -201,7 +266,8 @@ def main():
             method_name=method_name,
             texts=np.array(plots),
             embedding_service=embedding_service,
-            batch_size=BATCH_SIZE
+            batch_size=BATCH_SIZE,
+            pre_norms=pre_norms  # Pass pre-L2 norms for accurate length correlation
         )
         all_metrics[method_name] = metrics
     
@@ -217,7 +283,6 @@ def main():
     print(f"Saved combined length-norm correlation plot")
     
     calculations.plot_isotropy(all_metrics, str(output_dir / "pca_isotropy.png"))
-    calculations.plot_variance_boxplot(all_metrics, str(output_dir / "variance_boxplot.png"))
     
     if genres is not None:
         calculations.plot_genre_silhouette(all_metrics, str(output_dir / "genre_silhouette.png"))

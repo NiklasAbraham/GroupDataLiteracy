@@ -76,7 +76,9 @@ class CLSToken(ChunkBase):
             return np.zeros((len(texts), emb_dim))
         
         # Encode batch using EmbeddingService
-        results = self.embedding_service.encode_corpus(valid_texts, batch_size=batch_size)
+        # CLSToken only needs dense embeddings, not token-level (saves memory and time)
+        results = self.embedding_service.encode_corpus(valid_texts, batch_size=batch_size, 
+                                                      require_token_embeddings=False)
         
         # Get dense embeddings (CLS token)
         dense_key = None

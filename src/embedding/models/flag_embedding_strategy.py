@@ -60,14 +60,9 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
             logger.info(f"Loading model on primary device: {primary_device}")
             
             # Load the model
+            # FlagEmbedding handles multi-GPU internally via its own multi-process pool
+            # We don't need to wrap it in DataParallel - let it handle it natively
             self.model = BGEM3FlagModel(self.model_name, device=primary_device, use_fp16=True)
-            
-            # Handle multi-GPU with DataParallel
-            if len(self.target_devices) > 1:
-                logger.info(f"Wrapping model in DataParallel for {len(self.target_devices)} devices")
-                # Extract device indices for DataParallel
-                device_ids = [int(device.split(':')[1]) for device in self.target_devices]
-                self.model.model = torch.nn.DataParallel(self.model.model, device_ids=device_ids)
             
             logger.info("FlagEmbedding model loaded successfully")
         except Exception as e:
@@ -97,9 +92,8 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
             start_time = time.time()
             
             # Encode using FlagEmbedding's optimized method
-            # This already handles batching and (if wrapped) multi-GPU processing
-            # max_length controls the maximum sequence length (default 512, BGE-M3 supports up to 8192)
-            # Note: FlagEmbedding's encode() expects 'sentences' as the first positional/keyword argument
+            # FlagEmbedding handles multi-GPU internally via its own multi-process pool
+            # We just pass the parameters and let it handle everything
             encode_kwargs = {
                 'sentences': corpus,  # FlagEmbedding uses 'sentences', not 'corpus'
                 'batch_size': batch_size,
@@ -110,6 +104,7 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
             if self.max_length is not None:
                 encode_kwargs['max_length'] = self.max_length
             
+            # Let FlagEmbedding handle multi-GPU automatically via its internal mechanisms
             output = self.model.encode(**encode_kwargs)
             
             end_time = time.time()

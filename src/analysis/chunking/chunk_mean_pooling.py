@@ -99,23 +99,41 @@ class MeanPooling(ChunkBase):
             colbert_vecs = results['colbert_vecs']
             for colbert_vec in colbert_vecs:
                 if isinstance(colbert_vec, np.ndarray):
-                    # Mean pool over sequence length
-                    mean_emb = colbert_vec.mean(axis=0)
+                    # Check if array is empty (shape[0] == 0)
+                    if colbert_vec.shape[0] == 0:
+                        # Empty array - use zero vector with correct dimension
+                        emb_dim = colbert_vec.shape[1] if len(colbert_vec.shape) > 1 else 1024
+                        mean_emb = np.zeros(emb_dim)
+                    else:
+                        # Mean pool over sequence length
+                        mean_emb = colbert_vec.mean(axis=0)
                     batch_embeddings.append(self._normalize(mean_emb))
                 elif isinstance(colbert_vec, list):
                     # Handle list format - convert to array first
-                    colbert_array = np.array(colbert_vec)
-                    mean_emb = colbert_array.mean(axis=0)
+                    if len(colbert_vec) == 0:
+                        # Empty list - use zero vector
+                        mean_emb = np.zeros(1024)  # Default dimension
+                    else:
+                        colbert_array = np.array(colbert_vec)
+                        if colbert_array.shape[0] == 0:
+                            emb_dim = colbert_array.shape[1] if len(colbert_array.shape) > 1 else 1024
+                            mean_emb = np.zeros(emb_dim)
+                        else:
+                            mean_emb = colbert_array.mean(axis=0)
                     batch_embeddings.append(self._normalize(mean_emb))
                 else:
                     # Try to convert to array
                     try:
                         colbert_array = np.array(colbert_vec)
-                        mean_emb = colbert_array.mean(axis=0)
+                        if colbert_array.shape[0] == 0:
+                            emb_dim = colbert_array.shape[1] if len(colbert_array.shape) > 1 else 1024
+                            mean_emb = np.zeros(emb_dim)
+                        else:
+                            mean_emb = colbert_array.mean(axis=0)
                         batch_embeddings.append(self._normalize(mean_emb))
                     except Exception:
-                        # Skip if can't process
-                        continue
+                        # Skip if can't process - use zero vector as fallback
+                        batch_embeddings.append(self._normalize(np.zeros(1024)))
         else:
             # Fallback to dense embeddings
             dense_key = None
@@ -137,9 +155,29 @@ class MeanPooling(ChunkBase):
         valid_idx = 0
         for text in texts:
             if text and isinstance(text, str):
+                # Record pre-L2 norm if collection enabled (from colbert or dense)
+                if self._collect_preL2:
+                    if 'colbert_vecs' in results:
+                        colbert_vec = results['colbert_vecs'][valid_idx]
+                        if isinstance(colbert_vec, np.ndarray):
+                            if colbert_vec.shape[0] > 0:
+                                pre_norm = np.linalg.norm(colbert_vec.mean(axis=0))
+                            else:
+                                pre_norm = 0.0  # Empty array
+                        else:
+                            colbert_array = np.array(colbert_vec)
+                            if colbert_array.shape[0] > 0:
+                                pre_norm = np.linalg.norm(colbert_array.mean(axis=0))
+                            else:
+                                pre_norm = 0.0  # Empty array
+                    else:
+                        pre_norm = np.linalg.norm(dense_embeddings[valid_idx]) if 'dense_embeddings' in locals() else np.linalg.norm(results[list(results.keys())[0]][valid_idx])
+                    self._last_preL2_norms.append(float(pre_norm))
                 final_embeddings.append(batch_embeddings[valid_idx])
                 valid_idx += 1
             else:
+                if self._collect_preL2:
+                    self._last_preL2_norms.append(0.0)  # Zero vector
                 # Zero vector for empty text
                 final_embeddings.append(np.zeros_like(batch_embeddings[0]) if batch_embeddings else np.zeros(1024))
         

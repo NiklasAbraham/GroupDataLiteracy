@@ -174,10 +174,50 @@ class ChunkFirstEmbed(ChunkBase):
             return np.zeros((len(texts), emb_dim))
         
         # Step 3: Embed all chunks in batches
+        # Use larger batch size for chunks to improve throughput
+        # Chunks are typically shorter than full texts, so we can use larger batches
+        # BUT: Reduce batch size for larger chunks to avoid OOM
+        # Attention memory scales quadratically with sequence length
+        # For Qwen3-Embedding-4B with 24GB VRAM:
+        #   - chunk_size <= 512: can use batch_size 32-64 (reduced from 64-128)
+        #   - chunk_size <= 1024: can use batch_size 16-32 (reduced from 32-64)
+        #   - chunk_size <= 2048: can use batch_size 8-16 (reduced from 16-32)
+        #   - chunk_size > 2048: use batch_size 4-8 (reduced from 8-16)
+        # Also check available GPU memory and reduce further if needed
+        import torch
+        available_memory_gb = 24.0  # Default assumption
+        if torch.cuda.is_available():
+            try:
+                allocated = torch.cuda.memory_allocated(0) / 1024**3
+                total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                available_memory_gb = total - allocated
+            except:
+                pass
+        
+        # Base batch sizes based on chunk size
+        if self.chunk_size <= 512:
+            base_batch_size = min(max(batch_size * 2, 32), 64)
+        elif self.chunk_size <= 1024:
+            base_batch_size = min(max(batch_size * 2, 16), 32)
+        elif self.chunk_size <= 2048:
+            base_batch_size = min(max(batch_size, 8), 16)
+        else:
+            base_batch_size = min(max(batch_size // 2, 4), 8)
+        
+        # Further reduce if GPU memory is low (model already loaded)
+        if available_memory_gb < 8.0:
+            chunk_batch_size = max(1, base_batch_size // 4)  # Very small batches
+        elif available_memory_gb < 12.0:
+            chunk_batch_size = max(1, base_batch_size // 2)  # Small batches
+        else:
+            chunk_batch_size = base_batch_size
+        
         if len(flat_chunks) > 100:
-            print(f"    Embedding {len(flat_chunks)} chunks in batches of {batch_size}...")
+            print(f"    Embedding {len(flat_chunks)} chunks in batches of {chunk_batch_size}...")
         start_embed = time.time()
-        results = self.embedding_service.encode_corpus(flat_chunks, batch_size=batch_size)
+        # ChunkFirstEmbed only needs dense embeddings, not token-level (saves memory and time)
+        results = self.embedding_service.encode_corpus(flat_chunks, batch_size=chunk_batch_size, 
+                                                      require_token_embeddings=False)
         embed_time = time.time() - start_embed
         if len(flat_chunks) > 100:
             print(f"    Embedded {len(flat_chunks)} chunks in {embed_time:.2f}s ({len(flat_chunks)/embed_time:.1f} chunks/sec)")
