@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# Script to compile LaTeX to PDF and convert to PNG
+# Usage: pdflatex2png <input.tex> [options]
+
+set -e
+
+# Default values
+DPI=300
+OUTPUT_PNG=""
+CLEANUP=false
+
+# Parse arguments
+TEX_FILE=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -d|--dpi)
+            DPI="$2"
+            shift 2
+            ;;
+        -o|--output)
+            OUTPUT_PNG="$2"
+            shift 2
+            ;;
+        -c|--cleanup)
+            CLEANUP=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: pdflatex2png <input.tex> [options]"
+            echo ""
+            echo "Options:"
+            echo "  -d, --dpi DPI          Resolution for PNG output (default: 300)"
+            echo "  -o, --output FILE      Output PNG filename (default: input.png)"
+            echo "  -c, --cleanup          Remove auxiliary LaTeX files after compilation"
+            echo "  -h, --help             Show this help message"
+            exit 0
+            ;;
+        *)
+            if [[ -z "$TEX_FILE" ]]; then
+                TEX_FILE="$1"
+            else
+                echo "Error: Multiple input files specified"
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Check if input file is provided
+if [[ -z "$TEX_FILE" ]]; then
+    echo "Error: No input .tex file specified"
+    echo "Usage: pdflatex2png <input.tex> [options]"
+    exit 1
+fi
+
+# Check if input file exists
+if [[ ! -f "$TEX_FILE" ]]; then
+    echo "Error: File '$TEX_FILE' not found"
+    exit 1
+fi
+
+# Get base name without extension
+BASE_NAME=$(basename "$TEX_FILE" .tex)
+DIR_NAME=$(dirname "$TEX_FILE")
+
+# Set output PNG filename if not specified
+if [[ -z "$OUTPUT_PNG" ]]; then
+    if [[ "$DIR_NAME" == "." ]]; then
+        OUTPUT_PNG="${BASE_NAME}.png"
+    else
+        OUTPUT_PNG="${DIR_NAME}/${BASE_NAME}.png"
+    fi
+fi
+
+# Compile LaTeX to PDF
+echo "Compiling LaTeX to PDF..."
+pdflatex -interaction=nonstopmode -halt-on-error "$TEX_FILE" > /dev/null
+
+# Check if PDF was created
+PDF_FILE="${DIR_NAME}/${BASE_NAME}.pdf"
+if [[ "$DIR_NAME" == "." ]]; then
+    PDF_FILE="${BASE_NAME}.pdf"
+fi
+
+if [[ ! -f "$PDF_FILE" ]]; then
+    echo "Error: PDF compilation failed"
+    exit 1
+fi
+
+# Convert PDF to PNG
+echo "Converting PDF to PNG (DPI: $DPI)..."
+OUTPUT_DIR=$(dirname "$OUTPUT_PNG")
+OUTPUT_BASE=$(basename "${OUTPUT_PNG%.png}")
+
+# Create output directory if needed
+if [[ "$OUTPUT_DIR" != "." && -n "$OUTPUT_DIR" ]]; then
+    mkdir -p "$OUTPUT_DIR"
+fi
+
+# Use absolute paths
+PDF_ABS=$(realpath "$PDF_FILE")
+
+# pdftoppm outputs to current directory, so we need to work in the output directory
+ORIG_DIR=$(pwd)
+if [[ "$OUTPUT_DIR" != "." && -n "$OUTPUT_DIR" ]]; then
+    cd "$OUTPUT_DIR"
+    OUTPUT_DIR_ABS=$(pwd)
+else
+    OUTPUT_DIR_ABS="$ORIG_DIR"
+fi
+
+# Convert PDF to PNG (pdftoppm outputs in current directory)
+pdftoppm -png -r "$DPI" "$PDF_ABS" "$OUTPUT_BASE" > /dev/null
+
+# pdftoppm creates files with -1, -2, etc. suffix for multi-page PDFs
+# Rename single page output or handle multi-page
+FIRST_PAGE="${OUTPUT_BASE}-1.png"
+SECOND_PAGE="${OUTPUT_BASE}-2.png"
+
+if [[ -f "$FIRST_PAGE" ]]; then
+    if [[ -f "$SECOND_PAGE" ]]; then
+        echo "Warning: Multi-page PDF detected. Pages saved as ${OUTPUT_BASE}-N.png"
+        if [[ "$OUTPUT_DIR" != "." && -n "$OUTPUT_DIR" ]]; then
+            echo "  Location: $OUTPUT_DIR/"
+        fi
+    else
+        # Single page, rename to desired output name
+        mv "$FIRST_PAGE" "${OUTPUT_BASE}.png"
+        if [[ "$OUTPUT_DIR" != "." && -n "$OUTPUT_DIR" ]]; then
+            echo "Output saved to: $OUTPUT_PNG"
+        else
+            echo "Output saved to: ${OUTPUT_BASE}.png"
+        fi
+    fi
+else
+    echo "Error: PNG conversion failed"
+    cd "$ORIG_DIR"
+    exit 1
+fi
+
+# Return to original directory
+cd "$ORIG_DIR"
+
+# Cleanup auxiliary files if requested
+if [[ "$CLEANUP" == true ]]; then
+    echo "Cleaning up auxiliary files..."
+    if [[ "$DIR_NAME" == "." ]]; then
+        rm -f "${BASE_NAME}.aux" "${BASE_NAME}.log" "${BASE_NAME}.out" "${BASE_NAME}.toc" "${BASE_NAME}.nav" "${BASE_NAME}.snm"
+    else
+        rm -f "${DIR_NAME}/${BASE_NAME}.aux" "${DIR_NAME}/${BASE_NAME}.log" "${DIR_NAME}/${BASE_NAME}.out" "${DIR_NAME}/${BASE_NAME}.toc" "${DIR_NAME}/${BASE_NAME}.nav" "${DIR_NAME}/${BASE_NAME}.snm"
+    fi
+fi
+
+echo "Done!"
+

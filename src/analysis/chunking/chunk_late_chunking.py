@@ -94,12 +94,33 @@ class LateChunking(ChunkBase):
         # Unit-sphere centroid: mean of normalized window embeddings
         # Mathematically: m = (1/n) Σ uᵢ where uᵢ are normalized window embeddings
         # Note: window_embeddings are already L2-normalized at this point
-        if len(window_embeddings) > 1:
-            # Mean of normalized windows (unit-sphere centroid)
-            final_embedding = window_embeddings.mean(axis=0)
-        else:
-            final_embedding = window_embeddings[0]
-        
+        final_embedding = window_embeddings.mean(axis=0)
+        # alternative: use the weighted average of the window embeddings so the stride does not weight the tokens more than the ones in the center of the window
+        #if len(window_embeddings) > 1:
+            # Compute per-window weights to account for overlap
+            # Windows with more overlapping tokens (higher avg token_weight) should be weighted less
+            # to avoid double-counting tokens in overlapping regions
+        #    window_weights = []
+        #    start = 0
+        #    for _ in window_embeddings:
+        #        end = min(start + self.window_size, seq_len)
+        #        # Average token weight in this window
+        #        avg_token_weight = token_weights[start:end].mean()
+        #        # Invert: windows with higher overlap (higher avg weight) get lower weight
+                # This compensates for tokens being counted in multiple windows
+        #        window_weight = 1.0 / avg_token_weight if avg_token_weight > 0 else 1.0
+        #        window_weights.append(window_weight)
+        #        start += self.stride
+            
+        #    window_weights = np.array(window_weights)
+        #    window_weights = window_weights / window_weights.sum()  # Normalize weights
+            
+        #    # Weighted average of normalized windows (unit-sphere centroid with overlap compensation)
+        #    final_embedding = np.average(window_embeddings, axis=0, weights=window_weights)
+        #else:
+        #    final_embedding = window_embeddings[0]
+
+
         # Store pre-normalization embedding for instrumentation
         self._last_preL2_embedding = final_embedding
         

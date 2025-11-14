@@ -38,7 +38,7 @@ from analysis.chunking.chunk_late_chunking import LateChunking
 # ============================================================================
 DATA_DIR = str(BASE_DIR / "data")  # Path to data directory containing movie CSVs
 OUTPUT_DIR = None  # Path to output directory (None = auto-generate timestamped directory)
-MODEL_NAME = "BAAI/bge-m3" #"Qwen/Qwen3-Embedding-0.6B"# "BAAI/bge-m3"  # Model name to use
+MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"# "BAAI/bge-m3"  # Model name to use
 N_MOVIES = 1000  # Number of movies to process
 RANDOM_SEED = 11  # Random seed for reproducibility
 # ============================================================================
@@ -176,7 +176,7 @@ def main():
     
     # Run each method
     # Use larger batch size for better throughput, especially for ChunkFirstEmbed
-    BATCH_SIZE = 128  # Batch size for embedding processing
+    BATCH_SIZE = 12  # Batch size for embedding processing
     
     for method_name, method_instance in methods.items():
         print(f"\n{'='*80}")
