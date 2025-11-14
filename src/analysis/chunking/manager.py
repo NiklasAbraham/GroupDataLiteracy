@@ -38,9 +38,10 @@ from analysis.chunking.chunk_late_chunking import LateChunking
 # ============================================================================
 DATA_DIR = str(BASE_DIR / "data")  # Path to data directory containing movie CSVs
 OUTPUT_DIR = None  # Path to output directory (None = auto-generate timestamped directory)
-MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"# "BAAI/bge-m3"  # Model name to use
-N_MOVIES = 1000  # Number of movies to process
-RANDOM_SEED = 11  # Random seed for reproducibility
+MODEL_NAME = "BAAI/bge-m3" #"Qwen/Qwen3-Embedding-0.6B"# "BAAI/bge-m3"  # Model name to use
+N_MOVIES = 5000  # Number of movies to process
+RANDOM_SEED = 42  # Random seed for reproducibility
+BATCH_SIZE = 100  # Batch size for embedding processing
 # ============================================================================
 
 
@@ -74,19 +75,18 @@ def main():
         'CLSToken': CLSToken(embedding_service=embedding_service,
                             model_name=MODEL_NAME),
         # ChunkFirstEmbed - processes text in chunks before embedding
-        #'ChunkFirstEmbed_512_256': ChunkFirstEmbed(embedding_service=embedding_service,
-        #                                              model_name=MODEL_NAME,
-        #                                           chunk_size=512,
-        #                                           stride=256),
-        #'ChunkFirstEmbed_1024_512': ChunkFirstEmbed(embedding_service=embedding_service,
-        #                                            model_name=MODEL_NAME,
-        #                                            chunk_size=1024,
-        #                                            stride=512),
-        #'ChunkFirstEmbed_2048_1024': ChunkFirstEmbed(embedding_service=embedding_service,
-        #                                             model_name=MODEL_NAME,
-        #                                             chunk_size=2048,
-        #                                             stride=1024),
-        
+        'ChunkFirstEmbed_512_256': ChunkFirstEmbed(embedding_service=embedding_service,
+                                                     model_name=MODEL_NAME,
+                                                     chunk_size=512,
+                                                     stride=256),
+        'ChunkFirstEmbed_1024_512': ChunkFirstEmbed(embedding_service=embedding_service,
+                                                     model_name=MODEL_NAME,
+                                                     chunk_size=1024,
+                                                     stride=512),
+        'ChunkFirstEmbed_2048_1024': ChunkFirstEmbed(embedding_service=embedding_service,
+                                                     model_name=MODEL_NAME,
+                                                     chunk_size=2048,
+                                                     stride=1024),
         'LateChunking_512_256': LateChunking(embedding_service=embedding_service,
                                             model_name=MODEL_NAME,
                                             window_size=512,
@@ -109,11 +109,11 @@ def main():
                                             stride=0),
         'LateChunking_1024_0': LateChunking(embedding_service=embedding_service,
                                             model_name=MODEL_NAME,
-                                            window_size=512,
+                                            window_size=1024,
                                             stride=0),
         'LateChunking_2048_0': LateChunking(embedding_service=embedding_service,
                                             model_name=MODEL_NAME,
-                                            window_size=512,
+                                            window_size=2048,
                                             stride=0),
     }
     
@@ -128,9 +128,9 @@ def main():
     df = load_movie_data(DATA_DIR, verbose=True)
     print(f"Loaded {len(df)} movies")
     
-    # Filter to movies with plot data
-    df = df[df['plot'].notna() & (df['plot'].str.len() > 0)].copy()
-    print(f"Movies with plot data: {len(df)}")
+    # Filter to movies with plot data, and a genre
+    df = df[df['plot'].notna() & (df['plot'].str.len() > 200) & (df['genre'].notna())].copy()
+    print(f"Movies with plot data and genre: {len(df)}")
     
     # Sample movies
     np.random.seed(RANDOM_SEED)
@@ -147,6 +147,12 @@ def main():
     movie_ids = sampled_df['movie_id'].values
     years = sampled_df['year'].values if 'year' in sampled_df.columns else None
     genres = sampled_df['genre'].values if 'genre' in sampled_df.columns else None
+    # Convert genres to lists of genre strings (multi-label format)
+    # Each movie can have multiple genres, e.g., "Action, Drama, Thriller" -> ["Action", "Drama", "Thriller"]
+    if genres is not None:
+        genres = [[g.strip() for g in str(genre).split(',') if g.strip()] for genre in genres]
+    else:
+        genres = None
     
     # Count tokens for each plot
     print("Counting tokens...")
@@ -175,8 +181,7 @@ def main():
         return norms
     
     # Run each method
-    # Use larger batch size for better throughput, especially for ChunkFirstEmbed
-    BATCH_SIZE = 12  # Batch size for embedding processing
+    
     
     for method_name, method_instance in methods.items():
         print(f"\n{'='*80}")

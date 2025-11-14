@@ -8,6 +8,7 @@
 \usepackage{graphicx}
 \usepackage{subfigure}
 \usepackage{booktabs} % for professional tables
+\usepackage{makecell} % for multi-line table cells
 
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, calc, fit}
@@ -164,6 +165,39 @@ Data collection process, bla bla bla, the pipline explained, etc.
 
 
 After the data was collected in a tabular format, the plots of the data needed to be embedded
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/data_preprocess/plot_different_chunking.png}
+    \caption{Comparison of different chunking methods: (a) Mean Pooling, (b) First Chunk then Embed, and (c) Late Chunking.}
+    \label{fig:chunking_methods}
+\end{figure}
+
+\begin{table}[ht]
+    \centering
+    \caption{Summary of results for each chunking method and embedding configuration. The best value in each column is shown in bold.}
+    \begin{tabular}{lccccccc}
+        \toprule
+        Method & \makecell{Length\\normcorr} & \makecell{Isotropy\\1st~PC} & \makecell{Isotropy\\abtt2} & \makecell{Mean\\Between\\Dist.} & \makecell{Silhouette\\Score} & \makecell{Genre\\Accuracy} & \makecell{Genre\\F1} \\
+        \midrule
+        MeanPooling & 0.643 & 12.23 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
+        CLS Token & -0.01 & 5.14  & 2.22 & 0.57 & -0.11 & \textbf{0.47} & \textbf{0.36} \\
+        ChunkFirst~E. 512/256 & -0.38 & 5.83  & 2.26 & 0.56 & -0.12 & \textbf{0.47} & \textbf{0.36} \\
+        ChunkFirst~E. 1024/512 & -0.32 & 5.28  & 2.22 & 0.57 & -0.11 & \textbf{0.47} & \textbf{0.36} \\
+        ChunkFirst~E. 2048/1024 & -0.09 & 5.14  & 2.22 & 0.57 & -0.11 & \textbf{0.47} & \textbf{0.36} \\
+        LateChunking~512/256 & \textbf{0.84} & \textbf{12.58} & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
+        LateChunking~1024/512 & 0.75 & 12.32 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
+        LateChunking~2048/1024 & 0.66 & 12.23 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
+        LateChunking~2048/512 & 0.66 & 12.23 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
+        LateChunking~512/0 & \textbf{0.84} & 12.24 & 3.42 & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
+        LateChunking~1024/0 & 0.75 & 12.16 & 3.42 & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
+        LateChunking~2048/0 & 0.66 & 12.23 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
+        \bottomrule
+    \end{tabular}
+    \label{tab:summary_results}
+\end{table}
+
+
 
 \section{Results}\label{sec:results}
 
