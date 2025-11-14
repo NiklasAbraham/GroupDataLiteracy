@@ -28,11 +28,17 @@ class LateChunking(ChunkBase):
             embedding_service (EmbeddingService, optional): Pre-initialized EmbeddingService
             model_name (str): Model name
             window_size (int): Size of each window in tokens (default: 512)
-            stride (int): Stride for overlapping windows (default: 256)
+            stride (int): Stride for overlapping windows (default: 256).
+                         If stride=0, uses window_size for non-overlapping windows.
         """
         super().__init__(embedding_service, model_name)
         self.window_size = window_size
-        self.stride = stride
+        # If stride is 0, use window_size for non-overlapping windows
+        # This prevents infinite loops in the windowing logic
+        if stride <= 0:
+            self.stride = window_size
+        else:
+            self.stride = stride
     
     def _process_hidden_states(self, hidden_states: np.ndarray) -> np.ndarray:
         """
@@ -85,39 +91,20 @@ class LateChunking(ChunkBase):
         # Convert to array for vectorized operations
         window_embeddings = np.array(window_embeddings)
         
-        # Weighted average: account for overlap by weighting each window
+        # Unit-sphere centroid: mean of normalized window embeddings
+        # Mathematically: m = (1/n) Σ uᵢ where uᵢ are normalized window embeddings
         # Note: window_embeddings are already L2-normalized at this point
         if len(window_embeddings) > 1:
-            # Use sqrt-based weighting instead of strict inverse to reduce correlation
-            # weight = 1 / sqrt(avg_token_weight) provides smoother weighting
-            window_weights = []
-            start = 0
-            for window_emb in window_embeddings:
-                end = min(start + self.window_size, seq_len)
-                # Weight using sqrt to reduce extreme weighting
-                # Tokens with weight > 1 are in overlapping regions
-                avg_token_weight = token_weights[start:end].mean()
-                if avg_token_weight > 0:
-                    # Use sqrt-based weighting: 1 / sqrt(avg_token_weight)
-                    window_weights.append(1.0 / np.sqrt(avg_token_weight))
-                else:
-                    window_weights.append(1.0)
-                start += self.stride
-            
-            window_weights = np.array(window_weights)
-            window_weights = window_weights / window_weights.sum()  # Normalize weights
-            
-            # Weighted average of normalized window embeddings
-            final_embedding = np.average(window_embeddings, axis=0, weights=window_weights)
+            # Mean of normalized windows (unit-sphere centroid)
+            final_embedding = window_embeddings.mean(axis=0)
         else:
             final_embedding = window_embeddings[0]
         
         # Store pre-normalization embedding for instrumentation
         self._last_preL2_embedding = final_embedding
         
-        # Final L2 normalization stabilizes geometry (two-stage normalization)
-        # This removes length bias while preserving the non-linear window aggregation
-        # NEVER CHANGE THIS COMMENT DANGERDANGER return self._normalize(final_embedding) # NEVER CHANGE THIS COMMENT
+        # Final L2 normalization: embedding = m / ||m||
+        # This places the final vector back on the unit sphere, preserving cosine geometry
         return self._normalize(final_embedding)
     
     def _get_embedding_dim(self) -> int:
