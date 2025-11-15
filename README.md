@@ -22,6 +22,9 @@ GroupDataLiteracy/
 │   ├── movie_embeddings_YYYY.npy # Generated embeddings per year
 │   ├── movie_ids_YYYY.npy        # Movie IDs corresponding to embeddings
 │   ├── data_statistics.csv       # Statistical analysis of the dataset
+│   ├── concept_space/            # Concept vocabulary for semantic mapping
+│   │   ├── concept_words.npy    # WordNet noun concept vocabulary
+│   │   └── concept_vecs.npy     # Pre-computed concept embeddings
 │   └── *.png                     # Visualization outputs
 │
 ├── src/                           # Source code directory
@@ -40,7 +43,8 @@ GroupDataLiteracy/
 │   │       ├── chunk_late_chunking.py  # Late chunking implementation
 │   │       ├── calculations.py  # Metrics and analysis functions
 │   │       ├── manager.py  # Experiment orchestration
-│   │       └── test_experiment.py  # Simple test script
+│   │       ├── test_experiment.py  # Simple test script
+│   │       └── test_single_chunking.py  # Single movie concept extraction test
 │   ├── embedding/                 # Embedding generation module
 │   │   ├── embedding.py          # EmbeddingService class for parallel GPU encoding
 │   │   ├── util_embeddings.py    # Utility functions for GPU verification and embedding validation
@@ -271,3 +275,67 @@ All embedding operations use batch processing for efficiency. The system is desi
 - Batch all segments together for within-film variance computation
 
 This ensures maximum GPU utilization and efficient processing of large datasets.
+
+## Concept Extraction from Movie Plots
+
+The `src/analysis/chunking/test_single_chunking.py` script implements a concept extraction pipeline that maps movie plot nouns to a fixed semantic concept space using embedding-based similarity.
+
+### Overview
+
+The concept extraction system:
+1. Extracts noun lemmas from movie plots using spaCy POS tagging
+2. Aggregates BGE-M3 lexical weights from subword tokens to word-level nouns
+3. Maps nouns to a fixed concept space of ~20,000 common English nouns (WordNet, Zipf ≥ 4.0)
+4. Uses embedding similarity to map unknown nouns to nearest concept anchors
+5. Aggregates weights per concept to create a semantic signature
+
+### Concept Space
+
+The concept space is built from:
+- **Source**: WordNet noun synsets
+- **Filtering**: Zipf frequency ≥ 4.0 (very common words)
+- **Size**: Top 20,000 most frequent nouns
+- **Embedding**: BGE-small-en-v1.5 (L2-normalized)
+- **Storage**: `data/concept_space/concept_words.npy` and `concept_vecs.npy`
+
+The concept space is built once and reused for all movies, providing a consistent semantic basis for comparison.
+
+### Running Concept Extraction
+
+```bash
+# Activate conda environment
+conda activate dataLiteracy
+
+# Run single movie test
+cd /home/nab/GroupDataLiteracy
+python src/analysis/chunking/test_single_chunking.py
+```
+
+### Configuration
+
+Edit parameters in `test_single_chunking.py`:
+- `zipf_threshold`: Minimum Zipf frequency for filtering lemmas (default: 4.0)
+- `min_zipf`: Minimum Zipf for concept vocabulary (default: 4.0)
+- `max_vocab`: Maximum concept vocabulary size (default: 20000)
+- `top_k`: Number of top concepts to return (default: 30)
+
+### Output
+
+The script displays:
+- Movie plot text
+- Token count
+- Embedding array shapes (colbert_vecs, window_embeddings, final_embedding)
+- Top concepts ranked by aggregated lexical weights
+
+### Mathematical Foundation
+
+The embedding-based mapping works as follows:
+
+1. **Normalize weights**: Convert lexical weights to probability distribution
+2. **Split lemmas**: Known (direct lookup) vs. unknown (need embedding)
+3. **Direct assignment**: Known lemmas map directly to concept indices
+4. **Embedding-based mapping**: Unknown lemmas are embedded and mapped via cosine similarity to nearest concept
+5. **Aggregation**: Sum weights per concept to get final scores
+6. **Ranking**: Return top-K concepts by aggregated score
+
+This provides a normalized, comparable representation of movies in a fixed semantic space, suitable for temporal drift analysis and cross-movie comparison.

@@ -110,7 +110,7 @@ VERBOSE = True
 
 # Embedding configuration
 MODEL_NAME = 'BAAI/bge-m3'
-BATCH_SIZE = 100
+BATCH_SIZE = 35
 # Target devices for embeddings (None = auto-detect, or specify like ['cuda:0', 'cuda:1'])
 TARGET_DEVICES = None
 
@@ -751,10 +751,10 @@ def step4_embeddings(
             import gc
             if torch.cuda.is_available():
                 # Log memory before clearing
+                allocated_before = torch.cuda.memory_allocated() / 1024**3
+                reserved_before = torch.cuda.memory_reserved() / 1024**3
                 if verbose:
-                    allocated_before = torch.cuda.memory_allocated() / 1024**3
-                    reserved_before = torch.cuda.memory_reserved() / 1024**3
-                    logger.debug(f"Year {year}: GPU memory before clearing - allocated: {allocated_before:.2f} GB, reserved: {reserved_before:.2f} GB")
+                    logger.info(f"Year {year}: GPU memory before clearing - allocated: {allocated_before:.2f} GB, reserved: {reserved_before:.2f} GB")
                 
                 # Clear CUDA cache
                 torch.cuda.empty_cache()
@@ -771,11 +771,10 @@ def step4_embeddings(
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
                 
-                # Log memory after clearing
-                if verbose:
-                    allocated_after = torch.cuda.memory_allocated() / 1024**3
-                    reserved_after = torch.cuda.memory_reserved() / 1024**3
-                    logger.debug(f"Year {year}: GPU memory after clearing - allocated: {allocated_after:.2f} GB, reserved: {reserved_after:.2f} GB")
+                # Log memory after clearing (always show clearing message, detailed stats if verbose)
+                allocated_after = torch.cuda.memory_allocated() / 1024**3
+                reserved_after = torch.cuda.memory_reserved() / 1024**3
+                logger.info(f"Year {year}: GPU memory cleared - allocated: {allocated_after:.2f} GB, reserved: {reserved_after:.2f} GB (freed {allocated_before - allocated_after:.2f} GB)")
         except Exception as e:
             logger.warning(f"Year {year}: Error clearing GPU memory: {e}")
     

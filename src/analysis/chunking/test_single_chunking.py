@@ -241,11 +241,11 @@ def embed_and_save_concept_vocab(vocab, output_dir, model_name="BAAI/bge-small-e
 class ConceptSpace:
     """
     Concept space built from WordNet nouns with Zipf filtering.
-    Maps movie noun lemmas to concept anchors.
+    Maps movie noun lemmas to concept anchors using embedding similarity.
     """
     def __init__(self, concept_words_path, concept_vecs_path, model_name="BAAI/bge-small-en-v1.5"):
         self.concept_words = np.load(concept_words_path, allow_pickle=True).tolist()
-        self.concept_vecs = np.load(concept_vecs_path).astype(np.float32)
+        self.concept_vecs = np.load(concept_vecs_path).astype(np.float32)  # Shape: (N, d)
         self.model = SentenceTransformer(model_name)
         self.word2idx = {w: i for i, w in enumerate(self.concept_words)}
         print(f"Loaded concept space: {len(self.concept_words)} concepts")
@@ -255,19 +255,21 @@ class ConceptSpace:
         Map noun lemmas to concept anchors and aggregate weights.
         
         Args:
-            lemma2weight: dict[lemma] -> weight
+            lemma2weight: dict[lemma] -> weight (from lexical_weights)
             top_k: Number of top concepts to return
         
         Returns:
-            List of (concept_word, score) tuples
+            List of (concept_word, score) tuples, sorted by score descending
         """
         if not lemma2weight:
             return []
         
+        # Step 1: Normalize weights to probability distribution
         lemmas = list(lemma2weight.keys())
         weights = np.array([lemma2weight[l] for l in lemmas], dtype=np.float32)
-        weights /= weights.sum()
+        weights /= weights.sum()  # Normalize: Σw_i = 1
         
+        # Step 2: Split into known (direct lookup) and unknown (need embedding)
         known_idx = []
         known_weights = []
         unknown_lemmas = []
@@ -282,22 +284,36 @@ class ConceptSpace:
                 unknown_lemmas.append(l)
                 unknown_weights.append(w)
         
+        # Step 3: Initialize concept score vector
         concept_scores = np.zeros(self.concept_vecs.shape[0], dtype=np.float32)
         
-        # Direct assign for known lemmas
+        # Step 4a: Direct assignment for known lemmas
+        # s[c_idx] += w for each known lemma
         for idx, w in zip(known_idx, known_weights):
             concept_scores[idx] += w
         
-        # For unknown lemmas, embed and map to nearest concept
+        # Step 4b: Embedding-based assignment for unknown lemmas
+        # For each unknown lemma l_i:
+        #   v_i = embed(l_i)  [L2-normalized]
+        #   sim_i = v_i @ V_C^T  [cosine similarity with all concepts]
+        #   c* = argmax_j sim_i[j]  [nearest concept]
+        #   s[c*] += w_i
         if unknown_lemmas:
             unk_vecs = self.model.encode(unknown_lemmas, normalize_embeddings=True, show_progress_bar=False)
-            unk_vecs = np.asarray(unk_vecs, dtype=np.float32)
-            sims = unk_vecs @ self.concept_vecs.T
-            best = sims.argmax(axis=1)
+            unk_vecs = np.asarray(unk_vecs, dtype=np.float32)  # Shape: (U, d) where U = num unknown
+            
+            # Cosine similarity: unk_vecs @ concept_vecs^T
+            # Since both are L2-normalized, dot product = cosine similarity
+            sims = unk_vecs @ self.concept_vecs.T  # Shape: (U, N)
+            
+            # Find nearest concept for each unknown lemma
+            best = sims.argmax(axis=1)  # Shape: (U,)
+            
+            # Aggregate weights to nearest concepts
             for c_idx, w in zip(best, unknown_weights):
                 concept_scores[c_idx] += w
         
-        # Rank concepts by aggregated score
+        # Step 5: Rank concepts by aggregated scores
         ranked = np.argsort(-concept_scores)
         results = []
         for c_idx in ranked[:top_k]:
@@ -421,7 +437,7 @@ if __name__ == '__main__':
     df = load_movie_data(DATA_DIR, verbose=True)
     df = df[df['plot'].notna() & (df['plot'].str.len() > 2000)].copy()
 
-    random_movie = df.sample(n=1, random_state=42).iloc[0]
+    random_movie = df.sample(n=1, random_state=41).iloc[0]
     plot_text = random_movie['plot']
     print(f"\nSelected movie ID: {random_movie['movie_id']}")
     print(f"Plot length: {len(plot_text)} characters")
@@ -472,32 +488,7 @@ if __name__ == '__main__':
                     
                     print(f"Filtered {len(lemma2weight)} lemmas to {len(filtered_lemma2weight)} with Zipf >= {zipf_threshold}")
                     
-                    # Step 2: Show top noun lemmas (literal words) - using filtered set
-                    top_lemmas = sorted(filtered_lemma2weight.items(), key=lambda x: x[1], reverse=True)[:20]
-                    
-                    print(f"\n{'='*80}")
-                    print(f"TOP 20 NOUN LEMMAS (LITERAL WORDS, Zipf >= {zipf_threshold}):")
-                    print(f"{'='*80}")
-                    for idx, (lemma, weight) in enumerate(top_lemmas, 1):
-                        zipf_score = wordfreq.zipf_frequency(lemma, 'en', wordlist='large') if HAS_WORDFREQ else 0.0
-                        print(f"{idx:2d}. {lemma:30s}: {weight:.6f} (Zipf: {zipf_score:.2f})")
-                    print(f"{'='*80}\n")
-                    
-                    # Step 3: Map to concepts using WordNet hypernyms (with Zipf filtering)
-                    # more depth means more specific concepts
-                    top_concepts_wordnet = top_concept_nouns_wordnet(
-                        lemma2weight, top_k=30, depth=4, zipf_threshold=zipf_threshold
-                    )
-                    
-                    if top_concepts_wordnet:
-                        print(f"\n{'='*80}")
-                        print(f"TOP 20 CONCEPTS (WORDNET HYPERNYM-BASED, depth=5, Zipf >= {zipf_threshold}):")
-                        print(f"{'='*80}")
-                        for idx, (concept, score) in enumerate(top_concepts_wordnet, 1):
-                            print(f"{idx:2d}. {concept:30s}: {score:.6f}")
-                        print(f"{'='*80}\n")
-                    
-                    # Step 4: Map to concepts using WordNet concept space (10k anchors)
+                    # Map to concepts using WordNet concept space (embedding-based)
                     try:
                         concept_dir = BASE_DIR / "data" / "concept_space"
                         concept_words_path = concept_dir / "concept_words.npy"
@@ -506,7 +497,7 @@ if __name__ == '__main__':
                         if not concept_words_path.exists() or not concept_vecs_path.exists():
                             print(f"\nBuilding WordNet concept vocabulary (this is a one-time operation)...")
                             print(f"Collecting WordNet nouns with Zipf >= 4.5...")
-                            vocab = build_wordnet_concept_vocab(min_zipf=4, max_vocab=15000)
+                            vocab = build_wordnet_concept_vocab(min_zipf=4, max_vocab=20000)
                             print(f"Found {len(vocab)} concept words")
                             print(f"Embedding concepts...")
                             embed_and_save_concept_vocab(vocab, concept_dir, 
