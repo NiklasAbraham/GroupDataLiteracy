@@ -110,7 +110,7 @@ VERBOSE = True
 
 # Embedding configuration
 MODEL_NAME = 'BAAI/bge-m3'
-BATCH_SIZE = 512
+BATCH_SIZE = 100
 # Target devices for embeddings (None = auto-detect, or specify like ['cuda:0', 'cuda:1'])
 TARGET_DEVICES = None
 
@@ -726,9 +726,58 @@ def step4_embeddings(
             else:
                 logger.error(f"Year {year}: Embedding verification failed, not saving")
             
+            # Clear intermediate variables to free memory
+            del embeddings
+            del plots
+            del movie_ids_with_plots
+            del movies_with_plots
+            
         except Exception as e:
             logger.error(f"Year {year}: Error generating embeddings - {e}", exc_info=verbose)
+            # Clear variables even on error
+            if 'embeddings' in locals():
+                del embeddings
+            if 'plots' in locals():
+                del plots
+            if 'movie_ids_with_plots' in locals():
+                del movie_ids_with_plots
+            if 'movies_with_plots' in locals():
+                del movies_with_plots
             continue
+        
+        # Aggressive memory clearing between years to prevent accumulation
+        try:
+            import torch
+            import gc
+            if torch.cuda.is_available():
+                # Log memory before clearing
+                if verbose:
+                    allocated_before = torch.cuda.memory_allocated() / 1024**3
+                    reserved_before = torch.cuda.memory_reserved() / 1024**3
+                    logger.debug(f"Year {year}: GPU memory before clearing - allocated: {allocated_before:.2f} GB, reserved: {reserved_before:.2f} GB")
+                
+                # Clear CUDA cache
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                
+                # Clear inter-process cache (important for multi-GPU)
+                if len(target_devices) > 1 and all(d.startswith('cuda') for d in target_devices):
+                    torch.cuda.ipc_collect()
+                
+                # Force garbage collection to free Python objects
+                gc.collect()
+                
+                # Clear cache again after GC
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                
+                # Log memory after clearing
+                if verbose:
+                    allocated_after = torch.cuda.memory_allocated() / 1024**3
+                    reserved_after = torch.cuda.memory_reserved() / 1024**3
+                    logger.debug(f"Year {year}: GPU memory after clearing - allocated: {allocated_after:.2f} GB, reserved: {reserved_after:.2f} GB")
+        except Exception as e:
+            logger.warning(f"Year {year}: Error clearing GPU memory: {e}")
     
     # Clean up embedding service resources
     try:
