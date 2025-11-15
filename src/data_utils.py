@@ -2,6 +2,7 @@ from typing import Dict, Tuple
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import json
 import os
 
 
@@ -60,13 +61,13 @@ def load_movie_embeddings(
 def load_movie_data_1(data_dir, verbose=False):
     """
     Loads movie features, e.g. Year, Director, Rating, etc.
-    
+
     DIFFERENCE FROM load_movie_data:
     - Uses hardcoded year range (1950-2024) and expects files named wikidata_movies_YYYY.csv
     - Only loads 3 specific columns: movie_id, genre, title
     - Simpler implementation with less error handling
     - Less flexible: cannot handle year range files (e.g., "1950_to_2024.csv")
-    
+
     Use load_movie_data() instead for more robust file discovery and full column loading.
 
     Parameters:
@@ -125,14 +126,14 @@ def find_year_files(data_dir: str) -> Dict[int, str]:
 def load_movie_data(data_dir: str, verbose: bool = False) -> pd.DataFrame:
     """
     Loads movie features, e.g. Year, Director, Rating, etc.
-    
+
     DIFFERENCE FROM load_movie_data_1:
     - Dynamically discovers CSV files using find_year_files() instead of hardcoded year range
     - Loads ALL columns from CSV files (not just movie_id, genre, title)
     - Can handle year range files (e.g., "wikidata_movies_1950_to_2024.csv")
     - More robust error handling with try/except blocks
     - Better verbose output showing which files were loaded
-    
+
     This is the recommended function to use for loading movie data.
 
     Parameters:
@@ -178,23 +179,27 @@ def load_movie_data(data_dir: str, verbose: bool = False) -> pd.DataFrame:
     return combined_df
 
 
-def _load_all_data_with_embeddings(data_dir: str, verbose: bool = False) -> pd.DataFrame:
+def _load_all_data_with_embeddings(
+    data_dir: str, verbose: bool = False
+) -> pd.DataFrame:
     """
     Helper to load all metadata and merge with all embeddings.
     """
     all_embeddings, all_movie_ids = load_movie_embeddings(data_dir, verbose=verbose)
 
-    embeddings_df = pd.DataFrame({
-        'movie_id': all_movie_ids,
-        'embedding': list(all_embeddings)
-    })
+    embeddings_df = pd.DataFrame(
+        {"movie_id": all_movie_ids, "embedding": list(all_embeddings)}
+    )
 
     metadata_df = load_movie_data(data_dir, verbose=verbose)
-    combined_df = pd.merge(metadata_df, embeddings_df, on='movie_id', how='inner')
+    combined_df = pd.merge(metadata_df, embeddings_df, on="movie_id", how="inner")
 
     return combined_df
 
-def load_movie_data_limited(data_dir: str, movies_per_year: int | None, verbose: bool = False) -> pd.DataFrame:
+
+def load_movie_data_limited(
+    data_dir: str, movies_per_year: int | None, verbose: bool = False
+) -> pd.DataFrame:
     """
     Load a limited number of movies per year from the dataset, including embeddings.
     """
@@ -203,11 +208,11 @@ def load_movie_data_limited(data_dir: str, movies_per_year: int | None, verbose:
     if all_movies.empty or movies_per_year is None or movies_per_year <= 0:
         return all_movies
 
-    unique_years = all_movies['year'].unique()
+    unique_years = all_movies["year"].unique()
 
     sampled_dfs = []
     for year in unique_years:
-        year_movies = all_movies[all_movies['year'] == year]
+        year_movies = all_movies[all_movies["year"] == year]
 
         # Sample up to movies_per_year from this year
         n_sample = min(len(year_movies), movies_per_year)
@@ -217,3 +222,49 @@ def load_movie_data_limited(data_dir: str, movies_per_year: int | None, verbose:
     result_df = pd.concat(sampled_dfs, ignore_index=True)
 
     return result_df
+
+
+def preprocess_genres(genre: str) -> str:
+    """
+    Takes in a raw genre string containing multiple delimetered genres, returns relabelled genres.
+
+    If a movie has multiple genres, it will be delimetered by `|`.
+    """
+    # Read genre mapping file
+    with open("genre_fix_mapping.json", "r") as f:
+        genre_mapping = json.loads(f.read())
+
+    # Split raw string into genres
+    split_genres = genre.split(",")
+
+    new_genres = []
+    for g in split_genres:
+        # Preprocess genres
+        new_g = g.lower().replace("film", "").strip()
+
+        # Map them to clustered genre
+        mapped_genre = genre_mapping[new_g]
+        new_genres.append(mapped_genre)
+
+    # Remove duplicates
+    new_genres = list(set(new_genres))
+
+    return "|".join(new_genres)
+
+
+def cluster_genres(movie_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Splits and cleans genre strings, embed cleaned genre strings and clusters them into 10 main genres.
+
+    Parameters:
+    - dataframe: must have "genre" column
+
+    Returns:
+    - dataframe: with new genre label
+    """
+    if "genre" not in movie_df.columns:
+        raise ValueError("Genre column not present in provided dataframe.")
+
+    # Preprocess genre
+    movie_df["new_genre"] = movie_df["genre"].apply(preprocess_genres)
+    return movie_df
