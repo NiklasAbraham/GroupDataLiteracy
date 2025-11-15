@@ -164,7 +164,17 @@ Data collection process, bla bla bla, the pipline explained, etc.
 
 
 
-After the data was collected in a tabular format, the plots of the data needed to be embedded
+After the data was collected in a tabular format, the textual plot descriptions required transformation into vector representations suitable for downstream analysis. The plot descriptions extracted from Wikipedia pages exhibit substantial variability in length, ranging from 10 to 20,479 characters, corresponding to approximately 6 to 5,296 tokens. All plot descriptions in our corpus are in English, which simplifies the embedding process by eliminating cross-lingual considerations.
+
+The selection of an appropriate embedding model was guided by the Massive Text Embedding Benchmark (MTEB) leaderboard results\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}, which provides comprehensive evaluations of embedding models across diverse retrieval and semantic similarity tasks. Based on these benchmarks, we selected the BGE-M3 (Beijing Academy of Artificial Intelligence Multilingual, Multifunctional, Multi-granularity) model \cite{chen2024bgem3embeddingmultilingualmultifunctionality}, an open-source model developed by the Beijing Academy of Artificial Intelligence. The BGE-M3 model achieved competitive performance (28th place on the MTEB leaderboard) while maintaining a relatively compact architecture with 0.5 billion parameters. Critically, the model supports a context length of 8,192 tokens, which enables embedding entire movie plot descriptions into a single vector representation without requiring chunking for the majority of documents in our corpus.
+
+The BGE-M3 model offers three distinct embedding modes, each suited for different retrieval and analysis tasks. The \textit{dense vector} output corresponds to the [CLS] token representation from the final transformer layer, producing a 1024-dimensional vector that serves as a global document representation \cite{DBLP:journals/corr/abs-1810-04805}. The \textit{sparse vector} mode generates token-level weights with extremely high dimensionality (250,002 dimensions), where each token is represented by a single weight, enabling fine-grained lexical matching. The \textit{multi-vector} output provides all hidden states from the model, yielding 1024-dimensional vectors for each token in the input sequence, thus preserving token-level semantic information.
+
+A fundamental challenge in embedding variable-length documents arises from the inherent limitations of transformer-based models. Our corpus contains documents ranging from a few sentences to several thousand words, while transformer models exhibit fixed token limits and demonstrate biases in their learned representations. Specifically, the [CLS] token, which is commonly used as a document-level representation, has been shown to exhibit length-dependent biases and structural preferences \cite{DBLP:journals/corr/abs-1810-04805}. Therefore, selecting an appropriate pooling and chunking strategy is essential to minimize length bias while preserving semantic fidelity across documents of varying lengths.
+
+While the [CLS] token approach appears attractive due to its simplicity and the model's pre-training objective of learning document-level representations, empirical evidence demonstrates significant limitations for long documents. \cite{pmlr-v97-gong19a} showed that attention entropy at the [CLS] token drops sharply as sequence length increases, with the token focusing predominantly on the first approximately 128 tokens. Similarly, \cite{raffel2023exploringlimitstransferlearning} reported that learned summary tokens underperform mean pooling for long documents, with decoder attention mechanisms favoring earlier positions in the sequence. Given that over 75\% of the plot descriptions in our corpus exceed 512 tokens, relying solely on the [CLS] token would result in substantial information loss for the majority of documents.
+
+We considered four primary approaches for generating document embeddings, visualised in Figure \ref{fig:chunking_methods}:
 
 \begin{figure}[ht]
     \centering
@@ -173,29 +183,20 @@ After the data was collected in a tabular format, the plots of the data needed t
     \label{fig:chunking_methods}
 \end{figure}
 
-\begin{table}[ht]
-    \centering
-    \caption{Summary of results for each chunking method and embedding configuration. The best value in each column is shown in bold.}
-    \begin{tabular}{lccccccc}
-        \toprule
-        Method & \makecell{Length\\normcorr} & \makecell{Isotropy\\1st~PC} & \makecell{Isotropy\\abtt2} & \makecell{Mean\\Between\\Dist.} & \makecell{Silhouette\\Score} & \makecell{Genre\\Accuracy} & \makecell{Genre\\F1} \\
-        \midrule
-        MeanPooling & 0.643 & 12.23 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
-        CLS Token & -0.01 & 5.14  & 2.22 & 0.57 & -0.11 & \textbf{0.47} & \textbf{0.36} \\
-        ChunkFirst~E. 512/256 & -0.38 & 5.83  & 2.26 & 0.56 & -0.12 & \textbf{0.47} & \textbf{0.36} \\
-        ChunkFirst~E. 1024/512 & -0.32 & 5.28  & 2.22 & 0.57 & -0.11 & \textbf{0.47} & \textbf{0.36} \\
-        ChunkFirst~E. 2048/1024 & -0.09 & 5.14  & 2.22 & 0.57 & -0.11 & \textbf{0.47} & \textbf{0.36} \\
-        LateChunking~512/256 & \textbf{0.84} & \textbf{12.58} & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
-        LateChunking~1024/512 & 0.75 & 12.32 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
-        LateChunking~2048/1024 & 0.66 & 12.23 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
-        LateChunking~2048/512 & 0.66 & 12.23 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
-        LateChunking~512/0 & \textbf{0.84} & 12.24 & 3.42 & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
-        LateChunking~1024/0 & 0.75 & 12.16 & 3.42 & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
-        LateChunking~2048/0 & 0.66 & 12.23 & \textbf{3.43} & \textbf{0.59} & -0.18 & 0.46 & 0.35 \\
-        \bottomrule
-    \end{tabular}
-    \label{tab:summary_results}
-\end{table}
+\textbf{Mean Pooling (Global Average):} This classical approach computes the mean of all token embeddings to produce a single document representation. While this method exhibits low variance, it introduces high bias by treating all tokens equally, potentially diluting important semantic information.
+
+\textbf{Chunk-then-Embed (Early Chunking):} This strategy splits long documents into smaller chunks before embedding, processes each chunk separately, and then aggregates the resulting embeddings. This approach, exemplified by hierarchical attention networks \cite{yang-etal-2016-hierarchical}, can reduce bias but introduces higher variance due to the loss of cross-chunk contextual information.
+
+\textbf{Embed-then-Chunk (Late Chunking):} This method, recently proposed by \cite{günther2025latechunkingcontextualchunk}, embeds the full text in a single forward pass through the transformer model, then pools token embeddings over fixed-size windows after contextualization. This approach maintains full contextual information while providing controlled variance and minimal bias.
+
+\textbf{CLS Token Extraction:} The simplest approach utilizes only the [CLS] token from the final layer as the document representation, relying on the model's learned summarization capabilities.
+
+To determine the optimal chunking and pooling strategy for our specific use case, we conducted comparative tests across multiple approaches.
+
+
+
+
+
 
 
 
