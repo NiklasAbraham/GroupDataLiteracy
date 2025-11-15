@@ -12,7 +12,11 @@ import seaborn as sns
 from scipy.spatial.distance import cosine
 from scipy.stats import pearsonr
 from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, accuracy_score, f1_score, hamming_loss
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.multioutput import MultiOutputClassifier
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import os
@@ -208,26 +212,51 @@ def compute_between_film_distance(embeddings: np.ndarray, film_ids: np.ndarray, 
 def compute_genre_clustering_quality(embeddings: np.ndarray, genres: np.ndarray) -> float:
     """
     Compute silhouette score for genre clustering.
+    For multi-label genres, uses the first genre as the primary label.
     
     Args:
         embeddings (np.ndarray): Array of embeddings [n_samples, embedding_dim]
         genres (np.ndarray): Array of genre labels [n_samples]
+                           Can be list of lists (multi-label) or array of strings (single-label)
         
     Returns:
         float: Silhouette score (higher is better, range: -1 to 1)
     """
-    # Filter out NaN values and convert to string
-    import pandas as pd
-    # Convert to pandas Series for easier handling
-    genres_series = pd.Series(genres)
-    valid_mask = genres_series.notna() & (genres_series.astype(str).str.strip() != '')
-    valid_genres = genres_series[valid_mask].astype(str).values
-    valid_embeddings = embeddings[valid_mask.values]
+    # Handle both multi-label (list of lists) and single-label (array of strings) formats
+    # For silhouette score, we need single labels, so we use the first genre for multi-label cases
+    valid_genres = []
+    valid_indices = []
+    
+    for idx, genre in enumerate(genres):
+        if genre is None or (isinstance(genre, float) and np.isnan(genre)):
+            continue
+        if isinstance(genre, str):
+            # Single label
+            genre_str = genre.strip()
+        elif isinstance(genre, list):
+            # Multi-label: use first genre as primary label
+            if len(genre) > 0:
+                genre_str = str(genre[0]).strip()
+            else:
+                continue
+        else:
+            # Try to convert to string
+            genre_str = str(genre).strip()
+            # If it contains commas, take the first one
+            if ',' in genre_str:
+                genre_str = genre_str.split(',')[0].strip()
+        
+        if genre_str:
+            valid_genres.append(genre_str)
+            valid_indices.append(idx)
     
     if len(valid_genres) < 2:
         return 0.0
     
-    unique_genres = np.unique(valid_genres)
+    valid_embeddings = embeddings[valid_indices]
+    valid_genres_array = np.array(valid_genres)
+    
+    unique_genres = np.unique(valid_genres_array)
     if len(unique_genres) < 2:
         return 0.0
     
@@ -236,11 +265,125 @@ def compute_genre_clustering_quality(embeddings: np.ndarray, genres: np.ndarray)
     
     # Compute silhouette score
     try:
-        score = silhouette_score(valid_embeddings, valid_genres)
+        score = silhouette_score(valid_embeddings, valid_genres_array)
         return score
     except Exception as e:
         print(f"Error computing silhouette score: {e}")
         return 0.0
+
+
+def compute_genre_classification_metrics(embeddings: np.ndarray, genres: np.ndarray, 
+                                       test_size: float = 0.2, random_state: int = 42) -> Dict[str, float]:
+    """
+    Train a multi-label logistic regression classifier to predict genres from embeddings.
+    Each movie can have multiple genres. Compute subset accuracy and F1 score.
+    
+    Args:
+        embeddings (np.ndarray): Array of embeddings [n_samples, embedding_dim]
+        genres (np.ndarray): Array of genre labels [n_samples]
+                           Can be list of lists (multi-label) or array of strings (single-label)
+        test_size (float): Proportion of data to use for testing (default: 0.2)
+        random_state (int): Random seed for reproducibility (default: 42)
+        
+    Returns:
+        Dict[str, float]: Dictionary with 'genre_accuracy' (subset accuracy) and 'genre_f1_score' (micro-averaged)
+    """
+    # Handle both multi-label (list of lists) and single-label (array of strings) formats
+    # Convert to list of lists format
+    genres_list = []
+    valid_indices = []
+    
+    for idx, genre in enumerate(genres):
+        if genre is None or (isinstance(genre, float) and np.isnan(genre)):
+            continue
+        if isinstance(genre, str):
+            # Single label: convert to list
+            genre_list = [g.strip() for g in genre.split(',') if g.strip()]
+        elif isinstance(genre, list):
+            # Already a list
+            genre_list = [g.strip() if isinstance(g, str) else str(g).strip() for g in genre if g and str(g).strip()]
+        else:
+            # Try to convert to string and split
+            genre_list = [g.strip() for g in str(genre).split(',') if g.strip()]
+        
+        if len(genre_list) > 0:
+            genres_list.append(genre_list)
+            valid_indices.append(idx)
+    
+    if len(genres_list) < 2:
+        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
+    
+    valid_embeddings = embeddings[valid_indices]
+    
+    # Convert to binary indicator matrix using MultiLabelBinarizer
+    mlb = MultiLabelBinarizer()
+    y_binary = mlb.fit_transform(genres_list)  # [n_samples, n_labels]
+    
+    if y_binary.shape[1] < 1:
+        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
+    
+    if valid_embeddings.shape[0] < 2:
+        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
+    
+    # Split data into train and test sets
+    # For multi-label, we can't use standard stratification, so we use shuffle split
+    X_train, X_test, y_train, y_test = train_test_split(
+        valid_embeddings, y_binary, 
+        test_size=test_size, 
+        random_state=random_state,
+        shuffle=True
+    )
+    
+    # Train multi-label logistic regression classifier
+    # sklearn's LogisticRegression already uses efficient internal batching
+    # We optimize solver choice based on dataset size for better performance
+    try:
+        # Determine best solver based on dataset size
+        n_samples = X_train.shape[0]
+        
+        # For large datasets, use 'lbfgs' which is memory efficient and handles batching well
+        # For smaller datasets, 'liblinear' is faster
+        if n_samples > 10000:
+            solver = 'lbfgs'
+        else:
+            solver = 'liblinear'
+        
+        # Use MultiOutputClassifier to handle multi-label classification
+        # Each label gets its own binary classifier
+        base_clf = LogisticRegression(
+            random_state=random_state, 
+            max_iter=1000, 
+            solver=solver,
+            n_jobs=1  # sklearn handles internal batching, we parallelize at higher level
+        )
+        clf = MultiOutputClassifier(base_clf, n_jobs=1)
+        clf.fit(X_train, y_train)
+        
+        # Predict on test set (predictions are already batched internally by sklearn)
+        y_pred = clf.predict(X_test)
+        
+        # Compute metrics for multi-label classification
+        # Subset accuracy: exact match (all labels must be correct)
+        subset_accuracy = accuracy_score(y_test, y_pred)
+        
+        # Micro-averaged F1: treats each label prediction as an individual binary prediction
+        f1_micro = f1_score(y_test, y_pred, average='micro', zero_division=0)
+        
+        # Also compute macro-averaged F1 for additional insight
+        f1_macro = f1_score(y_test, y_pred, average='macro', zero_division=0)
+        
+        # Hamming loss: fraction of labels that are incorrectly predicted
+        hamming = hamming_loss(y_test, y_pred)
+        
+        return {
+            'genre_accuracy': subset_accuracy,  # Subset accuracy (exact match)
+            'genre_f1_score': f1_micro,  # Micro-averaged F1 (primary metric)
+            'genre_f1_macro': f1_macro,  # Macro-averaged F1 (additional metric)
+            'genre_hamming_loss': hamming  # Hamming loss (lower is better)
+        }
+    except Exception as e:
+        print(f"Error computing genre classification metrics: {e}")
+        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
 
 
 def compute_temporal_drift(embeddings: np.ndarray, years: np.ndarray, 
@@ -338,24 +481,42 @@ def evaluate_method(embeddings: np.ndarray,
     start_metrics = time.time()
     
     # Compute independent metrics in parallel
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    # Increased max_workers to accommodate all parallel tasks including genre metrics
+    with ThreadPoolExecutor(max_workers=6) as executor:
         # Submit all independent metric computations
         future_length_norm = executor.submit(compute_length_norm_correlation, embeddings, text_lengths, pre_norms)
         future_isotropy_raw = executor.submit(compute_isotropy, embeddings, abtt_pc=0)
         future_isotropy_abtt2 = executor.submit(compute_isotropy, embeddings, abtt_pc=2)
         future_between = executor.submit(compute_between_film_distance, embeddings, film_ids)
         
+        # Submit genre-related metrics in parallel if genres are available
+        if genres is not None:
+            future_silhouette = executor.submit(compute_genre_clustering_quality, embeddings, genres)
+            future_genre_classification = executor.submit(compute_genre_classification_metrics, embeddings, genres)
+        else:
+            future_silhouette = None
+            future_genre_classification = None
+        
         # Get results from parallel computations
         length_norm_corr = future_length_norm.result()
         isotropy_firstPC = future_isotropy_raw.result()
         isotropy_firstPC_abtt2 = future_isotropy_abtt2.result()
         mean_between_distance = future_between.result()
-    
-    # Genre clustering (if available) - can be slow for large datasets, so run separately
-    if genres is not None:
-        silhouette_score_val = compute_genre_clustering_quality(embeddings, genres)
-    else:
-        silhouette_score_val = np.nan
+        
+        # Get genre-related results if available
+        if future_silhouette is not None and future_genre_classification is not None:
+            silhouette_score_val = future_silhouette.result()
+            genre_classification_metrics = future_genre_classification.result()
+            genre_accuracy = genre_classification_metrics.get('genre_accuracy', np.nan)
+            genre_f1_score = genre_classification_metrics.get('genre_f1_score', np.nan)
+            genre_f1_macro = genre_classification_metrics.get('genre_f1_macro', np.nan)
+            genre_hamming_loss = genre_classification_metrics.get('genre_hamming_loss', np.nan)
+        else:
+            silhouette_score_val = np.nan
+            genre_accuracy = np.nan
+            genre_f1_score = np.nan
+            genre_f1_macro = np.nan
+            genre_hamming_loss = np.nan
     
     metrics = {
         'method': method_name,
@@ -364,6 +525,10 @@ def evaluate_method(embeddings: np.ndarray,
         'isotropy_firstPC_abtt2': isotropy_firstPC_abtt2,
         'mean_between_distance': mean_between_distance,
         'silhouette_score': silhouette_score_val,
+        'genre_accuracy': genre_accuracy,  # Subset accuracy (exact match for all labels)
+        'genre_f1_score': genre_f1_score,  # Micro-averaged F1
+        'genre_f1_macro': genre_f1_macro,  # Macro-averaged F1
+        'genre_hamming_loss': genre_hamming_loss,  # Hamming loss (lower is better)
     }
     
     elapsed = time.time() - start_metrics

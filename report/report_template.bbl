@@ -1,0 +1,58 @@
+\begin{thebibliography}{6}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Chen et~al.(2024)Chen, Xiao, Zhang, Luo, Lian, and
+  Liu]{chen2024bgem3embeddingmultilingualmultifunctionality}
+Chen, J., Xiao, S., Zhang, P., Luo, K., Lian, D., and Liu, Z.
+\newblock Bge m3-embedding: Multi-lingual, multi-functionality,
+  multi-granularity text embeddings through self-knowledge distillation, 2024.
+\newblock URL \url{https://arxiv.org/abs/2402.03216}.
+
+\bibitem[Devlin et~al.(2018)Devlin, Chang, Lee, and
+  Toutanova]{DBLP:journals/corr/abs-1810-04805}
+Devlin, J., Chang, M., Lee, K., and Toutanova, K.
+\newblock {BERT:} pre-training of deep bidirectional transformers for language
+  understanding.
+\newblock \emph{CoRR}, abs/1810.04805, 2018.
+\newblock URL \url{http://arxiv.org/abs/1810.04805}.
+
+\bibitem[Gong et~al.(2019)Gong, He, Li, Qin, Wang, and Liu]{pmlr-v97-gong19a}
+Gong, L., He, D., Li, Z., Qin, T., Wang, L., and Liu, T.
+\newblock Efficient training of {BERT} by progressively stacking.
+\newblock In Chaudhuri, K. and Salakhutdinov, R. (eds.), \emph{Proceedings of
+  the 36th International Conference on Machine Learning}, volume~97 of
+  \emph{Proceedings of Machine Learning Research}, pp.\  2337--2346. PMLR,
+  09--15 Jun 2019.
+\newblock URL \url{https://proceedings.mlr.press/v97/gong19a.html}.
+
+\bibitem[Günther et~al.(2025)Günther, Mohr, Williams, Wang, and
+  Xiao]{günther2025latechunkingcontextualchunk}
+Günther, M., Mohr, I., Williams, D.~J., Wang, B., and Xiao, H.
+\newblock Late chunking: Contextual chunk embeddings using long-context
+  embedding models, 2025.
+\newblock URL \url{https://arxiv.org/abs/2409.04701}.
+
+\bibitem[Raffel et~al.(2023)Raffel, Shazeer, Roberts, Lee, Narang, Matena,
+  Zhou, Li, and Liu]{raffel2023exploringlimitstransferlearning}
+Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou,
+  Y., Li, W., and Liu, P.~J.
+\newblock Exploring the limits of transfer learning with a unified text-to-text
+  transformer, 2023.
+\newblock URL \url{https://arxiv.org/abs/1910.10683}.
+
+\bibitem[Yang et~al.(2016)Yang, Yang, Dyer, He, Smola, and
+  Hovy]{yang-etal-2016-hierarchical}
+Yang, Z., Yang, D., Dyer, C., He, X., Smola, A., and Hovy, E.
+\newblock Hierarchical attention networks for document classification.
+\newblock In \emph{Proceedings of the 2016 Conference of the North {A}merican
+  Chapter of the Association for Computational Linguistics: Human Language
+  Technologies}, pp.\  1480--1489, San Diego, California, jun 2016. Association
+  for Computational Linguistics.
+\newblock \doi{10.18653/v1/N16-1174}.
+\newblock URL \url{https://aclanthology.org/N16-1174/}.
+
+\end{thebibliography}

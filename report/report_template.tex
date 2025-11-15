@@ -8,6 +8,7 @@
 \usepackage{graphicx}
 \usepackage{subfigure}
 \usepackage{booktabs} % for professional tables
+\usepackage{makecell} % for multi-line table cells
 
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, calc, fit}
@@ -133,139 +134,71 @@ This project addresses the fundamental question of how cultural meaning evolves 
 
 \section{Introduction}\label{sec:intro}
 
-Motivate the problem, situation or topic you decided to work on. Describe why it matters (is it of societal, economic, scientific value?). Outline the rest of the paper (use references, e.g.~to \Cref{sec:methods}: What kind of data you are working with, how you analyse it, and what kind of conclusion you reached. The point of the introduction is to make the reader want to read the rest of the paper.
+Motivate the problem, situation or topic you decided to work on. Describe why it matters (is it of societal, economic, scientific value?). Outline the rest of the paper (use references, e.g.~to \Cref{sec:methods}: What kind of data you are working with, how you analyse it, and what kind of conclusion you reached. The point of the introduction is to make the reader want to read the rest of the paper.)
 
 \section{Data and Methods}\label{sec:methods}
 
 Data collection process, bla bla bla, the pipline explained, etc.
 
-After the data was collected in a tabular format, the plots of the data needed to be embedded.
+\begin{table}[ht]
+    \centering
+    \caption{Per-decade feature coverage (\%) of key metadata fields in the movie dataset.}
+    \begin{tabular}{lcccc}
+        \toprule
+        Decade & Actors+Director  & Genre & Plot & Vote Count \\
+        \midrule
+        1950s   & 86.56  & 63.67 & 83.03 & 90.19 \\
+        1960s   & 83.82  & 61.01 & 77.31 & 85.26 \\
+        1970s   & 86.55  & 62.47 & 79.57 & 86.58 \\
+        1980s   & 84.68  & 59.41 & 79.80 & 85.41 \\
+        1990s   & 82.22  & 58.33 & 82.00 & 84.49 \\
+        2000s   & 77.34  & 60.51 & 84.19 & 83.73 \\
+        2010s   & 70.25  & 60.55 & 84.94 & 85.60 \\
+        2020s   & 70.66  & 64.85 & 77.59 & 89.63 \\
+        \midrule
+        Average & 80.26  & 61.35 & 81.05 & 86.36 \\
+        \bottomrule
+    \end{tabular}
+    \label{tab:decade_coverage}
+\end{table}
+
+
+
+After the data was collected in a tabular format, the textual plot descriptions required transformation into vector representations suitable for downstream analysis. The plot descriptions extracted from Wikipedia pages exhibit substantial variability in length, ranging from 10 to 20,479 characters, corresponding to approximately 6 to 5,296 tokens. All plot descriptions in our corpus are in English, which simplifies the embedding process by eliminating cross-lingual considerations.
+
+The selection of an appropriate embedding model was guided by the Massive Text Embedding Benchmark (MTEB) leaderboard results\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}, which provides comprehensive evaluations of embedding models across diverse retrieval and semantic similarity tasks. Based on these benchmarks, we selected the BGE-M3 (Beijing Academy of Artificial Intelligence Multilingual, Multifunctional, Multi-granularity) model \cite{chen2024bgem3embeddingmultilingualmultifunctionality}, an open-source model developed by the Beijing Academy of Artificial Intelligence. The BGE-M3 model achieved competitive performance (28th place on the MTEB leaderboard) while maintaining a relatively compact architecture with 0.5 billion parameters. Critically, the model supports a context length of 8,192 tokens, which enables embedding entire movie plot descriptions into a single vector representation without requiring chunking for the majority of documents in our corpus.
+
+The BGE-M3 model offers three distinct embedding modes, each suited for different retrieval and analysis tasks. The \textit{dense vector} output corresponds to the [CLS] token representation from the final transformer layer, producing a 1024-dimensional vector that serves as a global document representation \cite{DBLP:journals/corr/abs-1810-04805}. The \textit{sparse vector} mode generates token-level weights with extremely high dimensionality (250,002 dimensions), where each token is represented by a single weight, enabling fine-grained lexical matching. The \textit{multi-vector} output provides all hidden states from the model, yielding 1024-dimensional vectors for each token in the input sequence, thus preserving token-level semantic information.
+
+A fundamental challenge in embedding variable-length documents arises from the inherent limitations of transformer-based models. Our corpus contains documents ranging from a few sentences to several thousand words, while transformer models exhibit fixed token limits and demonstrate biases in their learned representations. Specifically, the [CLS] token, which is commonly used as a document-level representation, has been shown to exhibit length-dependent biases and structural preferences \cite{DBLP:journals/corr/abs-1810-04805}. Therefore, selecting an appropriate pooling and chunking strategy is essential to minimize length bias while preserving semantic fidelity across documents of varying lengths.
+
+While the [CLS] token approach appears attractive due to its simplicity and the model's pre-training objective of learning document-level representations, empirical evidence demonstrates significant limitations for long documents. \cite{pmlr-v97-gong19a} showed that attention entropy at the [CLS] token drops sharply as sequence length increases, with the token focusing predominantly on the first approximately 128 tokens. Similarly, \cite{raffel2023exploringlimitstransferlearning} reported that learned summary tokens underperform mean pooling for long documents, with decoder attention mechanisms favoring earlier positions in the sequence. Given that over 75\% of the plot descriptions in our corpus exceed 512 tokens, relying solely on the [CLS] token would result in substantial information loss for the majority of documents.
+
+We considered four primary approaches for generating document embeddings, visualised in Figure \ref{fig:chunking_methods}:
 
 \begin{figure}[ht]
-\centering
-\begin{tikzpicture}[>=latex]
-
-% -----------------------------------------------------
-%  (a) MEAN POOLING
-% -----------------------------------------------------
-\node[draw, rounded corners, minimum height=1.2cm, minimum width=2.4cm,
-      align=center, fill=blue!4] (encA) {Long-context\\ Encoder};
-
-% Tokens (a) – show only a few for space
-\foreach \i in {1,...,6}{
-  \node[fill=blue!20, minimum size=3.5mm, inner sep=0pt,
-        below=2mm of encA.south west, anchor=north west,
-        xshift={(\i-1)*5mm}] (ta\i) {{\scriptsize $t_{\i}$}};
-}
-
-% Mean pooling gadget
-\node[circle, fill=blue!60!black, inner sep=0pt, minimum size=5mm,
-      right=1.1cm of encA] (meanA) {\(\Sigma\)};
-
-\draw[->] (encA) -- (meanA);
-
-\node[right=0.9cm of meanA, anchor=west] (outA) {\(\mathbf{v}_{\text{mean}}\)};
-
-% Title
-\node[above=2mm of encA] {\textbf{(a) Mean Pooling}};
-
-% -----------------------------------------------------
-%  (b) CHUNK FIRST, THEN EMBED
-% -----------------------------------------------------
-% Chunk rectangles
-\foreach \i [count=\k from 0] in {1,...,3}{
-  \node[draw, fill=green!10, rounded corners,
-        minimum height=1.2cm, minimum width=2.4cm,
-        right=4.5cm + \k*0cm of encA] (chunk\i) {};
-
-  % Tokens inside each chunk
-  \foreach \j in {1,...,3}{
-    \pgfmathparse{int((\i-1)*3+\j)}
-    \node[fill=green!30, minimum size=3.2mm, inner sep=0pt,
-          below=2mm of chunk\i.north west, anchor=north west,
-          xshift={(\j-1)*5mm}] (tb\i\j) {{\scriptsize $t_{\pgfmathresult}$}};
-  }
-
-  % Encoder inside each chunk
-  \node[draw, rounded corners, minimum width=1.9cm,
-        minimum height=0.6cm, fill=green!4,
-        below=7mm of chunk\i.north] (encb\i) {\scriptsize Encoder};
-
-  \draw[->] (chunk\i) -- (encb\i);
-
-  % CLS / Mean per chunk
-  \node[circle, fill=green!60!black, inner sep=0pt,
-        minimum size=5mm, below=4mm of encb\i] (poolb\i) {\(\Sigma\)};
-}
-
-% Aggregate across chunks
-\node[circle, fill=green!90!black, inner sep=0pt,
-      minimum size=6mm, below=1.4cm of poolb2] (aggB) {\(\Sigma\)};
-
-\foreach \i in {1,...,3}{
-  \draw[->] (poolb\i) -- (aggB);
-}
-
-\node[right=1cm of aggB] (outB) {\(\mathbf{v}_{\text{early}}\)};
-
-\node[above=2mm of chunk2] {\textbf{(b) Chunk\,→\,Embed}};
-
-% -----------------------------------------------------
-%  (c) LATE CHUNKING
-% -----------------------------------------------------
-% Encoder (full doc)
-\node[draw, rounded corners, minimum height=1.2cm, minimum width=2.4cm,
-      align=center, fill=orange!4, below=5.2cm of encA.west, anchor=west] (encC) 
-      {Long-context\\ Encoder};
-
-% All tokens (9 for sketch)
-\foreach \i in {1,...,9}{
-  \node[fill=orange!30, minimum size=3.5mm, inner sep=0pt,
-        below=2mm of encC.north west, anchor=north west,
-        xshift={(\i-1)*5mm}] (tc\i) {{\scriptsize $t_{\i}$}};
-}
-
-% Overlapping windows: window 1 and 2 (semi-transparent)
-\begin{scope}[fill=orange!10, rounded corners, draw=orange!70]
-  \path ($(tc1.north west)+(-0.5mm,2.0mm)$) rectangle ($(tc6.south east)+(0.5mm,-2.0mm)$);
-  \path[fill=orange!5] ($(tc4.north west)+(-0.5mm,2.0mm)$) rectangle ($(tc9.south east)+(0.5mm,-2.0mm)$);
-\end{scope}
-
-% Arrows to encoder
-\draw[->] (tc1.west) -- ($(encC.west)+(0,0.4)$);
-\draw[->] (tc9.east) -- ($(encC.west)-(0,0.4)$);
-
-% Window pooling operations
-\node[circle, fill=orange!60!black, inner sep=0pt, minimum size=5mm,
-      right=1.1cm of encC, yshift=0.3cm] (poolC1) {\(\Sigma\)};
-\node[circle, fill=orange!60!black, inner sep=0pt, minimum size=5mm,
-      right=1.1cm of encC, yshift=-0.3cm] (poolC2) {\(\Sigma\)};
-
-\draw[->] ($(encC.east)+(0,0.3)$) -- (poolC1);
-\draw[->] ($(encC.east)-(0,0.3)$) -- (poolC2);
-
-% Window vectors
-\node[right=0.8cm of poolC1, anchor=west] (vecC1) {\(\mathbf{v}_1\)};
-\node[right=0.8cm of poolC2, anchor=west] (vecC2) {\(\mathbf{v}_2\)};
-
-\draw[->] (poolC1) -- (vecC1);
-\draw[->] (poolC2) -- (vecC2);
-
-% Final aggregation
-\node[circle, fill=orange!90!black, inner sep=0pt,
-      minimum size=6mm, below=1.2cm of poolC2] (aggC) {\(\Sigma\)};
-
-\draw[->] (vecC1) -- (aggC);
-\draw[->] (vecC2) -- (aggC);
-
-\node[right=1cm of aggC] (outC) {\(\mathbf{v}_{\text{late}}\)};
-
-\node[above=2mm of encC] {\textbf{(c) Embed\,→\,Chunk}};
-
-\end{tikzpicture}
-\caption{Three document-level pooling strategies: (a) Mean Pooling applies global averaging over all token embeddings, (b) Chunk-First-Then-Embed splits the document into chunks before encoding, then pools chunk embeddings, (c) Embed-Then-Chunk encodes the full document with a long-context transformer, then applies windowed pooling on the token embeddings before final aggregation.}
-\label{fig:pooling-strategies}
+    \centering
+    \includegraphics[width=8cm]{figures/data_preprocess/plot_different_chunking.png}
+    \caption{Comparison of different chunking methods: (a) Mean Pooling, (b) First Chunk then Embed, and (c) Late Chunking.}
+    \label{fig:chunking_methods}
 \end{figure}
+
+\textbf{Mean Pooling (Global Average):} This classical approach computes the mean of all token embeddings to produce a single document representation. While this method exhibits low variance, it introduces high bias by treating all tokens equally, potentially diluting important semantic information.
+
+\textbf{Chunk-then-Embed (Early Chunking):} This strategy splits long documents into smaller chunks before embedding, processes each chunk separately, and then aggregates the resulting embeddings. This approach, exemplified by hierarchical attention networks \cite{yang-etal-2016-hierarchical}, can reduce bias but introduces higher variance due to the loss of cross-chunk contextual information.
+
+\textbf{Embed-then-Chunk (Late Chunking):} This method, recently proposed by \cite{günther2025latechunkingcontextualchunk}, embeds the full text in a single forward pass through the transformer model, then pools token embeddings over fixed-size windows after contextualization. This approach maintains full contextual information while providing controlled variance and minimal bias.
+
+\textbf{CLS Token Extraction:} The simplest approach utilizes only the [CLS] token from the final layer as the document representation, relying on the model's learned summarization capabilities.
+
+To determine the optimal chunking and pooling strategy for our specific use case, we conducted comparative tests across multiple approaches.
+
+
+
+
+
+
+
 
 \section{Results}\label{sec:results}
 
