@@ -19,25 +19,34 @@ import re
 import json
 from typing import List, Dict, Optional
 
-# Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Try to load environment variables from .env file if available
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    pass  # python-dotenv not installed, use system environment variables
+    pass
 
 
-# Wikidata SPARQL endpoint
 WIKIDATA_SPARQL_URL = "https://query.wikidata.org/sparql"
+EN_WIKIPEDIA_URL = "https://en.wikipedia.org/"
 
-# Default headers for Wikidata API
+FILM_ITEM_ID = "wd:Q11424"
+RELEASE_DATE_ID = "wdt:P577"
+
+TELEVISION_SERIES_EPISODE_ID = "wd:Q21191270"
+SHORT_FILM_ID = "wd:Q24862"
+EXCLUDED_CLASSES = [TELEVISION_SERIES_EPISODE_ID, SHORT_FILM_ID]
+
+IS_INSTANCE = "wdt:P31"
+IS_SUBCLASS = "wdt:P279"
+IS_INSTANCE_OF_SOME_SUBCLASS = f"{IS_INSTANCE}/{IS_SUBCLASS}*"
+
+
 def get_wikidata_headers() -> Dict[str, str]:
     """Get headers for Wikidata API requests with user agent from environment."""
     user_email = os.getenv("WIKIDATA_USER_EMAIL", "anonymous@example.com")
@@ -47,37 +56,53 @@ def get_wikidata_headers() -> Dict[str, str]:
     }
 
 
-def get_movie_base_where_clause(year: int) -> str:
-    """
-    Generate the base WHERE clause for movie queries with required criteria.
-    
-    REQUIRED criteria (must have):
-    - Must be a movie (instance of or subclass of film: wd:Q11424)
-    - Must have a release date (wdt:P577)
-    - Must have sitelinks (Wikipedia pages) > 0
-    - Release year must match the specified year
-    - Must have a non-empty English label (movieLabel)
-    
+def get_movie_base_where_clause(year: int, excluded_classes: list[str] = EXCLUDED_CLASSES) -> str:
+    """Returns WHERE part of SparQL query for movies released in a given year.
+
+    Movies that are instances of some excluded subclass (or subclass of one of these) are excluded.
+    Only movies with english Wikipedia sitelinks are included.
+
     Args:
-        year: The release year to filter by
-        
+        year: The release year to query for.
+        excluded_classes: Movie classes to exclude. Defaults to EXCLUDED_CLASSES.
+
     Returns:
-        SPARQL WHERE clause fragment with required movie criteria
+        String containing WHERE part of query.
     """
-    # CORRECTION: Use the optimized property path (p:P31/ps:P31/wdt:P279*)
-    # to prevent runtime timeouts or StackOverflowErrors.
-    return f"""
-      ?movie p:P31/ps:P31/wdt:P279* wd:Q11424;
-             wdt:P577 ?releaseDate;
-             wikibase:sitelinks ?sitelinks.
-      FILTER(YEAR(?releaseDate) = {year})
-      FILTER(?sitelinks > 0)
-      SERVICE wikibase:label {{
-        bd:serviceParam wikibase:language "en".
-        ?movie rdfs:label ?movieLabel.
-      }}
-      FILTER(BOUND(?movieLabel) && ?movieLabel != "")
+    exclude_classes_query_part = ""
+    for excluded_class in excluded_classes:
+        exclude_classes_query_part += f"MINUS {{?movieSubclass {IS_SUBCLASS}* {excluded_class}}}\n"
+
+    return f"""WHERE {{
+        ?movieSubclass {IS_SUBCLASS}* {FILM_ITEM_ID}.
+
+        {exclude_classes_query_part}
+
+        ?movie {IS_INSTANCE} ?movieSubclass;
+                {RELEASE_DATE_ID} ?releaseDate;
+                wikibase:sitelinks ?sitelinks.
+
+        FILTER(?sitelinks > 0)
+        ?sitelink schema:about ?movie;
+            schema:isPartOf <{EN_WIKIPEDIA_URL}>.
+
+        FILTER(YEAR(?releaseDate) = {year})
+        FILTER NOT EXISTS {{
+            ?movie {RELEASE_DATE_ID} ?dateBeforeYear.
+            FILTER(YEAR(?dateBeforeYear) < {year})
+        }}
+
+        SERVICE wikibase:label {{
+            bd:serviceParam wikibase:language "en".
+            ?movie rdfs:label ?movieLabel.
+        }}
+        FILTER(BOUND(?movieLabel) && ?movieLabel != "")
+    }}
     """
+
+
+def sanitize_json_text(text: str) -> str:
+    return re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]', '', text)
 
 
 async def count_movies_by_year(
@@ -97,14 +122,11 @@ async def count_movies_by_year(
     Returns:
         Total count of unique movies matching the criteria
     """
-    # Use shared base WHERE clause for consistent criteria
     base_where = get_movie_base_where_clause(year)
     
     count_query = f"""
-    SELECT (COUNT(DISTINCT ?movie) AS ?totalMovies)
-    WHERE {{
-{base_where}
-    }}
+        SELECT (COUNT(DISTINCT ?movie) AS ?totalMovies)
+        {base_where}
     """
     
     params = {'query': count_query, 'format': 'json'}
@@ -115,7 +137,7 @@ async def count_movies_by_year(
         async with session.get(WIKIDATA_SPARQL_URL, params=params, headers=headers, timeout=timeout) as response:
             if response.status == 200:
                 text = await response.text()
-                text = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]', '', text)
+                text = sanitize_json_text(text)
                 
                 try:
                     data = json.loads(text)
@@ -147,25 +169,13 @@ def get_discovery_query_string(year: int, limit: int = 50) -> str:
     Returns:
         SPARQL query string for discovering movie IDs
     """
-    # CORRECTION: Use the optimized property path (p:P31/ps:P31/wdt:P279*)
-    # to prevent runtime timeouts or StackOverflowErrors.
+    base_where_query = get_movie_base_where_clause(year)
     query = f"""
-SELECT DISTINCT ?movie ?sitelinks
-WHERE {{
-    ?movie p:P31/ps:P31/wdt:P279* wd:Q11424;
-           wdt:P577 ?releaseDate;
-           wikibase:sitelinks ?sitelinks.
-    
-    FILTER(YEAR(?releaseDate) = {year})
-    FILTER(?sitelinks > 0)
-    
-    # Ensure it has an English label
-    ?movie rdfs:label ?movieLabel_en .
-    FILTER(LANG(?movieLabel_en) = "en" && ?movieLabel_en != "")
-}}
-ORDER BY DESC(?sitelinks)
-LIMIT {limit}
-"""
+        SELECT DISTINCT ?movie ?sitelinks
+        {base_where_query}
+        ORDER BY DESC(?sitelinks)
+        LIMIT {limit}
+    """
     return query.strip()
 
 
@@ -315,7 +325,7 @@ async def get_movies_by_year(
                 if response.status == 200:
                     # Read as text and clean control characters
                     text = await response.text()
-                    text = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]', '', text)
+                    text = sanitize_json_text(text)
                     
                     try:
                         data = json.loads(text)
@@ -394,7 +404,7 @@ async def get_movies_by_year(
                     if response.status == 200:
                         # Read as text and clean control characters
                         text = await response.text()
-                        text = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]', '', text)
+                        text = sanitize_json_text(text)
                         
                         try:
                             data = json.loads(text)
@@ -752,7 +762,7 @@ if __name__ == "__main__":
     # print("\nTo use this function programmatically, uncomment the code below.\n")
     
     # Fetches up to 1000 movies per year for 2023 and 2024.
-    asyncio.run(main(movies_per_year=8000, start_year=1950, end_year=2024))
+    asyncio.run(main(movies_per_year=100, start_year=2006, end_year=2006))
     
     # Count all years since 1950 and make a plot, then save the figure.
     # import matplotlib.pyplot as plt
