@@ -60,7 +60,7 @@ def get_movie_base_where_clause(year: int, excluded_classes: list[str] = EXCLUDE
     """Returns WHERE part of SparQL query for movies released in a given year.
 
     Movies that are instances of some excluded subclass (or subclass of one of these) are excluded.
-    Only movies with english Wikipedia sitelinks are included.
+    Only movies with english Wikipedia link and english label are included.
 
     Args:
         year: The release year to query for.
@@ -194,17 +194,13 @@ def get_enrichment_query_string(movie_uris: List[str]) -> str:
     Returns:
         A robust SPARQL query string for enriching movie data.
     """
-    # Build VALUES clause
     values_clause = "VALUES ?movie {\n"
     for uri in movie_uris:
-        # Ensure it's a proper wd: URI format
         if not uri.startswith("wd:") and not uri.startswith("http"):
             uri = f"wd:{uri}" if uri.startswith("Q") else uri
         values_clause += f"    {uri}\n"
     values_clause += "}\n"
     
-    # This query aggregates all 1-to-1 properties in the main query,
-    # and all 1-to-many properties in their own independent subqueries.
     query = f"""
 SELECT ?movie ?movieLabel ?sitelinks
        (SAMPLE(?article_) AS ?article)
@@ -219,8 +215,6 @@ SELECT ?movie ?movieLabel ?sitelinks
 WHERE {{
     {values_clause}
 
-    # --- Main 1:1 Properties ---
-    # Get the 1:1 properties that we will group by
     ?movie wikibase:sitelinks ?sitelinks.
     SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?movie rdfs:label ?movieLabel. }}
     
@@ -233,7 +227,7 @@ WHERE {{
     OPTIONAL {{ ?movie wdt:P2142 ?boxOffice_. }}
     OPTIONAL {{ 
         ?article_ schema:about ?movie;
-                  schema:isPartOf <https://en.wikipedia.org/>.
+                  schema:isPartOf <{EN_WIKIPEDIA_URL}>.
     }}
     OPTIONAL {{ 
         ?movie wdt:P495 ?country_.
@@ -684,12 +678,9 @@ def save_movies_to_csv(
     """
     import csv
 
-    # Determine base path (assuming script is in a subdir like 'src/processing')
-    # This navigates two levels up to the project root, then into 'data'
     try:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     except NameError:
-        # Fallback if __file__ is not defined (e.g., interactive session)
         base_dir = os.path.abspath(os.path.join(os.getcwd(), '..', '..'))
 
     data_dir = os.path.join(base_dir, 'data')
@@ -699,7 +690,6 @@ def save_movies_to_csv(
         logger.warning("No movies to save - empty movie list")
         return
     
-    # Ensure data directory exists
     os.makedirs(data_dir, exist_ok=True)
     
     fieldnames = [
@@ -732,64 +722,14 @@ async def main(movies_per_year: int = 50, start_year: int = 1950, end_year: int 
         start_year, 
         end_year, 
         show_available_counts=show_counts,
-        verbose=True, # Enable verbose logging for main execution
+        verbose=True,
         save_per_year=save_per_year
     )
     
-    # Also save combined file if save_per_year is enabled
     if save_per_year:
         save_movies_to_csv(movies, filename=f'wikidata_movies_{start_year}_to_{end_year}.csv')
         logger.info(f"Also saved combined file with {len(movies)} movies from all years")
 
 
 if __name__ == "__main__":
-    # Debug: Print queries for testing online
-    # Uncomment the lines below to print the queries and test them at https://query.wikidata.org/
-    
-    # print("=" * 80)
-    # print("STEP 1: Discovery Query (copy and paste into https://query.wikidata.org/):")
-    # print("=" * 80)
-    # discovery_query = get_discovery_query_string(year=2023, limit=10)
-    # print(discovery_query)
-    # print("\n" + "=" * 80)
-    # print("STEP 2: Enrichment Query (use with movie URIs from Step 1):")
-    # print("=" * 80)
-    # # Example with sample movie URIs
-    # sample_uris = ["wd:Q113803868", "wd:Q116181404", "wd:Q113803869"]
-    # enrichment_query = get_enrichment_query_string(sample_uris)
-    # print(enrichment_query)
-    # print("=" * 80)
-    # print("\nTo use this function programmatically, uncomment the code below.\n")
-    
-    # Fetches up to 1000 movies per year for 2023 and 2024.
     asyncio.run(main(movies_per_year=100, start_year=2006, end_year=2006))
-    
-    # Count all years since 1950 and make a plot, then save the figure.
-    # import matplotlib.pyplot as plt
-
-    # async def plot_movie_counts_by_year(start_year=1950, end_year=2024):
-    #     years = list(range(start_year, end_year + 1))
-    #   counts = []
-    #    async with aiohttp.ClientSession() as session:
-    #        for year in years:
-    #            count = await count_movies_by_year(session, year)
-    #            counts.append(count)
-    #            print(f"Year {year}: {count} movies available in Wikidata")
-    #    # Plotting
-    #    plt.figure(figsize=(12, 6))
-    #    plt.plot(years, counts, marker='o')
-    #    plt.xlabel("Year")
-    #    plt.ylabel("Number of Movies")
-    #    plt.title(f"Wikidata Movie Counts {start_year}-{end_year}")
-    #    plt.grid(True)
-    #    plt.tight_layout()
-    #    plt.savefig(f'wikidata_movie_counts_{start_year}_{end_year}.png')
-    #    print(f"Saved plot to wikidata_movie_counts_{start_year}_{end_year}.png")
-
-    # Run the plotting coroutine
-    # asyncio.run(plot_movie_counts_by_year(start_year=1950, end_year=2024))
-
-    # total = 1800+1619+1568+1696+1635+1646+1669+1800+1877+1819+1893+1857+1905+1884+2208+2091+2123+2339+2435+2577+2611+2730+2866+2862+3055+2908+2883+3037+3069+3192+3360+3008+3017+2893+3027+3132+3031+3157+3118+3253+3001+2997+2881+2840+2819+2883+2865+3044+3084+3286+3411+3750+3883+4249+4472+5015+5522+5690+5956+6085+6056+6048+6444+6718+6690+6725+8589+6179+6045+5583+3667+3822+4062+3721+3200
-    # total = 259932
-
-    # nohup python src/api/wikidata_handler.py > wikidata_handler.log 2>&1 &
