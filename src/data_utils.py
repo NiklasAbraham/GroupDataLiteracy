@@ -230,6 +230,13 @@ def preprocess_genres(genre: str) -> str:
 
     If a movie has multiple genres, it will be delimetered by `|`.
     """
+    # Handle NaN, None, or empty values
+    if pd.isna(genre) or genre is None or not str(genre).strip():
+        return "Unknown"
+    
+    # Convert to string if not already
+    genre = str(genre)
+    
     # Read genre mapping file
     with open("genre_fix_mapping.json", "r") as f:
         genre_mapping = json.loads(f.read())
@@ -241,13 +248,25 @@ def preprocess_genres(genre: str) -> str:
     for g in split_genres:
         # Preprocess genres
         new_g = g.lower().replace("film", "").strip()
+        
+        # Skip empty genres after preprocessing
+        if not new_g:
+            continue
 
-        # Map them to clustered genre
-        mapped_genre = genre_mapping[new_g]
-        new_genres.append(mapped_genre)
+        # Map them to clustered genre (handle missing keys)
+        if new_g in genre_mapping:
+            mapped_genre = genre_mapping[new_g]
+            new_genres.append(mapped_genre)
+        else:
+            # If genre not in mapping, use original (cleaned)
+            new_genres.append(new_g)
 
     # Remove duplicates
     new_genres = list(set(new_genres))
+    
+    # Return Unknown if no genres found
+    if not new_genres:
+        return "Unknown"
 
     return "|".join(new_genres)
 

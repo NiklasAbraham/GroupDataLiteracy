@@ -386,6 +386,244 @@ def compute_genre_classification_metrics(embeddings: np.ndarray, genres: np.ndar
         return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
 
 
+def compute_cosine_similarity_variance(embeddings: np.ndarray, n_samples: int = 5000, random_state: int = 42, abtt_pc: int = 0) -> Dict[str, float]:
+    """
+    Compute variance and statistics of cosine similarity across all pairs of embeddings.
+    This measures the spread/diversity of the embedding space.
+    
+    Args:
+        embeddings (np.ndarray): Array of embeddings [n_samples, embedding_dim]
+        n_samples (int): Maximum number of pairs to sample for efficiency (default: 5000)
+        random_state (int): Random seed for reproducibility (default: 42)
+        abtt_pc (int): Number of top PCs to remove via ABTT before computing (default: 0)
+        
+    Returns:
+        Dict[str, float]: Dictionary with cosine similarity statistics
+    """
+    if embeddings.shape[0] < 2:
+        return {
+            'cosine_sim_variance': np.nan,
+            'cosine_sim_mean': np.nan,
+            'cosine_sim_std': np.nan,
+            'cosine_sim_min': np.nan,
+            'cosine_sim_max': np.nan,
+            'cosine_sim_median': np.nan
+        }
+    
+    # Apply ABTT post-processing if requested
+    if abtt_pc > 0:
+        embeddings = _postprocess_abtt(embeddings, n_pc=abtt_pc)
+    
+    if embeddings.shape[0] < 2:
+        return {
+            'cosine_sim_variance': np.nan,
+            'cosine_sim_mean': np.nan,
+            'cosine_sim_std': np.nan,
+            'cosine_sim_min': np.nan,
+            'cosine_sim_max': np.nan,
+            'cosine_sim_median': np.nan
+        }
+    
+    # Normalize embeddings for efficient cosine similarity computation
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    norms[norms == 0] = 1  # Avoid division by zero
+    normalized_embeddings = embeddings / norms
+    
+    # Sample pairs for efficiency
+    n_total = embeddings.shape[0]
+    max_pairs = n_total * (n_total - 1) // 2
+    
+    if max_pairs <= n_samples:
+        # Use all pairs
+        from itertools import combinations
+        pairs = list(combinations(range(n_total), 2))
+    else:
+        # Sample random pairs
+        np.random.seed(random_state)
+        pairs = []
+        for _ in range(n_samples):
+            idx1, idx2 = np.random.choice(n_total, size=2, replace=False)
+            pairs.append((idx1, idx2))
+    
+    # Compute cosine similarities for all pairs (vectorized)
+    idx1_array = np.array([p[0] for p in pairs])
+    idx2_array = np.array([p[1] for p in pairs])
+    
+    emb1_batch = normalized_embeddings[idx1_array]
+    emb2_batch = normalized_embeddings[idx2_array]
+    
+    # Cosine similarity = dot product of normalized vectors
+    cosine_sims = np.sum(emb1_batch * emb2_batch, axis=1)
+    
+    return {
+        'cosine_sim_variance': float(np.var(cosine_sims)),
+        'cosine_sim_mean': float(np.mean(cosine_sims)),
+        'cosine_sim_std': float(np.std(cosine_sims)),
+        'cosine_sim_min': float(np.min(cosine_sims)),
+        'cosine_sim_max': float(np.max(cosine_sims)),
+        'cosine_sim_median': float(np.median(cosine_sims))
+    }
+
+
+def compute_separation_power(embeddings: np.ndarray, genres: np.ndarray, 
+                            n_samples_per_class: int = 100, random_state: int = 42, abtt_pc: int = 0) -> Dict[str, float]:
+    """
+    Compute separation power metrics for the latent space based on genre classes.
+    Measures how well-separated different genre classes are in the embedding space.
+    
+    Args:
+        embeddings (np.ndarray): Array of embeddings [n_samples, embedding_dim]
+        genres (np.ndarray): Array of genre labels [n_samples], can be list of lists (multi-label)
+        n_samples_per_class (int): Maximum number of samples per class for efficiency (default: 100)
+        random_state (int): Random seed for reproducibility (default: 42)
+        abtt_pc (int): Number of top PCs to remove via ABTT before computing (default: 0)
+        
+    Returns:
+        Dict[str, float]: Dictionary with separation power metrics
+    """
+    # Apply ABTT post-processing if requested
+    if abtt_pc > 0:
+        embeddings = _postprocess_abtt(embeddings, n_pc=abtt_pc)
+    # Extract primary genre for each sample (for multi-label, use first genre)
+    primary_genres = []
+    valid_indices = []
+    
+    for idx, genre in enumerate(genres):
+        if genre is None or (isinstance(genre, float) and np.isnan(genre)):
+            continue
+        if isinstance(genre, str):
+            primary_genre = genre.strip()
+        elif isinstance(genre, list):
+            if len(genre) > 0:
+                primary_genre = str(genre[0]).strip()
+            else:
+                continue
+        else:
+            primary_genre = str(genre).strip()
+            if ',' in primary_genre:
+                primary_genre = primary_genre.split(',')[0].strip()
+        
+        if primary_genre:
+            primary_genres.append(primary_genre)
+            valid_indices.append(idx)
+    
+    if len(primary_genres) < 2:
+        return {
+            'intra_class_sim_mean': np.nan,
+            'inter_class_sim_mean': np.nan,
+            'separation_ratio': np.nan,
+            'separation_gap': np.nan,
+            'n_classes': np.nan,
+            'n_samples': np.nan
+        }
+    
+    valid_embeddings = embeddings[valid_indices]
+    primary_genres_array = np.array(primary_genres)
+    
+    # Normalize embeddings
+    norms = np.linalg.norm(valid_embeddings, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    normalized_embeddings = valid_embeddings / norms
+    
+    # Get unique classes
+    unique_classes = np.unique(primary_genres_array)
+    n_classes = len(unique_classes)
+    
+    if n_classes < 2:
+        return {
+            'intra_class_sim_mean': np.nan,
+            'inter_class_sim_mean': np.nan,
+            'separation_ratio': np.nan,
+            'separation_gap': np.nan,
+            'n_classes': n_classes,
+            'n_samples': len(valid_embeddings)
+        }
+    
+    # Sample pairs for efficiency
+    np.random.seed(random_state)
+    
+    intra_class_sims = []
+    inter_class_sims = []
+    
+    # Compute intra-class similarities (within same genre)
+    for class_label in unique_classes:
+        class_mask = primary_genres_array == class_label
+        class_indices = np.where(class_mask)[0]
+        
+        if len(class_indices) < 2:
+            continue
+        
+        # Sample pairs within this class
+        n_class_pairs = min(n_samples_per_class, len(class_indices) * (len(class_indices) - 1) // 2)
+        
+        if len(class_indices) <= 100:
+            # Use all pairs for small classes
+            from itertools import combinations
+            class_pairs = list(combinations(class_indices, 2))
+            if len(class_pairs) > n_class_pairs:
+                class_pairs = [class_pairs[i] for i in np.random.choice(len(class_pairs), size=n_class_pairs, replace=False)]
+        else:
+            # Sample pairs for large classes
+            class_pairs = []
+            for _ in range(n_class_pairs):
+                idx1, idx2 = np.random.choice(class_indices, size=2, replace=False)
+                class_pairs.append((idx1, idx2))
+        
+        # Compute cosine similarities
+        for idx1, idx2 in class_pairs:
+            sim = np.dot(normalized_embeddings[idx1], normalized_embeddings[idx2])
+            intra_class_sims.append(sim)
+    
+    # Compute inter-class similarities (between different genres)
+    # Sample pairs from different classes
+    n_inter_pairs = min(n_samples_per_class * n_classes, len(valid_embeddings) * 10)
+    inter_pairs = []
+    
+    for _ in range(n_inter_pairs):
+        # Pick two different classes
+        class1, class2 = np.random.choice(unique_classes, size=2, replace=False)
+        idx1 = np.random.choice(np.where(primary_genres_array == class1)[0])
+        idx2 = np.random.choice(np.where(primary_genres_array == class2)[0])
+        inter_pairs.append((idx1, idx2))
+    
+    # Compute cosine similarities
+    for idx1, idx2 in inter_pairs:
+        sim = np.dot(normalized_embeddings[idx1], normalized_embeddings[idx2])
+        inter_class_sims.append(sim)
+    
+    if len(intra_class_sims) == 0 or len(inter_class_sims) == 0:
+        return {
+            'intra_class_sim_mean': np.nan,
+            'inter_class_sim_mean': np.nan,
+            'separation_ratio': np.nan,
+            'separation_gap': np.nan,
+            'n_classes': n_classes,
+            'n_samples': len(valid_embeddings)
+        }
+    
+    intra_class_sims = np.array(intra_class_sims)
+    inter_class_sims = np.array(inter_class_sims)
+    
+    intra_mean = np.mean(intra_class_sims)
+    inter_mean = np.mean(inter_class_sims)
+    
+    # Separation ratio: higher means better separation (inter-class similarity should be lower)
+    # We use (1 - inter_mean) / (1 - intra_mean) to get a ratio where >1 means good separation
+    # Or simpler: inter_mean / intra_mean, where lower is better (we want inter < intra)
+    # Actually, let's use: (intra_mean - inter_mean) / (1 + intra_mean) as a normalized gap
+    separation_gap = intra_mean - inter_mean  # Positive means good separation
+    separation_ratio = inter_mean / intra_mean if intra_mean > 0 else np.nan  # Lower is better
+    
+    return {
+        'intra_class_sim_mean': float(intra_mean),
+        'inter_class_sim_mean': float(inter_mean),
+        'separation_ratio': float(separation_ratio),
+        'separation_gap': float(separation_gap),
+        'n_classes': int(n_classes),
+        'n_samples': int(len(valid_embeddings))
+    }
+
+
 def compute_temporal_drift(embeddings: np.ndarray, years: np.ndarray, 
                           anchor_film_indices: Optional[List[int]] = None) -> Dict[str, np.ndarray]:
     """
@@ -482,26 +720,33 @@ def evaluate_method(embeddings: np.ndarray,
     
     # Compute independent metrics in parallel
     # Increased max_workers to accommodate all parallel tasks including genre metrics
-    with ThreadPoolExecutor(max_workers=6) as executor:
+    with ThreadPoolExecutor(max_workers=8) as executor:
         # Submit all independent metric computations
         future_length_norm = executor.submit(compute_length_norm_correlation, embeddings, text_lengths, pre_norms)
         future_isotropy_raw = executor.submit(compute_isotropy, embeddings, abtt_pc=0)
         future_isotropy_abtt2 = executor.submit(compute_isotropy, embeddings, abtt_pc=2)
         future_between = executor.submit(compute_between_film_distance, embeddings, film_ids)
+        future_cosine_sim_stats = executor.submit(compute_cosine_similarity_variance, embeddings, abtt_pc=0)
+        future_cosine_sim_stats_abtt2 = executor.submit(compute_cosine_similarity_variance, embeddings, abtt_pc=2)
         
         # Submit genre-related metrics in parallel if genres are available
         if genres is not None:
             future_silhouette = executor.submit(compute_genre_clustering_quality, embeddings, genres)
             future_genre_classification = executor.submit(compute_genre_classification_metrics, embeddings, genres)
+            future_separation_power = executor.submit(compute_separation_power, embeddings, genres, abtt_pc=0)
+            future_separation_power_abtt2 = executor.submit(compute_separation_power, embeddings, genres, abtt_pc=2)
         else:
             future_silhouette = None
             future_genre_classification = None
+            future_separation_power = None
         
         # Get results from parallel computations
         length_norm_corr = future_length_norm.result()
         isotropy_firstPC = future_isotropy_raw.result()
         isotropy_firstPC_abtt2 = future_isotropy_abtt2.result()
         mean_between_distance = future_between.result()
+        cosine_sim_stats = future_cosine_sim_stats.result()
+        cosine_sim_stats_abtt2 = future_cosine_sim_stats_abtt2.result()
         
         # Get genre-related results if available
         if future_silhouette is not None and future_genre_classification is not None:
@@ -511,12 +756,30 @@ def evaluate_method(embeddings: np.ndarray,
             genre_f1_score = genre_classification_metrics.get('genre_f1_score', np.nan)
             genre_f1_macro = genre_classification_metrics.get('genre_f1_macro', np.nan)
             genre_hamming_loss = genre_classification_metrics.get('genre_hamming_loss', np.nan)
+            separation_power_metrics = future_separation_power.result()
+            intra_class_sim = separation_power_metrics.get('intra_class_sim_mean', np.nan)
+            inter_class_sim = separation_power_metrics.get('inter_class_sim_mean', np.nan)
+            separation_ratio = separation_power_metrics.get('separation_ratio', np.nan)
+            separation_gap = separation_power_metrics.get('separation_gap', np.nan)
+            separation_power_metrics_abtt2 = future_separation_power_abtt2.result()
+            intra_class_sim_abtt2 = separation_power_metrics_abtt2.get('intra_class_sim_mean', np.nan)
+            inter_class_sim_abtt2 = separation_power_metrics_abtt2.get('inter_class_sim_mean', np.nan)
+            separation_ratio_abtt2 = separation_power_metrics_abtt2.get('separation_ratio', np.nan)
+            separation_gap_abtt2 = separation_power_metrics_abtt2.get('separation_gap', np.nan)
         else:
             silhouette_score_val = np.nan
             genre_accuracy = np.nan
             genre_f1_score = np.nan
             genre_f1_macro = np.nan
             genre_hamming_loss = np.nan
+            intra_class_sim = np.nan
+            inter_class_sim = np.nan
+            separation_ratio = np.nan
+            separation_gap = np.nan
+            intra_class_sim_abtt2 = np.nan
+            inter_class_sim_abtt2 = np.nan
+            separation_ratio_abtt2 = np.nan
+            separation_gap_abtt2 = np.nan
     
     metrics = {
         'method': method_name,
@@ -524,11 +787,31 @@ def evaluate_method(embeddings: np.ndarray,
         'isotropy_firstPC': isotropy_firstPC,
         'isotropy_firstPC_abtt2': isotropy_firstPC_abtt2,
         'mean_between_distance': mean_between_distance,
+        'cosine_sim_variance': cosine_sim_stats.get('cosine_sim_variance', np.nan),
+        'cosine_sim_mean': cosine_sim_stats.get('cosine_sim_mean', np.nan),
+        'cosine_sim_std': cosine_sim_stats.get('cosine_sim_std', np.nan),
+        'cosine_sim_min': cosine_sim_stats.get('cosine_sim_min', np.nan),
+        'cosine_sim_max': cosine_sim_stats.get('cosine_sim_max', np.nan),
+        'cosine_sim_median': cosine_sim_stats.get('cosine_sim_median', np.nan),
+        'cosine_sim_variance_abtt2': cosine_sim_stats_abtt2.get('cosine_sim_variance', np.nan),
+        'cosine_sim_mean_abtt2': cosine_sim_stats_abtt2.get('cosine_sim_mean', np.nan),
+        'cosine_sim_std_abtt2': cosine_sim_stats_abtt2.get('cosine_sim_std', np.nan),
+        'cosine_sim_min_abtt2': cosine_sim_stats_abtt2.get('cosine_sim_min', np.nan),
+        'cosine_sim_max_abtt2': cosine_sim_stats_abtt2.get('cosine_sim_max', np.nan),
+        'cosine_sim_median_abtt2': cosine_sim_stats_abtt2.get('cosine_sim_median', np.nan),
         'silhouette_score': silhouette_score_val,
         'genre_accuracy': genre_accuracy,  # Subset accuracy (exact match for all labels)
         'genre_f1_score': genre_f1_score,  # Micro-averaged F1
         'genre_f1_macro': genre_f1_macro,  # Macro-averaged F1
         'genre_hamming_loss': genre_hamming_loss,  # Hamming loss (lower is better)
+        'intra_class_sim_mean': intra_class_sim,  # Mean cosine similarity within same genre
+        'inter_class_sim_mean': inter_class_sim,  # Mean cosine similarity between different genres
+        'separation_ratio': separation_ratio,  # inter_class / intra_class (lower is better)
+        'separation_gap': separation_gap,  # intra_class - inter_class (higher is better)
+        'intra_class_sim_mean_abtt2': intra_class_sim_abtt2,  # Mean cosine similarity within same genre (ABTT-2)
+        'inter_class_sim_mean_abtt2': inter_class_sim_abtt2,  # Mean cosine similarity between different genres (ABTT-2)
+        'separation_ratio_abtt2': separation_ratio_abtt2,  # inter_class / intra_class (lower is better, ABTT-2)
+        'separation_gap_abtt2': separation_gap_abtt2,  # intra_class - inter_class (higher is better, ABTT-2)
     }
     
     elapsed = time.time() - start_metrics

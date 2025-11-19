@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 SRC_DIR = BASE_DIR / 'src'
 sys.path.insert(0, str(SRC_DIR))
 
-from data_utils import load_movie_data
+from data_utils import load_movie_data, cluster_genres
 from analysis.chunking.chunk_base_class import ChunkBase
 from analysis.chunking import calculations
 from embedding.embedding import EmbeddingService
@@ -132,6 +132,22 @@ def main():
     df = df[df['plot'].notna() & (df['plot'].str.len() > 200) & (df['genre'].notna())].copy()
     print(f"Movies with plot data and genre: {len(df)}")
     
+    # Apply genre clustering/filtering from data_utils
+    # This uses the genre_fix_mapping.json to map and clean genres
+    # Note: cluster_genres expects genre_fix_mapping.json in src directory
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(str(SRC_DIR))
+        print("Processing genres using cluster_genres from data_utils...")
+        df = cluster_genres(df)
+    finally:
+        os.chdir(original_cwd)
+    
+    # Filter to movies with valid processed genres (new_genre column)
+    if 'new_genre' in df.columns:
+        df = df[df['new_genre'].notna() & (df['new_genre'] != 'Unknown')].copy()
+        print(f"Movies with processed genres: {len(df)}")
+    
     # Sample movies
     np.random.seed(RANDOM_SEED)
     if len(df) > N_MOVIES:
@@ -146,13 +162,27 @@ def main():
     plots = sampled_df['plot'].tolist()
     movie_ids = sampled_df['movie_id'].values
     years = sampled_df['year'].values if 'year' in sampled_df.columns else None
-    genres = sampled_df['genre'].values if 'genre' in sampled_df.columns else None
-    # Convert genres to lists of genre strings (multi-label format)
-    # Each movie can have multiple genres, e.g., "Action, Drama, Thriller" -> ["Action", "Drama", "Thriller"]
-    if genres is not None:
-        genres = [[g.strip() for g in str(genre).split(',') if g.strip()] for genre in genres]
+    
+    # Use new_genre column (processed genres) instead of raw genre column
+    # new_genre contains genres separated by | (from cluster_genres)
+    if 'new_genre' in sampled_df.columns:
+        genres_raw = sampled_df['new_genre'].values
+        # Convert genres to lists of genre strings (multi-label format)
+        # Each movie can have multiple genres separated by |, e.g., "Action|Drama|Thriller" -> ["Action", "Drama", "Thriller"]
+        genres_list = [[g.strip() for g in str(genre).split('|') if g.strip() and g.strip() != 'Unknown'] for genre in genres_raw]
+        # Convert to numpy array with object dtype to preserve list structure
+        genres = np.array(genres_list, dtype=object) if genres_list else None
     else:
-        genres = None
+        # Fallback to raw genre column if new_genre is not available
+        genres_raw = sampled_df['genre'].values if 'genre' in sampled_df.columns else None
+        if genres_raw is not None:
+            # Convert genres to lists of genre strings (multi-label format)
+            # Each movie can have multiple genres, e.g., "Action, Drama, Thriller" -> ["Action", "Drama", "Thriller"]
+            genres_list = [[g.strip() for g in str(genre).split(',') if g.strip()] for genre in genres_raw]
+            # Convert to numpy array with object dtype to preserve list structure
+            genres = np.array(genres_list, dtype=object) if genres_list else None
+        else:
+            genres = None
     
     # Count tokens for each plot
     print("Counting tokens...")
