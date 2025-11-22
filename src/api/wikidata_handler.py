@@ -87,6 +87,8 @@ def extract_qids_from_uris(uris: str) -> str:
     return ",".join(list_of_qids)
 
 def convert_to_minutes(duration_str: str) -> str:
+    if not duration_str or len(duration_str.strip()) == 0:
+        return ""
     list_of_durations_in_seconds = [
         str(int(float(x.strip()) / 60)) for x in duration_str.split(",")
     ]
@@ -775,4 +777,4 @@ async def main(movies_per_year: int = 50, start_year: int = 1950, end_year: int 
 
 
 if __name__ == "__main__":
-    asyncio.run(main(movies_per_year=10, start_year=2004, end_year=2004))
+    asyncio.run(main(movies_per_year=5000, start_year=2004, end_year=2004))
