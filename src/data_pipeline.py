@@ -100,14 +100,14 @@ atexit.register(_cleanup_multiprocessing_resources)
 # ============================================================================
 # Modify these variables to configure the pipeline behavior
 
-START_YEAR = 1950
+START_YEAR = 1930
 END_YEAR = 2024
 MOVIES_PER_YEAR = 8000
 
 # Skip steps (set to True to skip)
-SKIP_WIKIDATA = True
-SKIP_MOVIEDB = True
-SKIP_WIKIPEDIA = True
+SKIP_WIKIDATA = False
+SKIP_MOVIEDB = False
+SKIP_WIKIPEDIA = False
 SKIP_EMBEDDINGS = False
 
 # Force refresh existing files (set to True to re-fetch even if files exist)
@@ -124,14 +124,14 @@ TARGET_DEVICES = None
 
 # Chunking configuration
 # Options: None, 'cls_token', 'mean_pooling', 'chunk_first_embed', 'late_chunking'
-CHUNKING_METHOD = None
+CHUNKING_METHOD = 'cls_token'
 # Chunking parameters (only used for chunk_first_embed and late_chunking)
 CHUNKING_CHUNK_SIZE = 512  # For chunk_first_embed
 CHUNKING_WINDOW_SIZE = 512  # For late_chunking
 CHUNKING_STRIDE = 256  # For both chunk_first_embed and late_chunking
 
 # Save lexical weights (only available for BGE-M3 model)
-SAVE_LEXICAL_WEIGHTS = False
+SAVE_LEXICAL_WEIGHTS = True
 
 
 def get_csv_path(year: int) -> str:
@@ -236,7 +236,7 @@ def get_existing_movie_ids(df: pd.DataFrame) -> Set[str]:
 async def step1_wikidata(
     start_year: int,
     end_year: int,
-    movies_per_year: int = 50,
+    movies_per_year: int = 8000,
     verbose: bool = True,
     force_refresh: bool = False
 ) -> Dict[int, pd.DataFrame]:
