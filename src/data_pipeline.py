@@ -56,6 +56,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import chunking classes
+try:
+    from analysis.chunking import CLSToken, MeanPooling, ChunkFirstEmbed, LateChunking
+    CHUNKING_AVAILABLE = True
+except ImportError:
+    CHUNKING_AVAILABLE = False
+    logger.warning("Chunking classes not available. Install required dependencies or check path.")
+
 # Base directory paths
 try:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -114,10 +122,68 @@ BATCH_SIZE = 35
 # Target devices for embeddings (None = auto-detect, or specify like ['cuda:0', 'cuda:1'])
 TARGET_DEVICES = None
 
+# Chunking configuration
+# Options: None, 'cls_token', 'mean_pooling', 'chunk_first_embed', 'late_chunking'
+CHUNKING_METHOD = None
+# Chunking parameters (only used for chunk_first_embed and late_chunking)
+CHUNKING_CHUNK_SIZE = 512  # For chunk_first_embed
+CHUNKING_WINDOW_SIZE = 512  # For late_chunking
+CHUNKING_STRIDE = 256  # For both chunk_first_embed and late_chunking
+
+# Save lexical weights (only available for BGE-M3 model)
+SAVE_LEXICAL_WEIGHTS = False
+
 
 def get_csv_path(year: int) -> str:
     """Get the CSV file path for a specific year."""
     return os.path.join(DATA_DIR, f'wikidata_movies_{year}.csv')
+
+
+def load_lexical_weights(year: int, chunking_suffix: str = "", data_dir: Optional[str] = None) -> Optional[Tuple[List[np.ndarray], List[np.ndarray], np.ndarray]]:
+    """
+    Load lexical weights from file.
+    
+    Args:
+        year: Year to load lexical weights for
+        chunking_suffix: Suffix to append to filename (e.g., "_cls_token", "_mean_pooling")
+        data_dir: Directory containing the files (default: uses DATA_DIR)
+    
+    Returns:
+        Tuple of (token_indices_list, weights_list, movie_ids) or None if file doesn't exist
+        - token_indices_list: List of numpy arrays, one per document, containing token IDs
+        - weights_list: List of numpy arrays, one per document, containing corresponding weights
+        - movie_ids: Array of movie IDs corresponding to the lexical weights
+        - lexical_weights[i] corresponds to movie_ids[i]
+    """
+    if data_dir is None:
+        data_dir = DATA_DIR
+    
+    lexical_weights_path = os.path.join(data_dir, f'movie_lexical_weights_{year}{chunking_suffix}.npz')
+    
+    if not os.path.exists(lexical_weights_path):
+        logger.warning(f"Lexical weights file not found: {lexical_weights_path}")
+        return None
+    
+    try:
+        data = np.load(lexical_weights_path, allow_pickle=True)
+        
+        # Extract arrays
+        token_indices_array = data['token_indices']
+        weights_array = data['weights']
+        movie_ids = data['movie_ids']
+        
+        # Convert object arrays back to lists of arrays
+        token_indices_list = [token_indices_array[i] for i in range(len(token_indices_array))]
+        weights_list = [weights_array[i] for i in range(len(weights_array))]
+        
+        logger.info(f"Loaded lexical weights for year {year}: {len(token_indices_list)} documents")
+        logger.info(f"Total non-zero weights: {sum(len(ti) for ti in token_indices_list)}")
+        
+        return token_indices_list, weights_list, movie_ids
+    
+    except Exception as e:
+        logger.error(f"Error loading lexical weights from {lexical_weights_path}: {e}")
+        return None
 
 
 def load_existing_csv(year: int) -> pd.DataFrame:
@@ -549,7 +615,12 @@ def step4_embeddings(
     target_devices: Optional[List[str]] = None,
     batch_size: int = 128,
     verbose: bool = True,
-    force_refresh: bool = False
+    force_refresh: bool = False,
+    chunking_method: Optional[str] = None,
+    chunking_chunk_size: int = 512,
+    chunking_window_size: int = 512,
+    chunking_stride: int = 256,
+    save_lexical_weights: bool = False
 ) -> None:
     """
     Step 4: Generate embeddings for movie plots and save per year.
@@ -563,8 +634,8 @@ def step4_embeddings(
     5. Regenerating if counts don't match, movie_ids have changed, or if force_refresh=True
     
     Embeddings are saved with movie_id indexing:
-    - Saves embeddings array to 'movie_embeddings_{year}.npy'
-    - Saves corresponding movie_ids array to 'movie_ids_{year}.npy'
+    - Saves embeddings array to 'movie_embeddings_{year}[_chunking_suffix].npy'
+    - Saves corresponding movie_ids array to 'movie_ids_{year}[_chunking_suffix].npy'
     - embedding[i] corresponds to movie_ids[i]
     - This ensures embeddings can be matched back to movies by movie_id
     
@@ -575,10 +646,60 @@ def step4_embeddings(
         batch_size: Batch size for embedding generation
         verbose: Enable verbose logging
         force_refresh: If True, regenerate embeddings even if file exists
+        chunking_method: Chunking method to use. Options: None, 'cls_token', 'mean_pooling', 
+                        'chunk_first_embed', 'late_chunking'. If None, uses direct embedding.
+        chunking_chunk_size: Chunk size for chunk_first_embed (default: 512)
+        chunking_window_size: Window size for late_chunking (default: 512)
+        chunking_stride: Stride for chunk_first_embed and late_chunking (default: 256)
+        save_lexical_weights: If True, save lexical weights (only available for BGE-M3 model)
     """
     logger.info("=" * 80)
     logger.info("STEP 4: Embedding Generation")
     logger.info("=" * 80)
+    
+    # Initialize chunking method if specified
+    chunking_instance = None
+    chunking_suffix = ""
+    if chunking_method and chunking_method.lower() not in ['none', '']:
+        if not CHUNKING_AVAILABLE:
+            logger.error("Chunking requested but chunking classes are not available. Skipping chunking.")
+            chunking_method = None
+        else:
+            chunking_method_lower = chunking_method.lower()
+            try:
+                if chunking_method_lower == 'cls_token':
+                    chunking_instance = CLSToken(embedding_service=None, model_name=model_name)
+                    chunking_suffix = "_cls_token"
+                    logger.info("Using chunking method: CLSToken")
+                elif chunking_method_lower == 'mean_pooling':
+                    chunking_instance = MeanPooling(embedding_service=None, model_name=model_name)
+                    chunking_suffix = "_mean_pooling"
+                    logger.info("Using chunking method: MeanPooling")
+                elif chunking_method_lower == 'chunk_first_embed':
+                    chunking_instance = ChunkFirstEmbed(
+                        embedding_service=None,
+                        model_name=model_name,
+                        chunk_size=chunking_chunk_size,
+                        stride=chunking_stride
+                    )
+                    chunking_suffix = f"_chunk_first_{chunking_chunk_size}_{chunking_stride}"
+                    logger.info(f"Using chunking method: ChunkFirstEmbed (chunk_size={chunking_chunk_size}, stride={chunking_stride})")
+                elif chunking_method_lower == 'late_chunking':
+                    chunking_instance = LateChunking(
+                        embedding_service=None,
+                        model_name=model_name,
+                        window_size=chunking_window_size,
+                        stride=chunking_stride
+                    )
+                    chunking_suffix = f"_late_chunking_{chunking_window_size}_{chunking_stride}"
+                    logger.info(f"Using chunking method: LateChunking (window_size={chunking_window_size}, stride={chunking_stride})")
+                else:
+                    logger.warning(f"Unknown chunking method: {chunking_method}. Available options: 'cls_token', 'mean_pooling', 'chunk_first_embed', 'late_chunking'. Using direct embedding.")
+                    chunking_method = None
+            except Exception as e:
+                logger.error(f"Error initializing chunking method {chunking_method}: {e}. Using direct embedding.")
+                chunking_method = None
+                chunking_instance = None
     
     # Use factory's GPU setup verification
     # Setup target_devices first
@@ -616,6 +737,10 @@ def step4_embeddings(
         embedding_service = EmbeddingService(model_name=model_name)
         _embedding_service_instance = embedding_service  # Store for cleanup
         logger.info(f"Initialized embedding service with model: {model_name}")
+        
+        # If using chunking, share the embedding service with the chunking instance
+        if chunking_instance is not None:
+            chunking_instance.embedding_service = embedding_service
     except Exception as e:
         logger.error(f"Failed to initialize embedding service: {e}")
         logger.warning("Skipping Step 4: Embedding generation")
@@ -647,8 +772,9 @@ def step4_embeddings(
             continue
         
         # Check if embeddings already exist and verify they match current data
-        embeddings_path = os.path.join(DATA_DIR, f'movie_embeddings_{year}.npy')
-        movie_ids_path = os.path.join(DATA_DIR, f'movie_ids_{year}.npy')
+        embeddings_path = os.path.join(DATA_DIR, f'movie_embeddings_{year}{chunking_suffix}.npy')
+        movie_ids_path = os.path.join(DATA_DIR, f'movie_ids_{year}{chunking_suffix}.npy')
+        lexical_weights_path = os.path.join(DATA_DIR, f'movie_lexical_weights_{year}{chunking_suffix}.npz') if save_lexical_weights else None
         embeddings_exist = os.path.exists(embeddings_path) and os.path.exists(movie_ids_path)
         
         if embeddings_exist and not force_refresh:
@@ -692,23 +818,102 @@ def step4_embeddings(
             import time
             start_time = time.time()
             
-            # Generate embeddings using factory approach
-            if 'cpu' in target_devices or (len(target_devices) == 1 and target_devices[0] == 'cpu'):
-                # Single device encoding for CPU
-                logger.info(f"Year {year}: Encoding on CPU...")
-                embeddings = embedding_service.model.encode(
-                    plots,
-                    batch_size=batch_size,
-                    show_progress_bar=verbose
-                )
+            # Generate embeddings using chunking if specified, otherwise use direct embedding
+            lexical_weights_list = None
+            if chunking_instance is not None:
+                # Use chunking method
+                logger.info(f"Year {year}: Using chunking method {chunking_method}...")
+                embeddings = chunking_instance.embed_batch(plots, batch_size=batch_size)
+                
+                # If lexical weights are requested, extract them separately
+                # Note: chunking methods don't return lexical weights, so we need a separate call
+                if save_lexical_weights:
+                    logger.info(f"Year {year}: Extracting lexical weights separately...")
+                    # Extract lexical weights using encode_corpus
+                    # Process in batches to manage memory
+                    lexical_weights_list = []
+                    for i in range(0, len(plots), batch_size):
+                        batch_plots = plots[i:i+batch_size]
+                        batch_results = embedding_service.encode_corpus(batch_plots, batch_size=len(batch_plots))
+                        if 'lexical_weights' in batch_results:
+                            # lexical_weights is a list where each element corresponds to one plot
+                            batch_lexical_weights = batch_results['lexical_weights']
+                            if isinstance(batch_lexical_weights, list):
+                                lexical_weights_list.extend(batch_lexical_weights)
+                            else:
+                                # If it's not a list, try to convert
+                                logger.warning(f"Year {year}: Unexpected lexical_weights format: {type(batch_lexical_weights)}")
+                    if not lexical_weights_list:
+                        logger.warning(f"Year {year}: No lexical weights found in results. They may not be available for this model or chunking method.")
             else:
-                # Multi-GPU encoding using factory's parallel approach
-                logger.info(f"Year {year}: Encoding on {len(target_devices)} device(s): {target_devices}")
-                embeddings = embedding_service.encode_parallel(
-                    corpus=plots,
-                    target_devices=target_devices,
-                    batch_size=batch_size
-                )
+                # Generate embeddings using factory approach (direct embedding)
+                if save_lexical_weights:
+                    # Use encode_corpus to get both embeddings and lexical weights
+                    logger.info(f"Year {year}: Encoding with lexical weights extraction...")
+                    if 'cpu' in target_devices or (len(target_devices) == 1 and target_devices[0] == 'cpu'):
+                        # For CPU, we need to use encode_corpus
+                        results = embedding_service.encode_corpus(plots, batch_size=batch_size)
+                        # Extract dense embeddings
+                        if 'dense_vecs' in results:
+                            embeddings = results['dense_vecs']
+                        elif 'dense' in results:
+                            embeddings = results['dense']
+                        else:
+                            # Fallback to model.encode if dense not found
+                            logger.warning(f"Year {year}: Dense embeddings not found in results, using model.encode...")
+                            embeddings = embedding_service.model.encode(
+                                plots,
+                                batch_size=batch_size,
+                                show_progress_bar=verbose
+                            )
+                        # Extract lexical weights
+                        if 'lexical_weights' in results:
+                            lexical_weights_list = results['lexical_weights']
+                            if not isinstance(lexical_weights_list, list):
+                                logger.warning(f"Year {year}: lexical_weights is not a list: {type(lexical_weights_list)}")
+                                lexical_weights_list = None
+                    else:
+                        # For multi-GPU, encode_parallel doesn't return lexical weights
+                        # So we need to use encode_corpus for lexical weights
+                        logger.info(f"Year {year}: Encoding on {len(target_devices)} device(s): {target_devices}")
+                        # First get embeddings
+                        embeddings = embedding_service.encode_parallel(
+                            corpus=plots,
+                            target_devices=target_devices,
+                            batch_size=batch_size
+                        )
+                        # Then extract lexical weights separately
+                        logger.info(f"Year {year}: Extracting lexical weights separately...")
+                        lexical_weights_list = []
+                        for i in range(0, len(plots), batch_size):
+                            batch_plots = plots[i:i+batch_size]
+                            batch_results = embedding_service.encode_corpus(batch_plots, batch_size=len(batch_plots))
+                            if 'lexical_weights' in batch_results:
+                                batch_lexical_weights = batch_results['lexical_weights']
+                                if isinstance(batch_lexical_weights, list):
+                                    lexical_weights_list.extend(batch_lexical_weights)
+                                else:
+                                    logger.warning(f"Year {year}: Unexpected lexical_weights format: {type(batch_lexical_weights)}")
+                        if not lexical_weights_list:
+                            logger.warning(f"Year {year}: No lexical weights found in results.")
+                else:
+                    # Standard encoding without lexical weights
+                    if 'cpu' in target_devices or (len(target_devices) == 1 and target_devices[0] == 'cpu'):
+                        # Single device encoding for CPU
+                        logger.info(f"Year {year}: Encoding on CPU...")
+                        embeddings = embedding_service.model.encode(
+                            plots,
+                            batch_size=batch_size,
+                            show_progress_bar=verbose
+                        )
+                    else:
+                        # Multi-GPU encoding using factory's parallel approach
+                        logger.info(f"Year {year}: Encoding on {len(target_devices)} device(s): {target_devices}")
+                        embeddings = embedding_service.encode_parallel(
+                            corpus=plots,
+                            target_devices=target_devices,
+                            batch_size=batch_size
+                        )
             
             end_time = time.time()
             duration = end_time - start_time
@@ -723,6 +928,75 @@ def step4_embeddings(
                 logger.info(f"Year {year}: Saved movie_ids to {movie_ids_path} ({len(movie_ids_with_plots)} movie_ids)")
                 logger.info(f"Year {year}: Encoding completed in {duration:.2f} seconds ({len(plots)/duration:.2f} docs/sec)")
                 logger.info(f"Year {year}: Embeddings are indexed by movie_id - embedding[i] corresponds to movie_ids[i] (e.g., first embedding for movie_id: {movie_ids_with_plots[0] if movie_ids_with_plots else 'N/A'})")
+                
+                # Save lexical weights if available
+                if save_lexical_weights and lexical_weights_list is not None and len(lexical_weights_list) == len(movie_ids_with_plots):
+                    try:
+                        # Convert lexical weights to sparse format (only non-zero weights)
+                        # Save as two arrays: token_indices and weights
+                        token_indices_list = []
+                        weights_list = []
+                        
+                        for doc_idx, lw in enumerate(lexical_weights_list):
+                            token_indices = []
+                            weights = []
+                            
+                            if isinstance(lw, dict):
+                                # Dict format: {token_id_str: weight, ...}
+                                for token_id_str, weight in lw.items():
+                                    weight_float = float(weight)
+                                    if abs(weight_float) > 1e-10:  # Only save non-zero weights
+                                        try:
+                                            token_id_int = int(token_id_str)
+                                            token_indices.append(token_id_int)
+                                            weights.append(weight_float)
+                                        except (ValueError, TypeError):
+                                            logger.warning(f"Year {year}: Document {doc_idx}: Invalid token_id '{token_id_str}', skipping")
+                            elif isinstance(lw, np.ndarray):
+                                # Array format: indices are token IDs
+                                non_zero_mask = np.abs(lw) > 1e-10
+                                if non_zero_mask.any():
+                                    token_indices_arr = np.where(non_zero_mask)[0]
+                                    weights_arr = lw[non_zero_mask]
+                                    token_indices.extend(token_indices_arr.tolist())
+                                    weights.extend(weights_arr.tolist())
+                            elif isinstance(lw, (list, tuple)):
+                                # List format: indices are token IDs
+                                lw_array = np.array(lw, dtype=np.float32)
+                                non_zero_mask = np.abs(lw_array) > 1e-10
+                                if non_zero_mask.any():
+                                    token_indices_arr = np.where(non_zero_mask)[0]
+                                    weights_arr = lw_array[non_zero_mask]
+                                    token_indices.extend(token_indices_arr.tolist())
+                                    weights.extend(weights_arr.tolist())
+                            else:
+                                logger.warning(f"Year {year}: Document {doc_idx}: Unexpected lexical weight type: {type(lw)}")
+                            
+                            # Convert to numpy arrays
+                            token_indices_list.append(np.array(token_indices, dtype=np.int64) if token_indices else np.array([], dtype=np.int64))
+                            weights_list.append(np.array(weights, dtype=np.float32) if weights else np.array([], dtype=np.float32))
+                        
+                        # Save using npz format
+                        # Use object arrays to store variable-length arrays per document
+                        np.savez(lexical_weights_path,
+                                token_indices=np.array(token_indices_list, dtype=object),
+                                weights=np.array(weights_list, dtype=object),
+                                movie_ids=np.array(movie_ids_with_plots))
+                        
+                        # Log statistics
+                        total_non_zero = sum(len(ti) for ti in token_indices_list)
+                        avg_non_zero = total_non_zero / len(token_indices_list) if token_indices_list else 0
+                        logger.info(f"Year {year}: Saved lexical weights to {lexical_weights_path}")
+                        logger.info(f"Year {year}: Saved {len(lexical_weights_list)} lexical weight entries")
+                        logger.info(f"Year {year}: Total {total_non_zero} non-zero weights (avg {avg_non_zero:.1f} per document)")
+                        logger.info(f"Year {year}: Lexical weights are indexed by movie_id - token_indices[i] and weights[i] correspond to movie_ids[i]")
+                    except Exception as e:
+                        logger.error(f"Year {year}: Error saving lexical weights: {e}")
+                elif save_lexical_weights:
+                    if lexical_weights_list is None:
+                        logger.warning(f"Year {year}: Lexical weights requested but not available (model may not support them)")
+                    elif len(lexical_weights_list) != len(movie_ids_with_plots):
+                        logger.warning(f"Year {year}: Lexical weights count mismatch: {len(lexical_weights_list)} vs {len(movie_ids_with_plots)}")
             else:
                 logger.error(f"Year {year}: Embedding verification failed, not saving")
             
@@ -731,6 +1005,8 @@ def step4_embeddings(
             del plots
             del movie_ids_with_plots
             del movies_with_plots
+            if lexical_weights_list is not None:
+                del lexical_weights_list
             
         except Exception as e:
             logger.error(f"Year {year}: Error generating embeddings - {e}", exc_info=verbose)
@@ -780,6 +1056,8 @@ def step4_embeddings(
     
     # Clean up embedding service resources
     try:
+        if chunking_instance is not None:
+            chunking_instance.cleanup()
         embedding_service.cleanup()
         logger.info("Cleaned up embedding service resources")
     except Exception as e:
@@ -805,7 +1083,12 @@ async def run_pipeline(
     model_name: str = 'BAAI/bge-m3',
     target_devices: Optional[List[str]] = None,
     batch_size: int = 128,
-    wikipedia_max_workers: int = 8
+    wikipedia_max_workers: int = 8,
+    chunking_method: Optional[str] = None,
+    chunking_chunk_size: int = 512,
+    chunking_window_size: int = 512,
+    chunking_stride: int = 256,
+    save_lexical_weights: bool = False
 ) -> None:
     """
     Run the complete data pipeline.
@@ -834,6 +1117,12 @@ async def run_pipeline(
         target_devices: List of CUDA devices
         batch_size: Batch size for embeddings
         wikipedia_max_workers: Number of parallel threads for Wikipedia requests (default: 4)
+        chunking_method: Chunking method to use. Options: None, 'cls_token', 'mean_pooling', 
+                        'chunk_first_embed', 'late_chunking'. If None, uses direct embedding.
+        chunking_chunk_size: Chunk size for chunk_first_embed (default: 512)
+        chunking_window_size: Window size for late_chunking (default: 512)
+        chunking_stride: Stride for chunk_first_embed and late_chunking (default: 256)
+        save_lexical_weights: If True, save lexical weights (only available for BGE-M3 model)
     """
     logger.info("=" * 80)
     logger.info("MOVIE DATA PIPELINE - Starting")
@@ -902,7 +1191,12 @@ async def run_pipeline(
             target_devices=target_devices,
             batch_size=batch_size,
             verbose=verbose,
-            force_refresh=force_refresh
+            force_refresh=force_refresh,
+            chunking_method=chunking_method,
+            chunking_chunk_size=chunking_chunk_size,
+            chunking_window_size=chunking_window_size,
+            chunking_stride=chunking_stride,
+            save_lexical_weights=save_lexical_weights
         )
     else:
         logger.info("Skipping Step 4: Embedding generation")
@@ -926,7 +1220,12 @@ async def main():
         verbose=VERBOSE,
         model_name=MODEL_NAME,
         target_devices=TARGET_DEVICES,
-        batch_size=BATCH_SIZE
+        batch_size=BATCH_SIZE,
+        chunking_method=CHUNKING_METHOD,
+        chunking_chunk_size=CHUNKING_CHUNK_SIZE,
+        chunking_window_size=CHUNKING_WINDOW_SIZE,
+        chunking_stride=CHUNKING_STRIDE,
+        save_lexical_weights=SAVE_LEXICAL_WEIGHTS
     )
 
 

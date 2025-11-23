@@ -72,11 +72,28 @@ class EmbeddingService:
         
         logger.info(f"EmbeddingService initialized with {self.strategy.__class__.__name__}")
 
+    @property
+    def model(self):
+        """
+        Property to access the underlying model for backward compatibility.
+        Returns the strategy's model.
+        """
+        return self.strategy.model
+
     def cleanup(self):
         """
         Clean up any multiprocessing resources (pools, semaphores, etc.).
         This should be called when done with the service to prevent resource leaks.
         """
+        # Call strategy-specific cleanup if it exists (e.g., FlagEmbeddingStrategy)
+        if hasattr(self.strategy, 'cleanup'):
+            try:
+                logger.info(f"Calling strategy-specific cleanup for {self.strategy.__class__.__name__}...")
+                self.strategy.cleanup()
+            except Exception as e:
+                logger.warning(f"Error during strategy-specific cleanup: {e}")
+        
+        # Legacy cleanup for strategies that use a pool attribute
         if hasattr(self.strategy, 'pool') and self.strategy.pool is not None:
             try:
                 if hasattr(self.strategy.model, 'stop_multi_process_pool'):

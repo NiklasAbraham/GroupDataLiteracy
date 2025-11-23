@@ -184,4 +184,54 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
         except Exception as e:
             logger.error(f"An error occurred during FlagEmbedding encoding: {e}")
             raise
+    
+    def cleanup(self):
+        """
+        Clean up FlagEmbedding model resources, including multiprocessing pools.
+        
+        This method should be called before Python shutdown to prevent errors
+        during cleanup when the signal module is None.
+        """
+        if self.model is None:
+            return  # Already cleaned up
+        
+        model_ref = self.model  # Keep a reference to call methods on
+        try:
+            # FlagEmbedding models have internal multiprocessing pools that need cleanup
+            # The stop_self_pool method is the main cleanup method that stops all pools
+            # It internally calls stop_multi_process_pool, so we should call it first
+            if hasattr(model_ref, 'stop_self_pool'):
+                try:
+                    logger.info("Stopping FlagEmbedding self pool...")
+                    model_ref.stop_self_pool()
+                    logger.info("FlagEmbedding self pool stopped")
+                except Exception as e:
+                    logger.warning(f"Error stopping FlagEmbedding self pool: {e}")
+            
+            # Also try stop_multi_process_pool directly if stop_self_pool didn't work
+            if hasattr(model_ref, 'stop_multi_process_pool'):
+                if hasattr(model_ref, 'pool') and model_ref.pool is not None:
+                    try:
+                        logger.info("Stopping FlagEmbedding multiprocessing pool...")
+                        model_ref.stop_multi_process_pool(model_ref.pool)
+                        logger.info("FlagEmbedding multiprocessing pool stopped")
+                    except Exception as e:
+                        logger.warning(f"Error stopping FlagEmbedding multiprocessing pool: {e}")
+            
+            # Clear CUDA cache
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception as e:
+                logger.warning(f"Error clearing CUDA cache: {e}")
+            
+            logger.info("FlagEmbedding model cleaned up")
+        except Exception as e:
+            logger.warning(f"Error during FlagEmbedding cleanup: {e}")
+        finally:
+            # Set model to None to mark as cleaned up
+            # Note: This doesn't prevent __del__ from being called if there are other references,
+            # but it prevents us from trying to clean up again
+            self.model = None
 
