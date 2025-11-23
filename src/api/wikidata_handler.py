@@ -17,6 +17,7 @@ import logging
 import urllib.parse
 import re
 import json
+import pandas as pd
 from typing import List, Dict, Optional
 
 logging.basicConfig(
@@ -42,9 +43,101 @@ TELEVISION_SERIES_EPISODE_ID = "wd:Q21191270"
 SHORT_FILM_ID = "wd:Q24862"
 EXCLUDED_CLASSES = [TELEVISION_SERIES_EPISODE_ID, SHORT_FILM_ID]
 
+VALID_IN_PLACE_ID = "P3005"
+WORLDWIDE_BOX_OFFICE_PLACE_ID = "wd:Q13780930"
+
 IS_INSTANCE = "wdt:P31"
 IS_SUBCLASS = "wdt:P279"
 IS_INSTANCE_OF_SOME_SUBCLASS = f"{IS_INSTANCE}/{IS_SUBCLASS}*"
+
+def get_exclude_deprecated_filter(feature_variable: str) -> str:
+    return f"""
+        ?{feature_variable}_intermediate_0 wikibase:rank ?rank.
+        FILTER(?rank != wikibase:DeprecatedRank)
+    """
+
+def get_box_office_filter(feature_variable: str) -> str:
+    return f"""
+        {get_exclude_deprecated_filter(feature_variable)}
+        FILTER NOT EXISTS {{
+            ?{feature_variable}_intermediate_0 pq:{VALID_IN_PLACE_ID} ?place.
+            FILTER(?place != {WORLDWIDE_BOX_OFFICE_PLACE_ID})
+        }}
+    """
+
+def get_worldwide_box_office_filter(feature_variable: str) -> str:
+    return f"""
+        {get_exclude_deprecated_filter(feature_variable)}
+        ?{feature_variable}_intermediate_0 pq:{VALID_IN_PLACE_ID} {WORLDWIDE_BOX_OFFICE_PLACE_ID}.
+    """
+
+def get_qid_from_uri(uri: str) -> str:
+    """Convert a full Wikidata URI to its QID format (e.g., Q12345)."""
+    if uri.startswith("http://www.wikidata.org/entity/"):
+        qid = uri.split('/')[-1]
+        return qid
+    elif uri.startswith("wd:Q"):
+        return uri[3:] 
+    return uri
+
+def extract_qids_from_uris(uris: str) -> str:
+    list_of_qids = [
+        get_qid_from_uri(x.strip()) for x in uris.split(",")
+    ]
+    return ",".join(list_of_qids)
+
+def convert_to_minutes(duration_str: str) -> str:
+    if not duration_str or len(duration_str.strip()) == 0:
+        return ""
+    list_of_durations_in_seconds = [
+        str(int(float(x.strip()) / 60)) for x in duration_str.split(",")
+    ]
+    return ",".join(list_of_durations_in_seconds)
+
+
+FEATURE_SPECIFICATIONS = pd.DataFrame.from_records(
+    columns=["feature", "QID_list", "useLabels", "aggregationFunction", "extraFilter", "postprocessingFunction"],
+    data=[
+        ("movie_id", [], False, None, None, extract_qids_from_uris),
+        ("title", [], True, None, None, None),
+        ("wikidata_class", [IS_INSTANCE], True, "GROUP_CONCAT", None, None),
+        ("summary", None, None, None, None, None),
+        ("release_date", [RELEASE_DATE_ID], False, "MIN", None, None),
+
+        ("genre", ["wdt:P136"], True, "GROUP_CONCAT", None, None),
+        ("genre_id", ["wdt:P136"], False, "GROUP_CONCAT", None, extract_qids_from_uris),
+
+        ("directors", ["wdt:P57"], True, "GROUP_CONCAT", None, None),
+        ("directors_id", ["wdt:P57"], False, "GROUP_CONCAT", None, extract_qids_from_uris),
+
+        ("actors", ["wdt:P161"], True, "GROUP_CONCAT", None, None),
+        ("actors_id", ["wdt:P161"], False, "GROUP_CONCAT", None, extract_qids_from_uris),
+
+        ("duration_all", ["p:P2047", "psn:P2047", "wikibase:quantityAmount"], False, "GROUP_CONCAT",
+         get_exclude_deprecated_filter("duration_all"), convert_to_minutes),
+        ("duration", ["p:P2047", "psn:P2047", "wikibase:quantityAmount"], False, "MIN", 
+         get_exclude_deprecated_filter("duration"), convert_to_minutes),
+        
+        ("imdb_id", ["wdt:P345"], False, "SAMPLE", None, None),
+        ("country", ["wdt:P495"], True, "GROUP_CONCAT", None, None),
+        ("set_in_period", ["wdt:P2408"], True, "GROUP_CONCAT", None, None),
+        ("awards", ["wdt:P166"], True, "GROUP_CONCAT", None, None),
+        ("wikipedia_link", [], False, "SAMPLE", None, None),
+
+        ("budget", ["p:P2130", "psv:P2130", "wikibase:quantityAmount"], False, "NONDISTINCT_GROUP_CONCAT", None, None),
+        ("budget_currency", ["p:P2130", "psv:P2130", "wikibase:quantityUnit"], True, "NONDISTINCT_GROUP_CONCAT", None, None),
+
+        ("box_office", ["p:P2142", "psv:P2142", "wikibase:quantityAmount"], False, "NONDISTINCT_GROUP_CONCAT", 
+         get_box_office_filter("box_office"), None),
+        ("box_office_currency", ["p:P2142", "psv:P2142", "wikibase:quantityUnit"], True, "NONDISTINCT_GROUP_CONCAT", 
+         get_box_office_filter("box_office_currency"), None),
+
+        ("box_office_worldwide", ["p:P2142", "psv:P2142", "wikibase:quantityAmount"], False, "NONDISTINCT_GROUP_CONCAT",
+         get_worldwide_box_office_filter("box_office_worldwide"), None),
+        ("box_office_worldwide_currency", ["p:P2142", "psv:P2142", "wikibase:quantityUnit"], True, "NONDISTINCT_GROUP_CONCAT",
+         get_worldwide_box_office_filter("box_office_worldwide_currency"), None)
+    ]
+)
 
 
 def get_wikidata_headers() -> Dict[str, str]:
@@ -179,7 +272,55 @@ def get_discovery_query_string(year: int, limit: int = 50) -> str:
     return query.strip()
 
 
-def get_enrichment_query_string(movie_uris: List[str]) -> str:
+def get_aggregation_function_string(aggregation_function: Optional[str], feature_variable: str) -> str:
+    if aggregation_function == "GROUP_CONCAT":
+        return f"GROUP_CONCAT(DISTINCT ?{feature_variable}; separator=\", \")"
+    elif aggregation_function == "NONDISTINCT_GROUP_CONCAT":
+        return f"GROUP_CONCAT(?{feature_variable}; separator=\", \")"
+    return f"{aggregation_function}(?{feature_variable})"
+
+
+def get_enrichment_feature_query(
+    feature: str,
+    qid_list: list[str],
+    use_labels: bool,
+    aggregation_function: Optional[str],
+    extra_filter: str
+) -> str:
+    if qid_list is None or len(qid_list) == 0:
+        return ""
+
+    feature_var = feature + ("Label" if use_labels else "_")
+    labels_query = f"""
+        SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?{feature}_ rdfs:label ?{feature}Label. }}
+    """ if use_labels else ""
+
+    qid_link = ""
+    previous_var = "?movie_id"
+    for iteration, qid in enumerate(qid_list[:-1]):
+        intermediate_var = f"?{feature}_intermediate_{iteration}"
+        qid_link += f"""
+            {previous_var} {qid} {intermediate_var}.
+        """
+        previous_var = intermediate_var
+    qid_link += f"""
+        {previous_var} {qid_list[-1]} ?{feature}_.
+    """
+    aggregation_function_string = get_aggregation_function_string(aggregation_function, feature_var)
+
+    feature_enrichment_query = f"""
+        OPTIONAL {{
+            SELECT ?movie_id ({aggregation_function_string} AS ?{feature}) WHERE {{
+                {qid_link}
+                {extra_filter if extra_filter else ""}
+                {labels_query}
+            }} GROUP BY ?movie_id
+        }}
+    """
+    return feature_enrichment_query
+
+
+def get_enrichment_query_string(movie_uris: List[str], feature_specifications: pd.DataFrame) -> str:
     """
     Step 2: Enrichment Query - Robust version with pre-aggregation.
     
@@ -194,93 +335,69 @@ def get_enrichment_query_string(movie_uris: List[str]) -> str:
     Returns:
         A robust SPARQL query string for enriching movie data.
     """
-    values_clause = "VALUES ?movie {\n"
+    values_clause = "VALUES ?movie_id {\n"
     for uri in movie_uris:
         if not uri.startswith("wd:") and not uri.startswith("http"):
             uri = f"wd:{uri}" if uri.startswith("Q") else uri
         values_clause += f"    {uri}\n"
     values_clause += "}\n"
     
+    features = feature_specifications["feature"].tolist()
+    featureVariables = [
+        f"?{feature}" for feature in features
+    ]
+    select_features = " ".join(featureVariables)
+    feature_enrichments = ""
+
+    for feature, qid_list, use_labels, aggregation_function, extra_filter in zip(
+        feature_specifications["feature"],
+        feature_specifications["QID_list"],
+        feature_specifications["useLabels"],
+        feature_specifications["aggregationFunction"],
+        feature_specifications["extraFilter"]
+    ):
+        if qid_list is not None and aggregation_function is not None:
+            enrichment_subquery = get_enrichment_feature_query(
+                feature, qid_list, use_labels, aggregation_function, extra_filter
+            )
+            feature_enrichments += enrichment_subquery + "\n"
+
     query = f"""
-SELECT ?movie ?movieLabel ?sitelinks
-       (SAMPLE(?article_) AS ?article)
-       (SAMPLE(?plotSummary_) AS ?plotSummary)
-       (MIN(?releaseDate_) AS ?releaseDate)
-       (SAMPLE(?imdbID_) AS ?imdbID)
-       (SAMPLE(?duration_) AS ?duration)
-       (MIN(?budget_) AS ?budget)
-       (MIN(?boxOffice_) AS ?boxOffice)
-       (MIN(?countryLabel_) AS ?countryLabel)
-       ?genres ?directors ?actors ?awards ?setPeriods
+SELECT {select_features}
 WHERE {{
     {values_clause}
 
-    ?movie wikibase:sitelinks ?sitelinks.
-    SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?movie rdfs:label ?movieLabel. }}
-    
-    # Get other 1:1-ish properties (we will SAMPLE/MIN these)
-    OPTIONAL {{ ?movie wdt:P2437 ?plotSummary_. FILTER(LANG(?plotSummary_) = "en") }}
-    OPTIONAL {{ ?movie wdt:P577 ?releaseDate_. }}
-    OPTIONAL {{ ?movie wdt:P345 ?imdbID_. }}
-    OPTIONAL {{ ?movie wdt:P2047 ?duration_. }}
-    OPTIONAL {{ ?movie wdt:P2130 ?budget_. }}
-    OPTIONAL {{ ?movie wdt:P2142 ?boxOffice_. }}
+    SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?movie_id rdfs:label ?title. }}
     OPTIONAL {{ 
-        ?article_ schema:about ?movie;
-                  schema:isPartOf <{EN_WIKIPEDIA_URL}>.
-    }}
-    OPTIONAL {{ 
-        ?movie wdt:P495 ?country_.
-        SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?country_ rdfs:label ?countryLabel_. }}
+        ?wikipedia_link schema:about ?movie_id;
+                           schema:isPartOf <{EN_WIKIPEDIA_URL}>.
     }}
 
-    # --- Pre-aggregated 1:N Subqueries ---
-    # Each of these runs independently and returns 1 row per movie,
-    # preventing the Cartesian product (join explosion).
-    
-    OPTIONAL {{
-        SELECT ?movie (GROUP_CONCAT(DISTINCT ?genreLabel; separator=", ") AS ?genres) WHERE {{
-            ?movie wdt:P136 ?genre.
-            SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?genre rdfs:label ?genreLabel. }}
-        }} GROUP BY ?movie
-    }}
-    OPTIONAL {{
-        SELECT ?movie (GROUP_CONCAT(DISTINCT ?directorLabel; separator=", ") AS ?directors) WHERE {{
-            ?movie wdt:P57 ?director.
-            SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?director rdfs:label ?directorLabel. }}
-        }} GROUP BY ?movie
-    }}
-    OPTIONAL {{
-        SELECT ?movie (GROUP_CONCAT(DISTINCT ?actorLabel; separator=", ") AS ?actors) WHERE {{
-            ?movie wdt:P161 ?actor.
-            SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?actor rdfs:label ?actorLabel. }}
-        }} GROUP BY ?movie
-    }}
-    OPTIONAL {{
-        SELECT ?movie (GROUP_CONCAT(DISTINCT ?awardLabel; separator=", ") AS ?awards) WHERE {{
-            ?movie wdt:P166 ?award.
-            SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?award rdfs:label ?awardLabel. }}
-        }} GROUP BY ?movie
-    }}
-    OPTIONAL {{
-        SELECT ?movie (GROUP_CONCAT(DISTINCT ?setPeriodLabel; separator=", ") AS ?setPeriods) WHERE {{
-            ?movie wdt:P2408 ?setPeriod.
-            SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". ?setPeriod rdfs:label ?setPeriodLabel. }}
-        }} GROUP BY ?movie
-    }}
+    {feature_enrichments}
 }}
-# Group by the 1:1 properties to collapse results
-GROUP BY ?movie ?movieLabel ?sitelinks ?genres ?directors ?actors ?awards ?setPeriods
-ORDER BY DESC(?sitelinks)
 """
     return query.strip()
+
+
+def postprocess_query_result(
+    result: Dict,
+    feature_specifications: pd.DataFrame = FEATURE_SPECIFICATIONS
+) -> Dict:
+    for feature, postprocess_func in zip(
+        feature_specifications["feature"].tolist(),
+        feature_specifications["postprocessingFunction"].tolist()
+    ):
+        postprocess_func = postprocess_func if postprocess_func is not None else (lambda x: x)
+        result[feature] = postprocess_func(result.get(feature, {}).get('value', ""))
+    return result
 
 
 async def get_movies_by_year(
     session: aiohttp.ClientSession,
     year: int,
     limit: int = 50,
-    verbose: bool = False
+    verbose: bool = False,
+    feature_specifications: pd.DataFrame = FEATURE_SPECIFICATIONS
 ) -> List[Dict[str, Optional[str]]]:
     """
     Fetch movies from Wikidata for a specific year, ordered by popularity (sitelinks).
@@ -317,7 +434,6 @@ async def get_movies_by_year(
             params = {'query': discovery_query, 'format': 'json'}
             async with session.get(WIKIDATA_SPARQL_URL, params=params, headers=headers, timeout=timeout) as response:
                 if response.status == 200:
-                    # Read as text and clean control characters
                     text = await response.text()
                     text = sanitize_json_text(text)
                     
@@ -332,18 +448,13 @@ async def get_movies_by_year(
                     for r in results:
                         movie_uri = r.get('movie', {}).get('value', '')
                         if movie_uri:
-                            # Convert http://www.wikidata.org/entity/Q12345 to wd:Q12345
-                            if 'wikidata.org/entity/' in movie_uri:
-                                movie_uri = 'wd:' + movie_uri.split('/')[-1]
-                            movie_uris.append(movie_uri)
+                            movie_uris.append("wd:" + get_qid_from_uri(movie_uri))
                     
                     logger.info(f"Year {year}: Step 1 found {len(movie_uris)} distinct movie URIs")
                     
                     if not movie_uris:
                         logger.warning(f"Year {year}: No movies found in discovery query")
-                        return []
-                    
-                    # Break out of retry loop on success
+                        return []                   
                     break
                 elif response.status == 429:
                     if attempt < max_retries - 1:
@@ -373,12 +484,12 @@ async def get_movies_by_year(
     
     # STEP 2: Enrichment Query - Get detailed data for discovered movies
     # Process in batches to avoid URL length limits and query complexity issues
-    BATCH_SIZE = 20  # Reduced batch size to avoid 500 errors (server-side query complexity)
+    BATCH_SIZE = 20
     movies = []
     
     for batch_start in range(0, len(movie_uris), BATCH_SIZE):
         batch_uris = movie_uris[batch_start:batch_start + BATCH_SIZE]
-        enrichment_query = get_enrichment_query_string(batch_uris)
+        enrichment_query = get_enrichment_query_string(batch_uris, feature_specifications=feature_specifications)
         
         current_batch_num = batch_start//BATCH_SIZE + 1
         
@@ -387,8 +498,8 @@ async def get_movies_by_year(
         
         for attempt in range(max_retries):
             try:
-                timeout = aiohttp.ClientTimeout(total=120)  # Longer timeout for complex query
-                # Use POST for large queries to avoid URL length limits
+                timeout = aiohttp.ClientTimeout(total=120)
+
                 async with session.post(
                     WIKIDATA_SPARQL_URL,
                     data={'query': enrichment_query, 'format': 'json'},
@@ -396,7 +507,6 @@ async def get_movies_by_year(
                     timeout=timeout
                 ) as response:
                     if response.status == 200:
-                        # Read as text and clean control characters
                         text = await response.text()
                         text = sanitize_json_text(text)
                         
@@ -404,11 +514,10 @@ async def get_movies_by_year(
                             data = json.loads(text)
                         except json.JSONDecodeError as e:
                             logger.error(f"Year {year}: Step 2 batch {current_batch_num} JSON decode error - {e}")
-                            break  # Continue with next batch
+                            break
                         
                         results = data['results']['bindings']
                         
-                        # Tracking statistics
                         dropped_no_title = 0
                         total_processed = len(results)
                         
@@ -417,82 +526,15 @@ async def get_movies_by_year(
                         if len(results) > 0:
                             logger.debug(f"Year {year}: Sample result keys: {list(results[0].keys())}")
 
-                        for idx, r in enumerate(results):
-                            title = r.get('movieLabel', {}).get('value')
-                            
-                            # Try alternative: use movie ID if label missing
-                            if not title:
-                                movie_uri = r.get('movie', {}).get('value', '')
-                                if movie_uri:
-                                    title = movie_uri.split('/')[-1]
-                                    logger.debug(f"Year {year}, result {idx+1}: Missing movieLabel, using URI ID: {title}")
-                            
-                            # Filter: Missing title
-                            if not title:
-                                dropped_no_title += 1
-                                movie_uri = r.get('movie', {}).get('value', 'Unknown')
-                                logger.warning(f"Year {year}, result {idx+1}: DROPPED - Missing title (movie URI: {movie_uri})")
-                                continue
-                            
-                            # Extract sitelinks
-                            sitelinks_raw = r.get('sitelinks', {})
-                            sitelinks_value = sitelinks_raw.get('value') if sitelinks_raw else None
-                            if sitelinks_value is None:
-                                sitelinks = '0'
-                            else:
-                                sitelinks = str(sitelinks_value).strip() or '0'
-                            
-                            # Extract movie ID (Q-number) from the movie URI
-                            movie_uri = r.get('movie', {}).get('value', '')
-                            movie_id = ''
-                            if movie_uri:
-                                # Extract Q-number from URI like http://www.wikidata.org/entity/Q12345
-                                movie_id = movie_uri.split('/')[-1] if '/' in movie_uri else movie_uri
-                                if movie_id.startswith('Q'):
-                                    pass  # Already Q-number
-                                elif movie_id.startswith('wd:Q'):
-                                    movie_id = movie_id[3:]  # Remove 'wd:' prefix
-                            
-                            # Get Wikipedia URL from article or construct from title
-                            wikipedia_url = r.get('article', {}).get('value', '')
-                            if not wikipedia_url:
-                                title_encoded = title.replace(' ', '_')
-                                title_encoded = urllib.parse.quote(title_encoded, safe='_()')
-                                wikipedia_url = f"https://en.wikipedia.org/wiki/{title_encoded}"
-                            
-                            # CORRECTION: Simplified formatting as gender/nationality are no longer fetched
-                            directors_str = r.get('directors', {}).get('value') or ''
-                            actors_str = r.get('actors', {}).get('value') or ''
-                            
-                            movies.append({
-                                'movie_id': movie_id,
-                                'title': title,
-                                'summary': r.get('plotSummary', {}).get('value') or '',
-                                'release_date': r.get('releaseDate', {}).get('value') or '',
-                                'genre': r.get('genres', {}).get('value') or '',
-                                'director': directors_str,
-                                'actors': actors_str,
-                                'duration': r.get('duration', {}).get('value') or '',
-                                'imdb_id': r.get('imdbID', {}).get('value') or '',
-                                'country': r.get('countryLabel', {}).get('value') or '',
-                                'sitelinks': sitelinks,
-                                'wikipedia_link': wikipedia_url,
-                                'budget': r.get('budget', {}).get('value') or '',
-                                'box_office': r.get('boxOffice', {}).get('value') or '',
-                                'awards': r.get('awards', {}).get('value') or '',
-                                'set_in_period': r.get('setPeriods', {}).get('value') or '',
-                                'year': year
-                            })
-                        
-                        # Log batch statistics
-                        batch_kept = len(results) - dropped_no_title
-                        if verbose:
-                            logger.debug(
-                                f"Year {year}: Batch {current_batch_num} processed {total_processed} results -> "
-                                f"Kept: {batch_kept}, Dropped (no title): {dropped_no_title}"
+                        for result in results:
+                            movies.append(
+                                postprocess_query_result(result, feature_specifications=feature_specifications)
                             )
                         
-                        # Break on success and continue to next batch
+                        if verbose:
+                            logger.debug(
+                                f"Year {year}: Batch {current_batch_num} processed {total_processed} results."
+                            )                        
                         break
                     elif response.status == 429:
                         if attempt < max_retries - 1:
@@ -502,20 +544,16 @@ async def get_movies_by_year(
                             continue
                         else:
                             logger.error(f"Year {year}: Step 2 batch {current_batch_num} HTTP Error 429 - Rate limit exceeded after {max_retries} attempts")
-                            # Continue with next batch instead of returning empty
                             break
                     else:
                         try:
                             error_text = await response.text()
-                            # Truncate long error messages
                             if len(error_text) > 500:
                                 error_text = error_text[:500] + "..."
                         except:
                             error_text = f"Status {response.status}"
                         
-                        # Log the full query that failed
                         logger.error(f"Year {year}: Step 2 batch {current_batch_num} HTTP Error {response.status} - {error_text} \n--- Failing Query: ---\n{enrichment_query}\n--- End Query ---")
-                        # Continue with next batch instead of returning empty
                         break
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -525,14 +563,12 @@ async def get_movies_by_year(
                     continue
                 else:
                     logger.error(f"Year {year}: Step 2 batch {current_batch_num} error after {max_retries} attempts - {e}", exc_info=True)
-                    # Continue with next batch instead of returning empty
                     break
         
         # Small delay between batches to avoid rate limiting
         if batch_start + BATCH_SIZE < len(movie_uris):
             await asyncio.sleep(0.5)
     
-    # Log summary statistics
     kept_count = len(movies)
     logger.info(
         f"Year {year}: Processed all batches -> "
@@ -546,6 +582,7 @@ async def fetch_movies_for_years(
     movies_per_year: int,
     start_year: int,
     end_year: int,
+    feature_specifications: pd.DataFrame = FEATURE_SPECIFICATIONS,
     verbose: bool = False,
     delay: float = 0.5,
     save_per_year: bool = False
@@ -567,7 +604,9 @@ async def fetch_movies_for_years(
     async with aiohttp.ClientSession() as session:
         all_movies = []
         for year in range(start_year, end_year + 1):
-            movies = await get_movies_by_year(session, year, movies_per_year, verbose=verbose)
+            movies = await get_movies_by_year(
+                session, year, movies_per_year, verbose=verbose, feature_specifications=feature_specifications
+            )
             all_movies.extend(movies)
             
             # Save CSV file for this year if requested
@@ -623,7 +662,8 @@ async def fetch_movies(
     verbose: bool = True,
     delay: float = 0.5,
     show_available_counts: bool = False,
-    save_per_year: bool = False
+    save_per_year: bool = False,
+    feature_specifications: pd.DataFrame = FEATURE_SPECIFICATIONS
 ) -> List[Dict[str, Optional[str]]]:
     """
     Main function to fetch movies from Wikidata for a range of years.
@@ -653,7 +693,15 @@ async def fetch_movies(
     
     logger.info(f"Fetching top {movies_per_year} most popular movies per year ({start_year}-{end_year})")
     
-    all_movies = await fetch_movies_for_years(movies_per_year, start_year, end_year, verbose=verbose, delay=delay, save_per_year=save_per_year)
+    all_movies = await fetch_movies_for_years(
+        movies_per_year,
+        start_year,
+        end_year,
+        feature_specifications=feature_specifications,
+        verbose=verbose,
+        delay=delay,
+        save_per_year=save_per_year
+    )
 
     total_years = end_year - start_year + 1
     expected_max = movies_per_year * total_years
@@ -667,7 +715,8 @@ async def fetch_movies(
 
 def save_movies_to_csv(
     movies: List[Dict[str, Optional[str]]],
-    filename: str = 'wikidata_movies.csv'
+    filename: str = 'wikidata_movies.csv',
+    feature_specifications: pd.DataFrame = FEATURE_SPECIFICATIONS
 ) -> None:
     """
     Save movies data to a CSV file.
@@ -692,11 +741,7 @@ def save_movies_to_csv(
     
     os.makedirs(data_dir, exist_ok=True)
     
-    fieldnames = [
-        'movie_id', 'title', 'summary', 'release_date', 'genre', 'director', 'actors',
-        'duration', 'imdb_id', 'country', 'budget', 'box_office', 'awards',
-        'set_in_period', 'sitelinks', 'wikipedia_link', 'year'
-    ]
+    fieldnames = feature_specifications["feature"].tolist()
     
     with open(filename, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
@@ -732,4 +777,4 @@ async def main(movies_per_year: int = 50, start_year: int = 1950, end_year: int 
 
 
 if __name__ == "__main__":
-    asyncio.run(main(movies_per_year=100, start_year=2006, end_year=2006))
+    asyncio.run(main(movies_per_year=5000, start_year=2004, end_year=2004))
