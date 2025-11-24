@@ -120,7 +120,7 @@ VERBOSE = True
 MODEL_NAME = 'BAAI/bge-m3'
 BATCH_SIZE = 35
 # Target devices for embeddings (None = auto-detect, or specify like ['cuda:0', 'cuda:1'])
-TARGET_DEVICES = ['cuda:2']
+TARGET_DEVICES = ['cuda:1', 'cuda:2']
 
 # Set CUDA_VISIBLE_DEVICES based on TARGET_DEVICES before any CUDA initialization
 # This must be done before PyTorch initializes CUDA (before EmbeddingService is created)
