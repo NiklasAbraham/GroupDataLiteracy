@@ -105,9 +105,9 @@ END_YEAR = 2024
 MOVIES_PER_YEAR = 8000
 
 # Skip steps (set to True to skip)
-SKIP_WIKIDATA = False
-SKIP_MOVIEDB = False
-SKIP_WIKIPEDIA = False
+SKIP_WIKIDATA = True
+SKIP_MOVIEDB = True
+SKIP_WIKIPEDIA = True
 SKIP_EMBEDDINGS = False
 
 # Force refresh existing files (set to True to re-fetch even if files exist)
@@ -120,7 +120,22 @@ VERBOSE = True
 MODEL_NAME = 'BAAI/bge-m3'
 BATCH_SIZE = 35
 # Target devices for embeddings (None = auto-detect, or specify like ['cuda:0', 'cuda:1'])
-TARGET_DEVICES = None
+TARGET_DEVICES = ['cuda:1', 'cuda:2']
+
+# Set CUDA_VISIBLE_DEVICES based on TARGET_DEVICES before any CUDA initialization
+# This must be done before PyTorch initializes CUDA (before EmbeddingService is created)
+# FlagEmbedding's multi-process pool uses all visible GPUs, so we limit visibility here
+if TARGET_DEVICES is not None and all(isinstance(d, str) and d.startswith('cuda:') for d in TARGET_DEVICES):
+    device_indices = [d.split(':')[1] for d in TARGET_DEVICES]
+    cuda_visible_devices = ','.join(device_indices)
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+        os.environ['CUDA_VISIBLE_DEVICES'] = cuda_visible_devices
+        logger.info(f"Set CUDA_VISIBLE_DEVICES={cuda_visible_devices} to limit to devices: {TARGET_DEVICES}")
+    elif os.environ.get('CUDA_VISIBLE_DEVICES') != cuda_visible_devices:
+        logger.warning(
+            f"CUDA_VISIBLE_DEVICES was already set to '{os.environ.get('CUDA_VISIBLE_DEVICES')}'. "
+            f"Not overriding. To use {TARGET_DEVICES}, set CUDA_VISIBLE_DEVICES={cuda_visible_devices} before running."
+        )
 
 # Chunking configuration
 # Options: None, 'cls_token', 'mean_pooling', 'chunk_first_embed', 'late_chunking'
@@ -657,50 +672,6 @@ def step4_embeddings(
     logger.info("STEP 4: Embedding Generation")
     logger.info("=" * 80)
     
-    # Initialize chunking method if specified
-    chunking_instance = None
-    chunking_suffix = ""
-    if chunking_method and chunking_method.lower() not in ['none', '']:
-        if not CHUNKING_AVAILABLE:
-            logger.error("Chunking requested but chunking classes are not available. Skipping chunking.")
-            chunking_method = None
-        else:
-            chunking_method_lower = chunking_method.lower()
-            try:
-                if chunking_method_lower == 'cls_token':
-                    chunking_instance = CLSToken(embedding_service=None, model_name=model_name)
-                    chunking_suffix = "_cls_token"
-                    logger.info("Using chunking method: CLSToken")
-                elif chunking_method_lower == 'mean_pooling':
-                    chunking_instance = MeanPooling(embedding_service=None, model_name=model_name)
-                    chunking_suffix = "_mean_pooling"
-                    logger.info("Using chunking method: MeanPooling")
-                elif chunking_method_lower == 'chunk_first_embed':
-                    chunking_instance = ChunkFirstEmbed(
-                        embedding_service=None,
-                        model_name=model_name,
-                        chunk_size=chunking_chunk_size,
-                        stride=chunking_stride
-                    )
-                    chunking_suffix = f"_chunk_first_{chunking_chunk_size}_{chunking_stride}"
-                    logger.info(f"Using chunking method: ChunkFirstEmbed (chunk_size={chunking_chunk_size}, stride={chunking_stride})")
-                elif chunking_method_lower == 'late_chunking':
-                    chunking_instance = LateChunking(
-                        embedding_service=None,
-                        model_name=model_name,
-                        window_size=chunking_window_size,
-                        stride=chunking_stride
-                    )
-                    chunking_suffix = f"_late_chunking_{chunking_window_size}_{chunking_stride}"
-                    logger.info(f"Using chunking method: LateChunking (window_size={chunking_window_size}, stride={chunking_stride})")
-                else:
-                    logger.warning(f"Unknown chunking method: {chunking_method}. Available options: 'cls_token', 'mean_pooling', 'chunk_first_embed', 'late_chunking'. Using direct embedding.")
-                    chunking_method = None
-            except Exception as e:
-                logger.error(f"Error initializing chunking method {chunking_method}: {e}. Using direct embedding.")
-                chunking_method = None
-                chunking_instance = None
-    
     # Use factory's GPU setup verification
     # Setup target_devices first
     try:
@@ -725,26 +696,90 @@ def step4_embeddings(
                 # In pipeline, we'll fall back to CPU instead
                 logger.warning("GPU verification failed, falling back to CPU")
                 target_devices = ['cpu']
+        
+        # Set CUDA_VISIBLE_DEVICES to limit which GPUs FlagEmbedding can see
+        # This must be done before FlagEmbedding initializes its multi-process pool
+        # Note: This only works if PyTorch hasn't fully initialized CUDA yet, but we try anyway
+        if target_devices != ['cpu'] and all(d.startswith('cuda:') for d in target_devices):
+            import os
+            original_cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+            device_indices = [d.split(':')[1] for d in target_devices]
+            cuda_visible_devices = ','.join(device_indices)
+            
+            if original_cuda_visible is not None and original_cuda_visible != cuda_visible_devices:
+                logger.warning(
+                    f"CUDA_VISIBLE_DEVICES was already set to '{original_cuda_visible}'. "
+                    f"Setting to '{cuda_visible_devices}' to limit FlagEmbedding to {target_devices}. "
+                    f"This may not work if CUDA was already initialized."
+                )
+            elif original_cuda_visible is None:
+                logger.info(
+                    f"Setting CUDA_VISIBLE_DEVICES={cuda_visible_devices} to limit FlagEmbedding "
+                    f"to specified devices: {target_devices}"
+                )
+            
+            os.environ['CUDA_VISIBLE_DEVICES'] = cuda_visible_devices
+            
     except ImportError:
         logger.warning("PyTorch not available, using CPU")
         target_devices = ['cpu']
     except Exception as e:
         logger.warning(f"Error during GPU setup verification: {e}. Continuing with available devices...")
     
-    # Initialize embedding service
+    # Initialize embedding service first (before chunking instances)
     global _embedding_service_instance
     try:
-        embedding_service = EmbeddingService(model_name=model_name)
+        embedding_service = EmbeddingService(model_name=model_name, target_devices=target_devices)
         _embedding_service_instance = embedding_service  # Store for cleanup
-        logger.info(f"Initialized embedding service with model: {model_name}")
-        
-        # If using chunking, share the embedding service with the chunking instance
-        if chunking_instance is not None:
-            chunking_instance.embedding_service = embedding_service
+        logger.info(f"Initialized embedding service with model: {model_name} on devices: {target_devices}")
     except Exception as e:
         logger.error(f"Failed to initialize embedding service: {e}")
         logger.warning("Skipping Step 4: Embedding generation")
         return
+    
+    # Initialize chunking method if specified (after embedding service is created)
+    chunking_instance = None
+    chunking_suffix = ""
+    if chunking_method and chunking_method.lower() not in ['none', '']:
+        if not CHUNKING_AVAILABLE:
+            logger.error("Chunking requested but chunking classes are not available. Skipping chunking.")
+            chunking_method = None
+        else:
+            chunking_method_lower = chunking_method.lower()
+            try:
+                if chunking_method_lower == 'cls_token':
+                    chunking_instance = CLSToken(embedding_service=embedding_service, model_name=model_name)
+                    chunking_suffix = "_cls_token"
+                    logger.info("Using chunking method: CLSToken")
+                elif chunking_method_lower == 'mean_pooling':
+                    chunking_instance = MeanPooling(embedding_service=embedding_service, model_name=model_name)
+                    chunking_suffix = "_mean_pooling"
+                    logger.info("Using chunking method: MeanPooling")
+                elif chunking_method_lower == 'chunk_first_embed':
+                    chunking_instance = ChunkFirstEmbed(
+                        embedding_service=embedding_service,
+                        model_name=model_name,
+                        chunk_size=chunking_chunk_size,
+                        stride=chunking_stride
+                    )
+                    chunking_suffix = f"_chunk_first_{chunking_chunk_size}_{chunking_stride}"
+                    logger.info(f"Using chunking method: ChunkFirstEmbed (chunk_size={chunking_chunk_size}, stride={chunking_stride})")
+                elif chunking_method_lower == 'late_chunking':
+                    chunking_instance = LateChunking(
+                        embedding_service=embedding_service,
+                        model_name=model_name,
+                        window_size=chunking_window_size,
+                        stride=chunking_stride
+                    )
+                    chunking_suffix = f"_late_chunking_{chunking_window_size}_{chunking_stride}"
+                    logger.info(f"Using chunking method: LateChunking (window_size={chunking_window_size}, stride={chunking_stride})")
+                else:
+                    logger.warning(f"Unknown chunking method: {chunking_method}. Available options: 'cls_token', 'mean_pooling', 'chunk_first_embed', 'late_chunking'. Using direct embedding.")
+                    chunking_method = None
+            except Exception as e:
+                logger.error(f"Error initializing chunking method {chunking_method}: {e}. Using direct embedding.")
+                chunking_method = None
+                chunking_instance = None
     
     for year, df in year_dataframes.items():
         if df.empty:

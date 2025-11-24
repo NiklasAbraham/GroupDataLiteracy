@@ -31,12 +31,36 @@ if SRC_DIR not in sys.path:
 from data_utils import cluster_genres, preprocess_genres
 
 DATA_DIR = os.path.join(BASE_DIR, 'data')
-START_YEAR = 1950
+START_YEAR = 1930
 END_YEAR = 2024
+# Chunking suffix (e.g., '_cls_token', '_mean_pooling', or '' for no chunking)
+# If None, will auto-detect from existing files
+CHUNKING_SUFFIX = None  # Set to '_cls_token' or other suffix, or None to auto-detect
 
 print(f"Base directory: {BASE_DIR}")
 print(f"Data directory: {DATA_DIR}")
 print(f"Year range: {START_YEAR} to {END_YEAR}")
+
+# Auto-detect chunking suffix if not specified
+if CHUNKING_SUFFIX is None:
+    # Try to find a file to detect the suffix
+    test_year = START_YEAR
+    found_suffix = None
+    # Try common suffixes
+    for suffix in ['_cls_token', '_mean_pooling', '']:
+        test_path = os.path.join(DATA_DIR, f'movie_embeddings_{test_year}{suffix}.npy')
+        if os.path.exists(test_path):
+            found_suffix = suffix
+            break
+    
+    if found_suffix is not None:
+        CHUNKING_SUFFIX = found_suffix
+        print(f"Auto-detected chunking suffix: '{CHUNKING_SUFFIX}'")
+    else:
+        CHUNKING_SUFFIX = ''
+        print("No chunking suffix detected, using default (no suffix)")
+else:
+    print(f"Using chunking suffix: '{CHUNKING_SUFFIX}'")
 
 # Load all embeddings and corresponding movie IDs
 all_embeddings = []
@@ -44,8 +68,8 @@ all_movie_ids = []
 all_years = []
 
 for year in range(START_YEAR, END_YEAR + 1):
-    embeddings_path = os.path.join(DATA_DIR, f'movie_embeddings_{year}.npy')
-    movie_ids_path = os.path.join(DATA_DIR, f'movie_ids_{year}.npy')
+    embeddings_path = os.path.join(DATA_DIR, f'movie_embeddings_{year}{CHUNKING_SUFFIX}.npy')
+    movie_ids_path = os.path.join(DATA_DIR, f'movie_ids_{year}{CHUNKING_SUFFIX}.npy')
     
     if os.path.exists(embeddings_path) and os.path.exists(movie_ids_path):
         embeddings = np.load(embeddings_path)
@@ -56,6 +80,14 @@ for year in range(START_YEAR, END_YEAR + 1):
         all_years.extend([year] * len(movie_ids))
         
         print(f"Loaded year {year}: {len(movie_ids)} movies")
+
+# Check if any embeddings were loaded
+if len(all_embeddings) == 0:
+    raise ValueError(
+        f"No embedding files found in {DATA_DIR} for years {START_YEAR}-{END_YEAR} "
+        f"with suffix '{CHUNKING_SUFFIX}'. "
+        f"Please check that embedding files exist (e.g., movie_embeddings_YYYY{CHUNKING_SUFFIX}.npy)"
+    )
 
 # Concatenate all embeddings
 all_embeddings = np.vstack(all_embeddings)
