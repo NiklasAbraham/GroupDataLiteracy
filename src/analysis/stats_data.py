@@ -9,12 +9,20 @@ This script analyzes all movie data files and provides:
 
 import os
 import sys
+from itertools import combinations
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import Dict, List, Tuple
 import logging
+import seaborn as sns
+from scipy.stats import cosine
+
+from analysis.chunking.calculations import compute_cosine_distance, calculate_drift_vector
+from scipy.spatial.distance import cosine as cos_dist
+
 
 # Setup logging
 logging.basicConfig(
@@ -378,6 +386,175 @@ def main(data_dir: str = None, save_stats: bool = True, save_histogram: bool = T
     print("\n" + "=" * 80)
     print("Analysis complete!")
     print("=" * 80)
+
+
+def calculate_genre_drift(df_filtered):
+    """
+    Calculates average embeddings per year and genre, and then computes
+    the annual drift distance (cosine distance) and cumulative change.
+    """
+    # Calculate average embedding per year and genre
+    grouped_embeddings = df_filtered.groupby(['year', 'single_genre'])['embedding'].apply(
+        lambda x: np.mean(np.vstack(x), axis=0)
+    )
+    group_df = grouped_embeddings.reset_index(name='avg_embedding')
+    group_df = group_df.sort_values(by=['single_genre', 'year']).copy()
+
+    # Shift embeddings to align t and t+1 for drift calculation
+    group_df['next_avg_embedding'] = group_df.groupby('single_genre')['avg_embedding'].shift(-1)
+
+    # Calculate drift distance (cosine distance between consecutive average embeddings)
+    group_df['drift_distance'] = group_df.apply(compute_cosine_distance, axis=1)
+    drift_df = group_df.dropna(subset=['drift_distance']).copy()
+
+    # Calculate cumulative change per genre
+    drift_df['cumulative_change'] = drift_df.groupby('single_genre')['drift_distance'].cumsum()
+
+    return drift_df, group_df
+
+def prepare_heatmap_data(group_df, target_genre, bin_size=5):
+    """
+    Groups average embeddings into year intervals, calculates the drift vector 
+    between intervals, and formats the result for a heatmap.
+    """
+    genre_df = group_df[group_df['single_genre'] == target_genre].copy()
+
+    # Group by year intervals
+    genre_df['year_interval'] = (genre_df['year'] // bin_size) * bin_size
+    interval_df = genre_df.groupby('year_interval')['avg_embedding'].apply(
+        lambda x: np.mean(np.vstack(x), axis=0)
+    ).reset_index(name='avg_embedding')
+
+    # Calculate drift vectors
+    interval_df['next_avg_embedding'] = interval_df['avg_embedding'].shift(-1)
+    interval_df['drift_vector'] = interval_df.apply(calculate_drift_vector, axis=1)
+    final_drift_df = interval_df.dropna(subset=['drift_vector']).copy()
+
+    drift_matrix = np.vstack(final_drift_df['drift_vector'].values)
+    interval_labels = final_drift_df['year_interval'].map(lambda y: f'{y} -> {y + bin_size}')
+
+    heatmap_df = pd.DataFrame(
+        drift_matrix,
+        index=interval_labels,
+        columns=[f'Dim_{i}' for i in range(drift_matrix.shape[1])]
+    )
+    return heatmap_df, bin_size
+
+
+def calculate_binned_inter_genre_distance(group_df, bin_size):
+    """
+    Calculates the cosine distance between the average embeddings of all
+    unique genre pairs for every time interval (bin_size), indicating convergence/divergence.
+    """
+    df_binned = group_df.copy()
+    df_binned['year_interval'] = (df_binned['year'] // bin_size) * bin_size
+
+    # Calculate average embedding per interval and genre
+    position_vectors_df = df_binned.groupby(['year_interval', 'single_genre'])['avg_embedding'].apply(
+        lambda x: np.mean(np.vstack(x), axis=0)
+    ).reset_index(name='avg_embedding')
+
+    # Identify all unique genre pairs
+    unique_genres = position_vectors_df['single_genre'].unique()
+    genre_pairs = list(combinations(unique_genres, 2))
+    distance_results = []
+
+    # Pivot to easily compare vectors by interval
+    pivot_table = position_vectors_df.pivot_table(
+        index='year_interval',
+        columns='single_genre',
+        values='avg_embedding',
+        aggfunc='first'
+    )
+
+    for g1, g2 in genre_pairs:
+        vectors_g1 = pivot_table[g1]
+        vectors_g2 = pivot_table[g2]
+
+        # Filter intervals where both genres have data
+        comparison_df = pd.DataFrame({
+            'v1': vectors_g1,
+            'v2': vectors_g2
+        }).dropna()
+
+        if comparison_df.empty:
+            continue
+
+        # Apply cosine distance function to each row (interval)
+        distances = comparison_df.apply(
+            # Using scipy's cosine function as in your original code
+            lambda row: cosine(row['v1'], row['v2']), axis=1
+        )
+
+        # Format results
+        for interval, distance in distances.items():
+            distance_results.append({
+                'Genre_A': g1,
+                'Genre_B': g2,
+                'Year_Interval_Start': interval,
+                'Cosine_Distance': distance
+            })
+
+    if not distance_results:
+        return pd.DataFrame()
+
+    convergence_df = pd.DataFrame(distance_results)
+    convergence_df = convergence_df.sort_values(
+        by=['Genre_A', 'Genre_B', 'Year_Interval_Start']
+    ).reset_index(drop=True)
+
+    return convergence_df
+
+
+def plot_genre_drift(df, y_column, title, y_label):
+    """Generates a time-series line plot for an individual genre drift metric."""
+    sns.set_theme(style="whitegrid")
+    df['year'] = pd.to_numeric(df['year'])
+
+    plt.figure(figsize=(12, 6))
+    sns.lineplot(
+        data=df,
+        x='year',
+        y=y_column,
+        hue='single_genre',
+        marker='o',
+        linewidth=1.5
+    )
+    plt.title(title, fontsize=16)
+    plt.xlabel('Year', fontsize=12)
+    plt.ylabel(y_label, fontsize=12)
+
+    plt.legend(title='Genre', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.show()
+    
+def plot_standard_heatmap(heatmap_df, target_genre, bin_size):
+    """Generates and displays a standard heatmap of the drift vectors."""
+    if heatmap_df is None: return
+
+    plt.figure(figsize=(16, 8))
+    sns.heatmap(
+        heatmap_df.T, cmap='coolwarm', center=0,
+        cbar_kws={'label': 'Drift value'}, yticklabels=False
+    )
+    plt.title(f'Drift of genre "{target_genre}" ({bin_size} Years) - Standard', fontsize=16)
+    plt.xlabel('Drift intervals', fontsize=12)
+    plt.ylabel('Embedding dimensions', fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+
+def plot_clustermap(heatmap_df, target_genre, bin_size):
+    """Generates and displays a clustered heatmap of the drift vectors."""
+    if heatmap_df is None: return
+
+    sns.clustermap(
+        heatmap_df.T, cmap='coolwarm', center=0,
+        row_cluster=True, col_cluster=False, figsize=(16, 12),
+        cbar_kws={'label': 'Drift value'}, yticklabels=False
+    )
+    plt.suptitle(f'Drift of genre "{target_genre}" ({bin_size} Years) - Dimensional Clustering', fontsize=16)
+    plt.show()
 
 
 if __name__ == "__main__":

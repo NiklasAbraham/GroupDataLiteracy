@@ -385,6 +385,20 @@ def compute_genre_classification_metrics(embeddings: np.ndarray, genres: np.ndar
         print(f"Error computing genre classification metrics: {e}")
         return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
 
+def compute_cosine_distance(row):
+    if np.all(pd.isna(row['next_avg_embedding'])):
+        return np.nan
+
+    return cosine(row['avg_embedding'], row['next_avg_embedding'])
+
+def calculate_drift_vector(row):
+    """
+    Simple stuff
+    """
+    try:
+        return row['next_avg_embedding'] - row['avg_embedding']
+    except TypeError:
+        return np.nan
 
 def compute_cosine_similarity_variance(embeddings: np.ndarray, n_samples: int = 5000, random_state: int = 42, abtt_pc: int = 0) -> Dict[str, float]:
     """
