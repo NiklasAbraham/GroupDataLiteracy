@@ -45,6 +45,10 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
         
         The model is loaded directly onto the primary device and wrapped
         in DataParallel for multi-GPU support.
+        
+        Note: FlagEmbedding's multi-process pool uses all visible GPUs by default.
+        To limit which GPUs are used, set CUDA_VISIBLE_DEVICES environment variable
+        BEFORE running the script (e.g., CUDA_VISIBLE_DEVICES=2 python data_pipeline.py).
         """
         logger.info(f"Loading FlagEmbedding model: {self.model_name}")
         try:
@@ -59,12 +63,23 @@ class FlagEmbeddingStrategy(AbstractEmbeddingStrategy):
             primary_device = self.target_devices[0] if self.target_devices else 'cuda:0'
             logger.info(f"Loading model on primary device: {primary_device}")
             
+            # Check if CUDA_VISIBLE_DEVICES is set and warn if it doesn't match target_devices
+            import os
+            cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+            if cuda_visible is None and self.target_devices and all(d.startswith('cuda:') for d in self.target_devices):
+                device_indices = [d.split(':')[1] for d in self.target_devices]
+                logger.warning(
+                    f"CUDA_VISIBLE_DEVICES is not set. FlagEmbedding will use all visible GPUs. "
+                    f"To limit to {self.target_devices}, set CUDA_VISIBLE_DEVICES={','.join(device_indices)} "
+                    f"BEFORE running the script (before PyTorch is imported)."
+                )
+            
             # Load the model
             # FlagEmbedding handles multi-GPU internally via its own multi-process pool
             # We don't need to wrap it in DataParallel - let it handle it natively
             self.model = BGEM3FlagModel(self.model_name, device=primary_device, use_fp16=True)
-            
             logger.info("FlagEmbedding model loaded successfully")
+            
         except Exception as e:
             logger.error(f"Failed to load FlagEmbedding model: {e}")
             raise
