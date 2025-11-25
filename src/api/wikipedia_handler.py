@@ -38,7 +38,7 @@ def get_page_from_url(wiki_wiki: wikipediaapi.Wikipedia, url: str):
     return page
 
 
-def get_plot_section(page: wikipediaapi.WikipediaPage) -> Optional[str]:
+def get_plot_section(page: wikipediaapi.WikipediaPage) -> tuple[Optional[str], Optional[str]]:
     """
     Return the text of the plot (or similar) section from a wikipediaapi.Page.
     Returns None if none found.
@@ -47,16 +47,18 @@ def get_plot_section(page: wikipediaapi.WikipediaPage) -> Optional[str]:
         page: Wikipedia page object
         
     Returns:
-        Plot text as string, or None if not found
+        Plot text as string and wiki section title if found, else (None, None)
     """
-    target = {"plot", "plot summary", "plot synopsis", "synopsis", "premise", "summary"}
+    target = [
+        "plot", "plot summary", "plot synopsis",
+        "synopsis", "summary", "story", "storyline", "premise" 
+    ]
+    for t in target:
+        for s in page.sections:
+            if s.title.strip().lower() == t:
+                return s.text, t
 
-    for s in page.sections:
-        title = s.title.strip().lower()
-        if title in target:
-            return s.text.strip()
-
-    return None
+    return None, None
 
 
 def clean_plot_text(plot: str) -> str:
@@ -88,7 +90,10 @@ def clean_plot_text(plot: str) -> str:
     return plot_str
 
 
-def fetch_plot_from_url(wikipedia_link: str, user_agent: str = 'GroupDataLiteracy/1.0 (movie data pipeline)') -> Tuple[Optional[str], Optional[str]]:
+def fetch_plot_from_url(
+    wikipedia_link: str,
+    user_agent: str = 'GroupDataLiteracy/1.0 (movie data pipeline)'
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Fetch plot from Wikipedia for a given URL.
     This is the main function to call from the pipeline.
@@ -100,10 +105,11 @@ def fetch_plot_from_url(wikipedia_link: str, user_agent: str = 'GroupDataLiterac
     Returns:
         Tuple of (plot_text, error_message)
         - plot_text: Retrieved plot text (or None if failed)
+        - section_title: Title of the section from which plot was extracted (or None if not found)
         - error_message: Error message if failed (or None if success)
     """
     if not wikipedia_link:
-        return (None, None)
+        return (None, None, None)
     
     # Initialize Wikipedia API (each call gets its own instance for thread safety)
     wiki_wiki = wikipediaapi.Wikipedia(
@@ -116,23 +122,17 @@ def fetch_plot_from_url(wikipedia_link: str, user_agent: str = 'GroupDataLiterac
         page = get_page_from_url(wiki_wiki, wikipedia_link)
         
         # Extract plot section
-        plot = get_plot_section(page)
+        plot, section_title = get_plot_section(page)
         
         if plot:
             # Clean the plot text (remove line breaks, normalize whitespace)
             cleaned_plot = clean_plot_text(plot)
-            return (cleaned_plot, None)
-        else:
-            # Fallback to summary if plot not found
-            if hasattr(page, 'summary') and page.summary:
-                cleaned_summary = clean_plot_text(page.summary)
-                return (cleaned_summary, None)
-            else:
-                return (None, "No plot or summary found")
+            return (cleaned_plot, section_title, None)
+        return (None, None, "No plot found")
                 
     except ValueError as e:
         error_msg = str(e)
-        return (None, error_msg)
+        return (None, None, error_msg)
     except Exception as e:
         error_msg = str(e)
-        return (None, error_msg)
+        return (None, None, error_msg)

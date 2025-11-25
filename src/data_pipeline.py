@@ -107,11 +107,11 @@ MOVIES_PER_YEAR = 8000
 # Skip steps (set to True to skip)
 SKIP_WIKIDATA = True
 SKIP_MOVIEDB = True
-SKIP_WIKIPEDIA = True
-SKIP_EMBEDDINGS = False
+SKIP_WIKIPEDIA = False
+SKIP_EMBEDDINGS = True
 
 # Force refresh existing files (set to True to re-fetch even if files exist)
-FORCE_REFRESH = False
+FORCE_REFRESH = True
 
 # Verbose logging (set to False for less output)
 VERBOSE = True
@@ -468,13 +468,14 @@ def _process_single_movie_plot(
         Tuple of (index, plot_text, error_message)
         - index: DataFrame index
         - plot_text: Retrieved plot text (or None if failed)
+        - section_title: Title of the section from which plot was extracted (or None if not found)
         - error_message: Error message if failed (or None if success)
     """
     if not wikipedia_link or pd.isna(wikipedia_link):
-        return (idx, None, None)
+        return (idx, None, None, None)
     
     # Use the handler function - this encapsulates all Wikipedia API logic
-    plot_text, error_msg = fetch_plot_from_url(str(wikipedia_link))
+    plot_text, section_title, error_msg = fetch_plot_from_url(str(wikipedia_link))
     
     # Log results if verbose
     if plot_text and verbose:
@@ -483,22 +484,23 @@ def _process_single_movie_plot(
             f"Retrieved plot ({len(plot_text)} chars)"
         )
     elif error_msg and verbose:
-        if error_msg == "No plot or summary found":
+        if error_msg == "No plot found":
             logger.debug(f"Year {year}, {row.get('title', 'Unknown')}: {error_msg}")
         else:
             logger.debug(f"Year {year}, {row.get('title', 'Unknown')}: {error_msg}")
     
-    if error_msg and error_msg != "No plot or summary found":
+    if error_msg and error_msg != "No plot found":
         # Log warnings for actual errors (but not for "no plot found" which is expected)
         logger.warning(f"Year {year}, Movie {row.get('title', 'Unknown')}: Error - {error_msg}")
     
-    return (idx, plot_text, error_msg)
+    return (idx, plot_text, section_title, error_msg)
 
 
 def step3_wikipedia(
     year_dataframes: Dict[int, pd.DataFrame],
     verbose: bool = True,
-    max_workers: int = 8
+    max_workers: int = 8,
+    force_refresh: bool = False,
 ) -> Dict[int, pd.DataFrame]:
     """
     Step 3: Retrieve movie plots from Wikipedia via sitelinks.
@@ -533,9 +535,32 @@ def step3_wikipedia(
         
         logger.info(f"Year {year}: Retrieving plots for {len(df)} movies...")
         
-        # Initialize plot column and clear existing plots to force refresh
-        # This ensures we override all existing plots and get fresh data
-        df['plot'] = None
+        # Initialize plot column if it doesn't exist
+        if 'plot' not in df.columns:
+            df['plot'] = None
+        
+        if force_refresh:
+            has_plot = pd.Series([False] * len(df), index=df.index)
+        else:
+            has_plot = df['plot'].notna() & (df['plot'] != '') & (df['plot'].astype(str).str.strip() != '')
+        
+        # Count movies with and without plots
+        num_with_plot = has_plot.sum()
+        num_without_plot = (~has_plot).sum()
+        
+        # Process movies that don't have plots
+        movies_to_process = df[~has_plot]
+        
+        # Overwrite plots if force_refresh is True
+        if movies_to_process.empty:
+            logger.info(f"Year {year}: All {len(df)} movies already have plots, skipping...")
+            enriched_dataframes[year] = df
+            continue
+        
+        logger.info(
+            f"Year {year}: {num_with_plot} movies already have plots, "
+            f"processing {num_without_plot} movies without plots"
+        )
         
         # Process ALL movies regardless of existing plots
         # Prepare tasks for parallel processing
@@ -571,19 +596,8 @@ def step3_wikipedia(
                 completed_count += 1
                 
                 try:
-                    result_idx, plot_text, error_msg = future.result()
-                    
-                    # Verify index consistency (sanity check)
-                    if result_idx != idx:
-                        logger.warning(
-                            f"Year {year}, Movie {title}: Index mismatch! "
-                            f"Expected {idx}, got {result_idx}. Using submitted index {idx}."
-                        )
-                        # Use the submitted index as source of truth
-                        results[idx] = plot_text
-                    else:
-                        # Store result (will be None if nothing found, which is what we want)
-                        results[idx] = plot_text
+                    result_idx, plot_text, section_title, error_msg = future.result()
+                    results[result_idx] = (plot_text, section_title)
                     
                     # Log progress periodically
                     if completed_count % 10 == 0 or completed_count == total_count:
@@ -599,10 +613,10 @@ def step3_wikipedia(
         # Update DataFrame with results (thread-safe: all updates happen sequentially)
         # Update ALL movies with new results, setting to None if nothing found
         plots_retrieved = 0
-        for idx, plot_text in results.items():
-            # Always update, even if plot_text is None (to override old values)
-            df.at[idx, 'plot'] = plot_text
-            if plot_text:  # Count only successful retrievals
+        for idx, (plot_text, section_title) in results.items():
+            if plot_text:
+                df.at[idx, 'plot'] = plot_text
+                df.at[idx, 'plot_section'] = section_title
                 plots_retrieved += 1
         
         logger.info(
@@ -1212,7 +1226,8 @@ async def run_pipeline(
         year_dataframes = step3_wikipedia(
             year_dataframes=year_dataframes,
             verbose=verbose,
-            max_workers=wikipedia_max_workers
+            max_workers=wikipedia_max_workers,
+            force_refresh=force_refresh
         )
     else:
         logger.info("Skipping Step 3: Wikipedia plot retrieval")
