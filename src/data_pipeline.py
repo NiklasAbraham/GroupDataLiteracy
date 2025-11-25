@@ -508,13 +508,17 @@ def step3_wikipedia(
     This function processes movies in parallel using ThreadPoolExecutor
     for faster Wikipedia API requests.
     
+    IMPORTANT: This function ALWAYS reprocesses ALL movies and OVERRIDES
+    any existing plots. If a plot cannot be retrieved, the plot column
+    will be set to None (replacing any old values).
+    
     Args:
         year_dataframes: Dictionary mapping year to DataFrame
         verbose: Enable verbose logging
-        max_workers: Number of parallel threads (default: 4)
+        max_workers: Number of parallel threads (default: 8)
         
     Returns:
-        Dictionary mapping year to DataFrame with plots
+        Dictionary mapping year to DataFrame with plots (all plots refreshed)
     """
     logger.info("=" * 80)
     logger.info("STEP 3: Wikipedia Plot Retrieval")
@@ -558,9 +562,10 @@ def step3_wikipedia(
             f"processing {num_without_plot} movies without plots"
         )
         
+        # Process ALL movies regardless of existing plots
         # Prepare tasks for parallel processing
         tasks = []
-        for idx, row in movies_to_process.iterrows():
+        for idx, row in df.iterrows():
             wikipedia_link = row.get('wikipedia_link', '')
             tasks.append((idx, row, wikipedia_link))
         
@@ -568,6 +573,8 @@ def step3_wikipedia(
         results = {}
         completed_count = 0
         total_count = len(tasks)
+        
+        logger.info(f"Year {year}: Processing all {total_count} movies (overriding existing plots)...")
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
@@ -601,9 +608,10 @@ def step3_wikipedia(
                         
                 except Exception as e:
                     logger.error(f"Year {year}, Movie {title}: Unexpected error in thread - {e}")
-                    results[idx] = None
+                    results[idx] = None  # Set to None on error
         
         # Update DataFrame with results (thread-safe: all updates happen sequentially)
+        # Update ALL movies with new results, setting to None if nothing found
         plots_retrieved = 0
         for idx, (plot_text, section_title) in results.items():
             if plot_text:
@@ -612,8 +620,8 @@ def step3_wikipedia(
                 plots_retrieved += 1
         
         logger.info(
-            f"Year {year}: Retrieved plots for {plots_retrieved}/{num_without_plot} movies "
-            f"({plots_retrieved/num_without_plot*100:.1f}% success rate)"
+            f"Year {year}: Retrieved plots for {plots_retrieved}/{total_count} movies "
+            f"({plots_retrieved/total_count*100:.1f}% success rate)"
         )
         
         # Save updated CSV
