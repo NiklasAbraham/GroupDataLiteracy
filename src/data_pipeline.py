@@ -506,13 +506,17 @@ def step3_wikipedia(
     This function processes movies in parallel using ThreadPoolExecutor
     for faster Wikipedia API requests.
     
+    IMPORTANT: This function ALWAYS reprocesses ALL movies and OVERRIDES
+    any existing plots. If a plot cannot be retrieved, the plot column
+    will be set to None (replacing any old values).
+    
     Args:
         year_dataframes: Dictionary mapping year to DataFrame
         verbose: Enable verbose logging
-        max_workers: Number of parallel threads (default: 4)
+        max_workers: Number of parallel threads (default: 8)
         
     Returns:
-        Dictionary mapping year to DataFrame with plots
+        Dictionary mapping year to DataFrame with plots (all plots refreshed)
     """
     logger.info("=" * 80)
     logger.info("STEP 3: Wikipedia Plot Retrieval")
@@ -529,34 +533,14 @@ def step3_wikipedia(
         
         logger.info(f"Year {year}: Retrieving plots for {len(df)} movies...")
         
-        # Initialize plot column if it doesn't exist
-        if 'plot' not in df.columns:
-            df['plot'] = None
+        # Initialize plot column and clear existing plots to force refresh
+        # This ensures we override all existing plots and get fresh data
+        df['plot'] = None
         
-        # Check which movies already have plots
-        # Ensure we filter out empty strings and non-string values
-        has_plot = df['plot'].notna() & (df['plot'] != '') & (df['plot'].astype(str).str.strip() != '')
-        
-        # Count movies with and without plots
-        num_with_plot = has_plot.sum()
-        num_without_plot = (~has_plot).sum()
-        
-        # Process movies that don't have plots
-        movies_to_process = df[~has_plot]
-        
-        if movies_to_process.empty:
-            logger.info(f"Year {year}: All {len(df)} movies already have plots, skipping...")
-            enriched_dataframes[year] = df
-            continue
-        
-        logger.info(
-            f"Year {year}: {num_with_plot} movies already have plots, "
-            f"processing {num_without_plot} movies without plots"
-        )
-        
+        # Process ALL movies regardless of existing plots
         # Prepare tasks for parallel processing
         tasks = []
-        for idx, row in movies_to_process.iterrows():
+        for idx, row in df.iterrows():
             wikipedia_link = row.get('wikipedia_link', '')
             tasks.append((idx, row, wikipedia_link))
         
@@ -564,6 +548,8 @@ def step3_wikipedia(
         results = {}
         completed_count = 0
         total_count = len(tasks)
+        
+        logger.info(f"Year {year}: Processing all {total_count} movies (overriding existing plots)...")
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
@@ -586,7 +572,18 @@ def step3_wikipedia(
                 
                 try:
                     result_idx, plot_text, error_msg = future.result()
-                    results[result_idx] = plot_text
+                    
+                    # Verify index consistency (sanity check)
+                    if result_idx != idx:
+                        logger.warning(
+                            f"Year {year}, Movie {title}: Index mismatch! "
+                            f"Expected {idx}, got {result_idx}. Using submitted index {idx}."
+                        )
+                        # Use the submitted index as source of truth
+                        results[idx] = plot_text
+                    else:
+                        # Store result (will be None if nothing found, which is what we want)
+                        results[idx] = plot_text
                     
                     # Log progress periodically
                     if completed_count % 10 == 0 or completed_count == total_count:
@@ -597,18 +594,20 @@ def step3_wikipedia(
                         
                 except Exception as e:
                     logger.error(f"Year {year}, Movie {title}: Unexpected error in thread - {e}")
-                    results[idx] = None
+                    results[idx] = None  # Set to None on error
         
         # Update DataFrame with results (thread-safe: all updates happen sequentially)
+        # Update ALL movies with new results, setting to None if nothing found
         plots_retrieved = 0
         for idx, plot_text in results.items():
-            if plot_text:
-                df.at[idx, 'plot'] = plot_text
+            # Always update, even if plot_text is None (to override old values)
+            df.at[idx, 'plot'] = plot_text
+            if plot_text:  # Count only successful retrievals
                 plots_retrieved += 1
         
         logger.info(
-            f"Year {year}: Retrieved plots for {plots_retrieved}/{num_without_plot} movies "
-            f"({plots_retrieved/num_without_plot*100:.1f}% success rate)"
+            f"Year {year}: Retrieved plots for {plots_retrieved}/{total_count} movies "
+            f"({plots_retrieved/total_count*100:.1f}% success rate)"
         )
         
         # Save updated CSV
