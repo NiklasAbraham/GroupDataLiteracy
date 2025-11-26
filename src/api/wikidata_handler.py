@@ -50,6 +50,47 @@ IS_INSTANCE = "wdt:P31"
 IS_SUBCLASS = "wdt:P279"
 IS_INSTANCE_OF_SOME_SUBCLASS = f"{IS_INSTANCE}/{IS_SUBCLASS}*"
 
+def get_wikidata_subclasses_query_string(parent_classes_qids: List[str]) -> str:
+    values_clause = "VALUES ?parentClass {\n"
+    for parent_class in parent_classes_qids:
+        values_clause += f"    wd:{parent_class}\n"
+    values_clause += "}\n"
+
+    query = f"""
+    SELECT DISTINCT ?subclassLabel WHERE {{
+        {values_clause}
+        ?subclass {IS_SUBCLASS}* ?parentClass.
+        SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
+    }}
+    """
+    return query.strip()
+
+async def get_wikidata_subclasses(parent_classes: List[str]) -> List[str]:
+    query = get_wikidata_subclasses_query_string(parent_classes)
+    headers = get_wikidata_headers()
+    timeout = aiohttp.ClientTimeout(total=60)
+    params = {'query': query, 'format': 'json'}
+    async with aiohttp.ClientSession() as session:
+        async with session.get(WIKIDATA_SPARQL_URL, params=params, headers=headers, timeout=timeout) as response:
+            if response.status == 200:
+                text = await response.text()
+                try:
+                    data = json.loads(text)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error decoding JSON response for subclasses: {e}")
+                    return []
+                
+                subclasses = []
+                for result in data['results']['bindings']:
+                    subclass = result.get('subclassLabel', {}).get('value', None)
+                    if subclass:
+                        subclasses.append(subclass)
+                
+                return subclasses
+            else:
+                logger.error(f"HTTP Error {response.status} when fetching subclasses")
+                return []
+
 def get_exclude_deprecated_filter(feature_variable: str) -> str:
     return f"""
         ?{feature_variable}_intermediate_0 wikibase:rank ?rank.
