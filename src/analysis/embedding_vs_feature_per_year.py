@@ -167,8 +167,20 @@ all_years = all_years[mask]
 print(f"After filtering: {len(all_movie_ids)} movies with both embeddings and cleaned metadata")
 print(f"Embedding shape: {all_embeddings.shape}")
 
+# Filter out movies with "Unknown" genre
+print("\nFiltering out movies with 'Unknown' genre...")
+genre_mask = np.array([movie_to_genre.get(mid, 'Unknown') != 'Unknown' for mid in all_movie_ids])
+n_unknown = np.sum(~genre_mask)
+all_embeddings = all_embeddings[genre_mask]
+all_movie_ids = all_movie_ids[genre_mask]
+all_years = all_years[genre_mask]
+
+print(f"Removed {n_unknown} movies with 'Unknown' genre")
+print(f"After genre filtering: {len(all_movie_ids)} movies with known genres")
+print(f"Embedding shape: {all_embeddings.shape}")
+
 # Sample 5000 random points for visualization
-n_samples = 5000
+n_samples = 8000
 sample_indices = np.random.choice(len(all_movie_ids), size=n_samples, replace=False)
 
 sampled_embeddings = all_embeddings[sample_indices]
@@ -184,8 +196,8 @@ print(f"Number of unique genres: {len(set(sampled_genres))}")
 
 # Display genre distribution
 genre_counts = pd.Series(sampled_genres).value_counts()
-print(f"\nTop 10 genres in sample:")
-print(genre_counts.head(10))
+print(f"\nTop 20 genres in sample:")
+print(genre_counts.head(20))
 
 # Create UMAP reduction
 print("Computing UMAP reduction...")

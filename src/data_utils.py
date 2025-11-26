@@ -412,13 +412,11 @@ def preprocess_genres(genre: str) -> str:
         if not new_g:
             continue
 
-        # Map them to clustered genre (handle missing keys)
+        # Map them to clustered genre (only use genres that are in the mapping)
         if new_g in genre_mapping:
             mapped_genre = genre_mapping[new_g]
             new_genres.append(mapped_genre)
-        else:
-            # If genre not in mapping, use original (cleaned)
-            new_genres.append(new_g)
+        # Skip genres that are not in the mapping (don't append them)
 
     # Remove duplicates
     new_genres = list(set(new_genres))
