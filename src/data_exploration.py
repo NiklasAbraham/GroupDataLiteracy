@@ -1,5 +1,5 @@
 import pandas as pd
-from data_utils import load_movie_data
+from src.data_utils import load_movie_data
 import os
 import tqdm
 import wikipediaapi

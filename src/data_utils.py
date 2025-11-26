@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional, List
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -7,42 +7,73 @@ import os
 
 
 def load_movie_embeddings(
-    data_dir: str, verbose: bool = False
+    data_dir: str, 
+    chunking_suffix: str = "_cls_token",
+    start_year: int = 1950,
+    end_year: int = 2024,
+    verbose: bool = False
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Loads data from "data_final" folder (can be downloaded from Google Drive)
+    Loads embeddings from data directory matching the file structure from data_pipeline.py.
+    
+    Files are expected to be named:
+    - movie_embeddings_{year}{chunking_suffix}.npy
+    - movie_ids_{year}{chunking_suffix}.npy
+    
+    For example, with chunking_suffix="_cls_token":
+    - movie_embeddings_2024_cls_token.npy
+    - movie_ids_2024_cls_token.npy
 
     Parameters:
-    - data_dir: absolute path for data_final folder
+    - data_dir: absolute path for data directory
+    - chunking_suffix: suffix appended to filename (e.g., "_cls_token", "_mean_pooling", "")
+                      Default is "_cls_token" to match current data structure
+    - start_year: first year to load (default: 1950)
+    - end_year: last year to load (default: 2024)
     - verbose: prints statistics from loading data, default = False
 
     Returns:
-    - all_embeddings: embeddings of all movies, (len movies x  embedding size), ordered by all_movie_ids
+    - all_embeddings: embeddings of all movies, (len movies x embedding size), ordered by all_movie_ids
     - all_movie_ids: ordered array of movie_ids
     """
-    # Set up paths - navigate from src/analysis to data directory
-    START_YEAR = 1950
-    END_YEAR = 2024
     DATA_DIR = data_dir
 
     if verbose:
         print(f"Data directory: {DATA_DIR}")
-        print(f"Year range: {START_YEAR} to {END_YEAR}")
+        print(f"Year range: {start_year} to {end_year}")
+        print(f"Chunking suffix: '{chunking_suffix}'")
 
     # Load all embeddings and corresponding movie IDs
     all_embeddings = []
     all_movie_ids = []
+    years_loaded = []
 
-    for year in range(START_YEAR, END_YEAR + 1):
-        embeddings_path = os.path.join(DATA_DIR, f"movie_embeddings_{year}.npy")
-        movie_ids_path = os.path.join(DATA_DIR, f"movie_ids_{year}.npy")
+    for year in range(start_year, end_year + 1):
+        embeddings_path = os.path.join(DATA_DIR, f"movie_embeddings_{year}{chunking_suffix}.npy")
+        movie_ids_path = os.path.join(DATA_DIR, f"movie_ids_{year}{chunking_suffix}.npy")
 
         if os.path.exists(embeddings_path) and os.path.exists(movie_ids_path):
-            embeddings = np.load(embeddings_path)
-            movie_ids = np.load(movie_ids_path)
+            try:
+                embeddings = np.load(embeddings_path)
+                movie_ids = np.load(movie_ids_path)
 
-            all_embeddings.append(embeddings)
-            all_movie_ids.append(movie_ids)
+                all_embeddings.append(embeddings)
+                all_movie_ids.append(movie_ids)
+                years_loaded.append(year)
+                
+                if verbose:
+                    print(f"Year {year}: Loaded {len(movie_ids)} embeddings (shape: {embeddings.shape})")
+            except Exception as e:
+                if verbose:
+                    print(f"Year {year}: Error loading files - {e}")
+                continue
+        elif verbose:
+            print(f"Year {year}: Files not found (skipping)")
+
+    if not all_embeddings:
+        if verbose:
+            print("No embeddings found!")
+        return np.array([]), np.array([])
 
     # Concatenate all embeddings
     all_embeddings = np.vstack(all_embeddings)
@@ -51,11 +82,105 @@ def load_movie_embeddings(
     if verbose:
         print(f"\nTotal movies: {len(all_movie_ids)}")
         print(f"Embedding shape: {all_embeddings.shape}")
+        print(f"Years loaded: {len(years_loaded)} ({min(years_loaded) if years_loaded else 'N/A'} to {max(years_loaded) if years_loaded else 'N/A'})")
 
     return (
         all_embeddings,
         all_movie_ids,
     )
+
+
+def load_lexical_weights(
+    data_dir: str,
+    chunking_suffix: str = "_cls_token",
+    start_year: int = 1950,
+    end_year: int = 2024,
+    verbose: bool = False
+) -> Optional[Tuple[List[np.ndarray], List[np.ndarray], np.ndarray]]:
+    """
+    Load lexical weights from data directory matching the file structure from data_pipeline.py.
+    
+    Files are expected to be named:
+    - movie_lexical_weights_{year}{chunking_suffix}.npz
+    
+    For example, with chunking_suffix="_cls_token":
+    - movie_lexical_weights_2024_cls_token.npz
+    
+    Parameters:
+    - data_dir: absolute path for data directory
+    - chunking_suffix: suffix appended to filename (e.g., "_cls_token", "_mean_pooling", "")
+                      Default is "_cls_token" to match current data structure
+    - start_year: first year to load (default: 1950)
+    - end_year: last year to load (default: 2024)
+    - verbose: prints statistics from loading data, default = False
+    
+    Returns:
+    - Tuple of (token_indices_list, weights_list, movie_ids) or None if no files found
+      - token_indices_list: List of numpy arrays, one per document, containing token IDs
+      - weights_list: List of numpy arrays, one per document, containing corresponding weights
+      - movie_ids: Array of movie IDs corresponding to the lexical weights
+      - lexical_weights[i] corresponds to movie_ids[i]
+    """
+    DATA_DIR = data_dir
+
+    if verbose:
+        print(f"Data directory: {DATA_DIR}")
+        print(f"Year range: {start_year} to {end_year}")
+        print(f"Chunking suffix: '{chunking_suffix}'")
+
+    # Load all lexical weights and corresponding movie IDs
+    all_token_indices = []
+    all_weights = []
+    all_movie_ids = []
+    years_loaded = []
+
+    for year in range(start_year, end_year + 1):
+        lexical_weights_path = os.path.join(DATA_DIR, f"movie_lexical_weights_{year}{chunking_suffix}.npz")
+
+        if os.path.exists(lexical_weights_path):
+            try:
+                data = np.load(lexical_weights_path, allow_pickle=True)
+                
+                # Extract arrays
+                token_indices_array = data['token_indices']
+                weights_array = data['weights']
+                movie_ids = data['movie_ids']
+                
+                # Convert object arrays back to lists of arrays
+                token_indices_list = [token_indices_array[i] for i in range(len(token_indices_array))]
+                weights_list = [weights_array[i] for i in range(len(weights_array))]
+                
+                all_token_indices.extend(token_indices_list)
+                all_weights.extend(weights_list)
+                all_movie_ids.append(movie_ids)
+                years_loaded.append(year)
+                
+                if verbose:
+                    total_non_zero = sum(len(ti) for ti in token_indices_list)
+                    print(f"Year {year}: Loaded {len(token_indices_list)} documents ({total_non_zero} non-zero weights)")
+            except Exception as e:
+                if verbose:
+                    print(f"Year {year}: Error loading file - {e}")
+                continue
+        elif verbose:
+            print(f"Year {year}: File not found (skipping)")
+
+    if not all_token_indices:
+        if verbose:
+            print("No lexical weights found!")
+        return None
+
+    # Concatenate movie_ids
+    all_movie_ids = np.concatenate(all_movie_ids)
+
+    if verbose:
+        total_non_zero = sum(len(ti) for ti in all_token_indices)
+        print(f"\nTotal documents: {len(all_token_indices)}")
+        print(f"Total non-zero weights: {total_non_zero}")
+        print(f"Average non-zero weights per document: {total_non_zero / len(all_token_indices):.1f}")
+        print(f"Years loaded: {len(years_loaded)} ({min(years_loaded) if years_loaded else 'N/A'} to {max(years_loaded) if years_loaded else 'N/A'})")
+
+    return all_token_indices, all_weights, all_movie_ids
 
 
 def load_movie_data_1(data_dir, verbose=False):
@@ -180,12 +305,24 @@ def load_movie_data(data_dir: str, verbose: bool = False) -> pd.DataFrame:
 
 
 def _load_all_data_with_embeddings(
-    data_dir: str, verbose: bool = False
+    data_dir: str, 
+    chunking_suffix: str = "_cls_token",
+    verbose: bool = False
 ) -> pd.DataFrame:
     """
     Helper to load all metadata and merge with all embeddings.
+    
+    Parameters:
+    - data_dir: absolute path for data directory
+    - chunking_suffix: suffix appended to filename (e.g., "_cls_token", "_mean_pooling", "")
+                      Default is "_cls_token" to match current data structure
+    - verbose: prints statistics from loading data, default = False
     """
-    all_embeddings, all_movie_ids = load_movie_embeddings(data_dir, verbose=verbose)
+    all_embeddings, all_movie_ids = load_movie_embeddings(
+        data_dir, 
+        chunking_suffix=chunking_suffix,
+        verbose=verbose
+    )
 
     embeddings_df = pd.DataFrame(
         {"movie_id": all_movie_ids, "embedding": list(all_embeddings)}
@@ -198,12 +335,26 @@ def _load_all_data_with_embeddings(
 
 
 def load_movie_data_limited(
-    data_dir: str, movies_per_year: int | None, verbose: bool = False
+    data_dir: str, 
+    movies_per_year: int | None, 
+    chunking_suffix: str = "_cls_token",
+    verbose: bool = False
 ) -> pd.DataFrame:
     """
     Load a limited number of movies per year from the dataset, including embeddings.
+    
+    Parameters:
+    - data_dir: absolute path for data directory
+    - movies_per_year: number of movies to sample per year (None for all)
+    - chunking_suffix: suffix appended to filename (e.g., "_cls_token", "_mean_pooling", "")
+                      Default is "_cls_token" to match current data structure
+    - verbose: prints statistics from loading data, default = False
     """
-    all_movies = _load_all_data_with_embeddings(data_dir, verbose=verbose)
+    all_movies = _load_all_data_with_embeddings(
+        data_dir, 
+        chunking_suffix=chunking_suffix,
+        verbose=verbose
+    )
 
     if all_movies.empty or movies_per_year is None or movies_per_year <= 0:
         return all_movies

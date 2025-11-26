@@ -41,7 +41,7 @@ OUTPUT_DIR = None  # Path to output directory (None = auto-generate timestamped 
 MODEL_NAME = "BAAI/bge-m3" #"Qwen/Qwen3-Embedding-0.6B"# "BAAI/bge-m3"  # Model name to use
 N_MOVIES = 5000  # Number of movies to process
 RANDOM_SEED = 42  # Random seed for reproducibility
-BATCH_SIZE = 100  # Batch size for embedding processing
+BATCH_SIZE = 35  # Batch size for embedding processing
 # ============================================================================
 
 

@@ -1,10 +1,10 @@
 import pandas as pd
-from data_utils import load_movie_data
-from api.wikidata_handler import get_wikidata_subclasses
+from src.data_utils import load_movie_data
+from src.api.wikidata_handler import get_wikidata_subclasses
 import asyncio
 import json
 import os
-from data_exploration import print_wikidata_column_appearances
+from src.data_exploration import print_wikidata_column_appearances
 
 DATA_DIR = '../all_data_run_2511/data'
 MAX_PLOT_LENGTH = 14000

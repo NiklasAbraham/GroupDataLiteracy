@@ -107,11 +107,11 @@ MOVIES_PER_YEAR = 8000
 # Skip steps (set to True to skip)
 SKIP_WIKIDATA = True
 SKIP_MOVIEDB = True
-SKIP_WIKIPEDIA = False
-SKIP_EMBEDDINGS = True
+SKIP_WIKIPEDIA = True
+SKIP_EMBEDDINGS = False
 
 # Force refresh existing files (set to True to re-fetch even if files exist)
-FORCE_REFRESH = True
+FORCE_REFRESH = False
 
 # Verbose logging (set to False for less output)
 VERBOSE = True
@@ -508,17 +508,19 @@ def step3_wikipedia(
     This function processes movies in parallel using ThreadPoolExecutor
     for faster Wikipedia API requests.
     
-    IMPORTANT: This function ALWAYS reprocesses ALL movies and OVERRIDES
-    any existing plots. If a plot cannot be retrieved, the plot column
-    will be set to None (replacing any old values).
+    IMPORTANT: This function only processes movies that don't already have plots
+    (unless force_refresh=True). Existing plots are preserved and not overwritten.
+    If force_refresh=True, all movies are reprocessed and existing plots may be
+    overwritten with new values or None if retrieval fails.
     
     Args:
         year_dataframes: Dictionary mapping year to DataFrame
         verbose: Enable verbose logging
         max_workers: Number of parallel threads (default: 8)
+        force_refresh: If True, reprocess all movies and overwrite existing plots
         
     Returns:
-        Dictionary mapping year to DataFrame with plots (all plots refreshed)
+        Dictionary mapping year to DataFrame with plots
     """
     logger.info("=" * 80)
     logger.info("STEP 3: Wikipedia Plot Retrieval")
@@ -540,32 +542,34 @@ def step3_wikipedia(
             df['plot'] = None
         
         if force_refresh:
+            # When force_refresh is True, process all movies regardless of existing plots
             has_plot = pd.Series([False] * len(df), index=df.index)
+            movies_to_process = df
+            num_with_plot = (df['plot'].notna() & (df['plot'] != '') & (df['plot'].astype(str).str.strip() != '')).sum() if 'plot' in df.columns else 0
+            logger.info(
+                f"Year {year}: force_refresh=True, processing all {len(df)} movies "
+                f"(overwriting {num_with_plot} existing plots)..."
+            )
         else:
+            # When force_refresh is False, only process movies without plots
             has_plot = df['plot'].notna() & (df['plot'] != '') & (df['plot'].astype(str).str.strip() != '')
+            num_with_plot = has_plot.sum()
+            num_without_plot = (~has_plot).sum()
+            movies_to_process = df[~has_plot]
+            
+            if movies_to_process.empty:
+                logger.info(f"Year {year}: All {len(df)} movies already have plots, skipping...")
+                enriched_dataframes[year] = df
+                continue
+            
+            logger.info(
+                f"Year {year}: {num_with_plot} movies already have plots, "
+                f"processing {num_without_plot} movies without plots"
+            )
         
-        # Count movies with and without plots
-        num_with_plot = has_plot.sum()
-        num_without_plot = (~has_plot).sum()
-        
-        # Process movies that don't have plots
-        movies_to_process = df[~has_plot]
-        
-        # Overwrite plots if force_refresh is True
-        if movies_to_process.empty:
-            logger.info(f"Year {year}: All {len(df)} movies already have plots, skipping...")
-            enriched_dataframes[year] = df
-            continue
-        
-        logger.info(
-            f"Year {year}: {num_with_plot} movies already have plots, "
-            f"processing {num_without_plot} movies without plots"
-        )
-        
-        # Process ALL movies regardless of existing plots
         # Prepare tasks for parallel processing
         tasks = []
-        for idx, row in df.iterrows():
+        for idx, row in movies_to_process.iterrows():
             wikipedia_link = row.get('wikipedia_link', '')
             tasks.append((idx, row, wikipedia_link))
         
@@ -574,7 +578,7 @@ def step3_wikipedia(
         completed_count = 0
         total_count = len(tasks)
         
-        logger.info(f"Year {year}: Processing all {total_count} movies (overriding existing plots)...")
+        logger.info(f"Year {year}: Processing {total_count} movies...")
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
@@ -611,13 +615,21 @@ def step3_wikipedia(
                     results[idx] = None  # Set to None on error
         
         # Update DataFrame with results (thread-safe: all updates happen sequentially)
-        # Update ALL movies with new results, setting to None if nothing found
+        # Update movies that were processed
         plots_retrieved = 0
+        if 'plot_section' not in df.columns:
+            df['plot_section'] = None
+        
         for idx, (plot_text, section_title) in results.items():
             if plot_text:
                 df.at[idx, 'plot'] = plot_text
                 df.at[idx, 'plot_section'] = section_title
                 plots_retrieved += 1
+            elif force_refresh:
+                # If force_refresh and retrieval failed, set to None (overwrite existing)
+                df.at[idx, 'plot'] = None
+                df.at[idx, 'plot_section'] = None
+            # Note: If plot_text is None and not force_refresh, we don't overwrite existing plot
         
         logger.info(
             f"Year {year}: Retrieved plots for {plots_retrieved}/{total_count} movies "
