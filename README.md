@@ -18,13 +18,15 @@ GroupDataLiteracy/
 │   ├── mock/                      # Mock/test datasets
 │   │   ├── mock_movies_100.csv   # Sample movie dataset (100 entries)
 │   │   └── wikidata_movies.csv   # Movies data from Wikidata
-│   ├── wikidata_movies_YYYY.csv  # Movie data files per year (1950-2024)
-│   ├── movie_embeddings_YYYY.npy # Generated embeddings per year
-│   ├── movie_ids_YYYY.npy        # Movie IDs corresponding to embeddings
+│   ├── data_final/                # Final processed data directory
+│   │   ├── wikidata_movies_YYYY.csv  # Movie data files per year (1950-2024)
+│   │   ├── movie_embeddings_YYYY_*.npy # Generated embeddings per year (with chunking suffix)
+│   │   ├── movie_ids_YYYY_*.npy  # Movie IDs corresponding to embeddings
+│   │   └── movie_lexical_weights_YYYY_*.npz # Lexical weights per year
 │   ├── data_statistics.csv       # Statistical analysis of the dataset
 │   ├── concept_space/            # Concept vocabulary for semantic mapping
-│   │   ├── concept_words.npy    # WordNet noun concept vocabulary
-│   │   └── concept_vecs.npy     # Pre-computed concept embeddings
+│   │   ├── concept_words*.npy    # WordNet noun concept vocabulary (parameterized)
+│   │   └── concept_vecs*.npy     # Pre-computed concept embeddings (parameterized)
 │   └── *.png                     # Visualization outputs
 │
 ├── src/                           # Source code directory
@@ -32,9 +34,13 @@ GroupDataLiteracy/
 │   │   ├── verify_test.ipynb     # Verification and testing notebooks
 │   │   ├── verify_csv.ipynb      # CSV data verification
 │   │   ├── stats_analysis.ipynb  # Statistical analysis
-│   │   ├── embedding_vs_feature_per_year.ipynb  # Embedding analysis
+│   │   ├── embedding_vs_feature_per_year.py  # UMAP/TSNE visualization by year/genre
+│   │   ├── genre_classifier.py   # Genre classification via clustering
+│   │   ├── concept_extraction.py # Concept extraction from text using lexical weights
+│   │   ├── example_concept_extraction.py  # Example usage of concept extraction
 │   │   ├── stats_data.py         # Statistical data utilities
 │   │   ├── tokenizer.py          # Tokenization utilities
+│   │   ├── genre_description_df.csv  # Cached Wikipedia genre descriptions
 │   │   └── chunking/             # Embedding bias-variance experiment
 │   │       ├── chunk_base_class.py  # Abstract base class for chunking methods
 │   │       ├── chunk_mean_pooling.py  # Mean pooling implementation
@@ -60,8 +66,14 @@ GroupDataLiteracy/
 │   │   └── wikipedia_handler.py # Wikipedia plot retrieval
 │   ├── data_pipeline.py          # Main data processing pipeline orchestrator
 │   ├── data_utils.py             # Utility methods for data loading and genre clustering
+│   ├── data_cleaning.py          # Data cleaning and filtering utilities
 │   ├── genre_fix_mapping.json    # Genre mapping for clustering and normalization
+│   ├── genre_fix_mapping_new.json  # Alternative genre mapping file
 │   └── checks.ipynb              # Data quality checks
+│
+├── tests/                         # Test suite
+│   ├── test_data_loading.py      # Comprehensive tests for data loading
+│   └── README.md                 # Test documentation
 │
 ├── report/                       # LaTeX report files
 │   ├── report_template.tex       # Main LaTeX template
@@ -84,9 +96,12 @@ The project follows a clear separation of concerns:
 
 - **`data/`**: Contains all data files, organized by year:
   - `mock/`: Sample datasets for testing and development
-  - `wikidata_movies_YYYY.csv`: Movie metadata files organized by year (1950-2024)
-  - `movie_embeddings_YYYY.npy`: Generated embeddings per year
-  - `movie_ids_YYYY.npy`: Movie IDs corresponding to embeddings (for indexing)
+  - `data_final/`: Final processed data directory containing:
+    - `wikidata_movies_YYYY.csv`: Movie metadata files organized by year (1950-2024)
+    - `movie_embeddings_YYYY_*.npy`: Generated embeddings per year (with chunking suffix, e.g., `_cls_token`)
+    - `movie_ids_YYYY_*.npy`: Movie IDs corresponding to embeddings (for indexing)
+    - `movie_lexical_weights_YYYY_*.npz`: Lexical weights per year for concept extraction
+  - `concept_space/`: Pre-computed concept vocabulary and embeddings for semantic mapping
   - Visualization outputs and statistical summaries
 
 - **`src/`**: Contains all source code organized by functionality:
@@ -100,10 +115,15 @@ The project follows a clear separation of concerns:
     - `load_embeddings.py`: Utilities for loading and verifying embeddings
     - `models/`: Strategy pattern implementation for different embedding models
   - **`analysis/`**: Notebooks and scripts for data analysis, verification, and visualization
+    - `genre_classifier.py`: Classifies movie genres by fetching Wikipedia descriptions, embedding them, and clustering into categories
+    - `concept_extraction.py`: Extracts semantic concepts from text using lexical weights and WordNet/embedding-based concept spaces
+    - `example_concept_extraction.py`: Example script demonstrating concept extraction usage
+    - `embedding_vs_feature_per_year.py`: Creates UMAP/TSNE visualizations of embeddings colored by year and genre
     - `chunking/`: Experimental framework for comparing document embedding aggregation methods (bias-variance analysis)
   - **Root level scripts**:
     - `data_pipeline.py`: Main orchestrator that runs the complete pipeline (Wikidata → MovieDB → Wikipedia → Embeddings)
     - `data_utils.py`: Helper functions for loading movie data and embeddings
+    - `data_cleaning.py`: Data cleaning and filtering utilities (filters non-movies, handles plot length limits, etc.)
 
 - **`report/`**: LaTeX files for the final project report
 
@@ -161,9 +181,15 @@ The pipeline is designed to be incremental and resumable:
 To run the pipeline:
 
 ```bash
-cd src
+# Activate conda environment
+conda activate dataLiteracy
+
+# Run pipeline
+cd /home/nab/Niklas/GroupDataLiteracy/src
 python data_pipeline.py
 ```
+
+Note: The pipeline outputs data to `data/data_final/` directory.
 
 Configuration can be modified in `data_pipeline.py`:
 - `START_YEAR` and `END_YEAR`: Year range to process
@@ -177,7 +203,7 @@ Configuration can be modified in `data_pipeline.py`:
 
 Helper methods have been created in `src/data_utils.py`.
 
-Use `load_movie_embeddings(data_dir, verbose=False)` to get an ordered array of embeddings and the respective ordered array of movie IDs. The function loads embeddings from per-year files (1950-2024) and concatenates them.
+Use `load_movie_embeddings(data_dir, verbose=False, chunking_suffix='_cls_token')` to get an ordered array of embeddings and the respective ordered array of movie IDs. The function loads embeddings from per-year files (1950-2024) and concatenates them. The `chunking_suffix` parameter specifies which embedding variant to load (e.g., `'_cls_token'`, `'_mean_pooling'`, or `''` for no suffix).
 
 Use `load_movie_data(data_dir, verbose=False)` to get a pd.DataFrame of movie features. The embeddings can be joined if needed using the movie_id column.
 
@@ -187,10 +213,12 @@ Example usage:
 from src.data_utils import load_movie_embeddings, load_movie_data
 import os
 
-data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
-embeddings, movie_ids = load_movie_embeddings(data_dir, verbose=True)
+data_dir = os.path.join(os.path.dirname(__file__), '..', 'data', 'data_final')
+embeddings, movie_ids = load_movie_embeddings(data_dir, verbose=True, chunking_suffix='_cls_token')
 movie_data = load_movie_data(data_dir, verbose=True)
 ```
+
+Note: The data directory should point to `data/data_final/` which contains the final processed data files.
 
 ## Embedding Bias-Variance Experiment
 
@@ -408,3 +436,107 @@ The embedding-based mapping works as follows:
 6. **Ranking**: Return top-K concepts by aggregated score
 
 This provides a normalized, comparable representation of movies in a fixed semantic space, suitable for temporal drift analysis and cross-movie comparison.
+
+## Genre Classification
+
+The `src/analysis/genre_classifier.py` module provides functionality to classify and cluster movie genres using semantic embeddings.
+
+### Overview
+
+The genre classification system:
+1. Extracts unique genres from the movie dataset
+2. Fetches Wikipedia descriptions for each genre (cached in `genre_description_df.csv`)
+3. Embeds genre descriptions using sentence transformers (default: Qwen/Qwen3-Embedding-0.6B)
+4. Clusters genres using KMeans into main categories
+5. Generates a mapping JSON file compatible with `data_utils.py`
+
+### Running Genre Classification
+
+```bash
+# Activate conda environment
+conda activate dataLiteracy
+
+# Run genre classification
+cd /home/nab/GroupDataLiteracy
+python src/analysis/genre_classifier.py
+```
+
+### Configuration
+
+Edit parameters in `genre_classifier.py`:
+- `n_clusters`: Number of clusters for KMeans (default: 15)
+- `model_name`: Sentence transformer model name (default: 'Qwen/Qwen3-Embedding-0.6B')
+- `descriptions_csv_path`: Path to cache genre descriptions
+- `output_json_path`: Path to save output JSON mapping
+- `apply_data_cleaning`: Whether to apply data cleaning (default: True)
+
+### Output
+
+The script generates:
+- `genre_description_df.csv`: Cached Wikipedia descriptions for genres
+- `genre_fix_mapping_new.json`: Genre mapping dictionary (genre → cluster label)
+
+## Concept Extraction
+
+The `src/analysis/concept_extraction.py` module provides functionality to extract semantic concepts from movie plots using lexical weights and a fixed concept space.
+
+### Overview
+
+The concept extraction system:
+1. Extracts noun lemmas and their weights from lexical weights
+2. Filters by Zipf frequency to remove obscure words
+3. Maps to concepts using WordNet hypernyms or embedding similarity
+4. Aggregates weights per concept to create semantic signatures
+
+### Running Concept Extraction
+
+See `src/analysis/example_concept_extraction.py` for a complete example:
+
+```bash
+# Activate conda environment
+conda activate dataLiteracy
+
+# Run example
+cd /home/nab/GroupDataLiteracy
+python src/analysis/example_concept_extraction.py
+```
+
+### Configuration
+
+The concept extraction supports:
+- Parameterized concept space files based on Zipf threshold, vocabulary size, and model name
+- Automatic concept space building if files don't exist
+- Flexible filtering and mapping strategies
+
+## Data Cleaning
+
+The `src/data_cleaning.py` module provides utilities for cleaning and filtering the movie dataset:
+
+- **Filter non-movies**: Removes entries that are not actual movies (e.g., TV series, short films, video games)
+- **Plot length filtering**: Filters movies with plots exceeding maximum length
+- **Genre filtering**: Optional filtering of movies with single genres
+
+The cleaning functions are used by the genre classifier and can be applied independently.
+
+## Testing
+
+The `tests/` directory contains comprehensive tests for the codebase. See `tests/README.md` for detailed documentation.
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run specific test file
+pytest tests/test_data_loading.py -v
+
+# Run specific test class
+pytest tests/test_data_loading.py::TestCSVLoading -v
+```
+
+The tests validate:
+- CSV file loading and validation
+- Lexical weights loading
+- Data alignment between different sources
+- Data consistency and quality

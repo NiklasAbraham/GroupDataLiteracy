@@ -36,12 +36,12 @@ from analysis.chunking.chunk_late_chunking import LateChunking
 # ============================================================================
 # Configuration Parameters
 # ============================================================================
-DATA_DIR = str(BASE_DIR / "data")  # Path to data directory containing movie CSVs
+DATA_DIR = str(BASE_DIR / "data" / 'data_final')  # Path to data directory containing movie CSVs
 OUTPUT_DIR = None  # Path to output directory (None = auto-generate timestamped directory)
 MODEL_NAME = "BAAI/bge-m3" #"Qwen/Qwen3-Embedding-0.6B"# "BAAI/bge-m3"  # Model name to use
 N_MOVIES = 5000  # Number of movies to process
 RANDOM_SEED = 42  # Random seed for reproducibility
-BATCH_SIZE = 100  # Batch size for embedding processing
+BATCH_SIZE = 35  # Batch size for embedding processing
 # ============================================================================
 
 
@@ -353,3 +353,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# nohup python src/analysis/chunking/manager.py > chunking_experiment.log 2>&1 &

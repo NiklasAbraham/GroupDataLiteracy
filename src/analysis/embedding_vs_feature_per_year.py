@@ -22,15 +22,19 @@ except NameError:
     # Fallback for notebooks - go up two directories from current working directory
     BASE_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..'))
 
-# Add src directory to path for imports
+# Add project root and src directory to path for imports
 SRC_DIR = os.path.join(BASE_DIR, 'src')
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-# Import genre filtering functions from data_utils
-from data_utils import cluster_genres, preprocess_genres
+# Import functions from data_utils and data_cleaning
+# data_cleaning uses 'from src.data_utils import ...' so we need BASE_DIR in path
+from src.data_utils import cluster_genres, load_movie_data
+from src.data_cleaning import clean_dataset
 
-DATA_DIR = os.path.join(BASE_DIR, 'data')
+DATA_DIR = os.path.join(BASE_DIR, 'data', 'data_final')
 START_YEAR = 1930
 END_YEAR = 2024
 # Chunking suffix (e.g., '_cls_token', '_mean_pooling', or '' for no chunking)
@@ -97,19 +101,19 @@ all_years = np.array(all_years)
 print(f"\nTotal movies: {len(all_movie_ids)}")
 print(f"Embedding shape: {all_embeddings.shape}")
 
-# Load movie metadata from CSV files to get genres
-movie_data_list = []
-for year in range(START_YEAR, END_YEAR + 1):
-    csv_path = os.path.join(DATA_DIR, f'wikidata_movies_{year}.csv')
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path, dtype=str)
-        # Select only the relevant columns
-        df_year = df[['movie_id', 'genre', 'title']].copy()
-        df_year['year'] = year
-        movie_data_list.append(df_year)
+# Load movie metadata using data_utils function
+print("Loading movie metadata using load_movie_data from data_utils...")
+movie_data = load_movie_data(DATA_DIR, verbose=True)
 
-# Combine all movie data
-movie_data = pd.concat(movie_data_list, ignore_index=True)
+if movie_data.empty:
+    raise ValueError(f"No movie data found in {DATA_DIR}")
+
+print(f"Loaded {len(movie_data)} movies from metadata files")
+
+# Apply data cleaning from data_cleaning.py
+print("\nApplying data cleaning from data_cleaning.py...")
+movie_data = clean_dataset(movie_data, filter_single_genres=True)
+print(f"Movies after cleaning: {len(movie_data)}")
 
 # Fill NaN values in genre column with empty string (preprocess_genres will handle it)
 if 'genre' in movie_data.columns:
@@ -122,7 +126,8 @@ if 'genre' in movie_data.columns:
 original_cwd = os.getcwd()
 try:
     os.chdir(SRC_DIR)
-    print("Processing genres using cluster_genres from data_utils...")
+    print("\nProcessing genres using cluster_genres from data_utils...")
+    print("Using genre mapping from genre_classifier.py (genre_fix_mapping.json or genre_fix_mapping_new.json)")
     movie_data = cluster_genres(movie_data)
 finally:
     os.chdir(original_cwd)
@@ -151,8 +156,31 @@ print(f"Loaded metadata for {len(movie_data)} movies")
 print(f"Unique movie_ids with metadata: {len(movie_to_genre)}")
 print(f"Unique processed genres: {len(set(movie_to_genre.values()))}")
 
+# Filter embeddings to only include movies that are in the cleaned metadata
+print("\nFiltering embeddings to match cleaned metadata...")
+cleaned_movie_ids_set = set(movie_data['movie_id'].values)
+mask = np.array([mid in cleaned_movie_ids_set for mid in all_movie_ids])
+all_embeddings = all_embeddings[mask]
+all_movie_ids = all_movie_ids[mask]
+all_years = all_years[mask]
+
+print(f"After filtering: {len(all_movie_ids)} movies with both embeddings and cleaned metadata")
+print(f"Embedding shape: {all_embeddings.shape}")
+
+# Filter out movies with "Unknown" genre
+print("\nFiltering out movies with 'Unknown' genre...")
+genre_mask = np.array([movie_to_genre.get(mid, 'Unknown') != 'Unknown' for mid in all_movie_ids])
+n_unknown = np.sum(~genre_mask)
+all_embeddings = all_embeddings[genre_mask]
+all_movie_ids = all_movie_ids[genre_mask]
+all_years = all_years[genre_mask]
+
+print(f"Removed {n_unknown} movies with 'Unknown' genre")
+print(f"After genre filtering: {len(all_movie_ids)} movies with known genres")
+print(f"Embedding shape: {all_embeddings.shape}")
+
 # Sample 5000 random points for visualization
-n_samples = 5000
+n_samples = 8000
 sample_indices = np.random.choice(len(all_movie_ids), size=n_samples, replace=False)
 
 sampled_embeddings = all_embeddings[sample_indices]
@@ -168,8 +196,8 @@ print(f"Number of unique genres: {len(set(sampled_genres))}")
 
 # Display genre distribution
 genre_counts = pd.Series(sampled_genres).value_counts()
-print(f"\nTop 10 genres in sample:")
-print(genre_counts.head(10))
+print(f"\nTop 20 genres in sample:")
+print(genre_counts.head(20))
 
 # Create UMAP reduction
 print("Computing UMAP reduction...")

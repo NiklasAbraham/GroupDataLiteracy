@@ -1,12 +1,17 @@
 import pandas as pd
-from data_utils import load_movie_data
-from api.wikidata_handler import get_wikidata_subclasses
+from src.data_utils import load_movie_data
+from src.api.wikidata_handler import get_wikidata_subclasses
 import asyncio
 import json
 import os
-from data_exploration import print_wikidata_column_appearances
+from src.data_exploration import print_wikidata_column_appearances
+import sys
+from pathlib import Path
 
-DATA_DIR = '../all_data_run_2511/data'
+# Add parent directory to path for imports
+base_path = Path(__file__).parent.parent
+
+DATA_DIR = os.path.join(base_path, 'data', 'data_final')
 MAX_PLOT_LENGTH = 14000
 WRONG_CLASSES_SAVE_PATH = os.path.join(DATA_DIR, 'wrong_wikidata_classes.json')
 WRONG_WIKIDATA_CLASSES = {
@@ -49,7 +54,53 @@ def filter_movies_without_plot(df: pd.DataFrame) -> pd.DataFrame:
     filtered_df = df[df['plot'].notna() & (df['plot'].str.strip() != "")].reset_index(drop=True)
     return filtered_df
 
-def clean_dataset(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH, max_plot_length: int = MAX_PLOT_LENGTH) -> pd.DataFrame:
+def filter_movies_with_single_occurrence_genres(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Remove genres that appear only once from each movie's genre column.
+    
+    Parameters:
+    - df: DataFrame with 'genre' column containing comma-separated genre strings
+    
+    Returns:
+    - DataFrame with single-occurrence genres removed from genre strings
+    """
+    if 'genre' not in df.columns:
+        return df
+    
+    # Extract all individual genres from all movies
+    all_genres = []
+    for genre_str in df['genre'].dropna():
+        if isinstance(genre_str, str) and genre_str.strip():
+            # Split by comma and strip whitespace
+            genres = [g.strip() for g in genre_str.split(',') if g.strip()]
+            all_genres.extend(genres)
+    
+    # Count genre occurrences
+    genre_counts = pd.Series(all_genres).value_counts()
+    
+    # Find genres that appear only once
+    single_occurrence_genres = set(genre_counts[genre_counts == 1].index)
+    
+    if len(single_occurrence_genres) == 0:
+        return df
+    
+    # Remove single-occurrence genres from each movie's genre string
+    def remove_single_occurrence_genres(genre_str):
+        if pd.isna(genre_str) or not isinstance(genre_str, str) or not genre_str.strip():
+            return genre_str
+        genres = [g.strip() for g in genre_str.split(',') if g.strip()]
+        # Keep only genres that are not single-occurrence
+        filtered_genres = [g for g in genres if g not in single_occurrence_genres]
+        # Return empty string if no genres remain, otherwise join with comma
+        if not filtered_genres:
+            return ""
+        return ", ".join(filtered_genres)
+    
+    df_copy = df.copy()
+    df_copy['genre'] = df_copy['genre'].apply(remove_single_occurrence_genres)
+    return df_copy
+
+def clean_dataset(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH, max_plot_length: int = MAX_PLOT_LENGTH, filter_single_genres: bool = True) -> pd.DataFrame:
     df['duration'] = pd.to_numeric(df['duration'], errors='coerce')
 
     print(f"Original dataset size: {len(df)}")
@@ -57,6 +108,10 @@ def clean_dataset(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES
     print(f"After filtering movies without plot: {len(df_filtered)}")
     df_filtered = filter_non_movies(df_filtered, wrong_classes_save_path=wrong_classes_save_path)
     print(f"After filtering non-movies: {len(df_filtered)}")
+    
+    if filter_single_genres:
+        df_filtered = filter_movies_with_single_occurrence_genres(df_filtered)
+        print(f"After removing single-occurrence genres from genre column: {len(df_filtered)}")
 
     df_filtered["plot_length_chars"] = df_filtered["plot"].apply(lambda x: len(x.strip()) if isinstance(x, str) else 0)
     df_filtered = df_filtered[df_filtered["plot_length_chars"] <= max_plot_length].reset_index(drop=True)
