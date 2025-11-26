@@ -388,8 +388,16 @@ def preprocess_genres(genre: str) -> str:
     # Convert to string if not already
     genre = str(genre)
     
-    # Read genre mapping file
-    with open("genre_fix_mapping.json", "r") as f:
+    # Read genre mapping file from src directory
+    # Get the directory where this file (data_utils.py) is located
+    src_dir = Path(__file__).parent
+    mapping_file = src_dir / "genre_fix_mapping_new.json"
+    
+    # Fallback to old mapping if new one doesn't exist
+    if not mapping_file.exists():
+        mapping_file = src_dir / "genre_fix_mapping.json"
+    
+    with open(mapping_file, "r") as f:
         genre_mapping = json.loads(f.read())
 
     # Split raw string into genres

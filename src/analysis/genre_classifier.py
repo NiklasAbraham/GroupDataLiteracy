@@ -10,6 +10,7 @@ This module classifies movie genres by:
 
 import os
 import json
+import re
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -60,6 +61,34 @@ def extract_unique_genres(movie_df: pd.DataFrame) -> List[str]:
     return unique_genres
 
 
+def clean_description(description: str) -> str:
+    """
+    Clean description text by removing newlines, normalizing whitespace, and handling special characters.
+    
+    Parameters:
+    - description: Raw description string
+    
+    Returns:
+    - Cleaned description string
+    """
+    if pd.isna(description) or not isinstance(description, str):
+        return ""
+    
+    # Replace all types of line breaks with spaces
+    cleaned = re.sub(r'\r\n|\r|\n', ' ', description)
+    
+    # Replace multiple consecutive spaces/tabs with single space
+    cleaned = re.sub(r'[ \t]+', ' ', cleaned)
+    
+    # Remove any remaining control characters except spaces
+    cleaned = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f-\x9f]', '', cleaned)
+    
+    # Strip leading/trailing whitespace
+    cleaned = cleaned.strip()
+    
+    return cleaned
+
+
 def get_wikipedia_description_from_title(
     genre_title: str, 
     wiki_wiki: wikipediaapi.Wikipedia
@@ -72,7 +101,7 @@ def get_wikipedia_description_from_title(
     - wiki_wiki: Wikipedia API instance
     
     Returns:
-    - Wikipedia summary string, or empty string if not found
+    - Cleaned Wikipedia summary string, or empty string if not found
     """
     try:
         # Convert genre title to Wikipedia URL format
@@ -82,7 +111,8 @@ def get_wikipedia_description_from_title(
         if genre_page is None or not genre_page.exists():
             return ""
         
-        return genre_page.summary
+        raw_summary = genre_page.summary
+        return clean_description(raw_summary)
     except Exception as e:
         print(f"Error fetching genre {genre_title}: {e}")
         return ""
@@ -117,18 +147,24 @@ def fetch_genre_descriptions(
 
 def load_genre_descriptions_csv(csv_path: str) -> pd.DataFrame:
     """
-    Load genre descriptions from CSV file.
+    Load genre descriptions from CSV file and clean them.
     
     Parameters:
     - csv_path: Path to CSV file
     
     Returns:
-    - DataFrame with 'genre' and 'description' columns
+    - DataFrame with 'genre' and 'description' columns (cleaned)
     """
     if not os.path.exists(csv_path):
         return pd.DataFrame(columns=['genre', 'description'])
     
-    return pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path)
+    
+    # Clean descriptions
+    if 'description' in df.columns:
+        df['description'] = df['description'].apply(clean_description)
+    
+    return df
 
 
 def save_genre_descriptions_csv(genre_descriptions: Dict[str, str], csv_path: str):
@@ -222,11 +258,18 @@ def ensure_genre_descriptions(
         )
     else:
         print("All genre descriptions already available.")
+
+    # Filter out rows with NaN genres or descriptions
+    genre_df = genre_df.dropna(subset=['genre', 'description'])
+    # Also filter out non-string genres
+    genre_df = genre_df[genre_df['genre'].apply(lambda x: isinstance(x, str))].copy()
     
-    # Fill missing descriptions with genre name itself
-    genre_df.loc[genre_df['description'].isna() | (genre_df['description'].str.strip() == ''), 'description'] = \
-        genre_df.loc[genre_df['description'].isna() | (genre_df['description'].str.strip() == ''), 'genre']
-    
+    # Clean all descriptions in the DataFrame
+    if 'description' in genre_df.columns:
+        genre_df['description'] = genre_df['description'].apply(clean_description)
+        # Remove rows with empty descriptions after cleaning
+        genre_df = genre_df[genre_df['description'].str.strip() != ''].copy()
+
     return genre_df
 
 
@@ -250,8 +293,12 @@ def embed_genre_descriptions(
     print("Embedding genre descriptions...")
     descriptions = genre_df['description'].tolist()
     print(f"Descriptions length: {len(descriptions)}")
-    print(f"Descriptions avg length: {sum(len(d) for d in descriptions) / len(descriptions)}")
-    embeddings = model.encode(descriptions, max_length=512)
+    # Only calculate average length for string descriptions, skip non-strings (e.g., floats)
+    str_lengths = [len(d) for d in descriptions if isinstance(d, str)]
+    avg_length = sum(str_lengths) / len(str_lengths) if str_lengths else 0
+    print(f"Descriptions avg length: {avg_length}")
+    print(f"First 10 descriptions: {descriptions[:10]}")
+    embeddings = model.encode(descriptions)
     
     return embeddings
 
@@ -309,8 +356,17 @@ def create_genre_mapping(
     # Create mapping dictionary
     mapping_dict = {}
     for _, row in genre_df.iterrows():
+        # Skip if genre is NaN or not a string
+        if pd.isna(row['genre']) or not isinstance(row['genre'], str):
+            continue
+        
         # Clean genre name (lowercase, remove "film", strip)
         cleaned_genre = row['genre'].lower().replace("film", "").strip()
+        
+        # Skip if cleaned genre is empty
+        if not cleaned_genre:
+            continue
+        
         mapping_dict[cleaned_genre] = row['new_label']
     
     return mapping_dict
@@ -338,40 +394,86 @@ def save_genre_mapping(
 
 def print_genres_by_cluster(
     genre_df: pd.DataFrame,
+    mapping_json_path: str = "src/genre_fix_mapping.json",
     cluster_label_mapping: Optional[Dict[int, str]] = None
 ):
     """
-    Print genres grouped by their cluster labels.
+    Print genres grouped by their cluster labels using the genre mapping from data_utils.py.
     
     Parameters:
     - genre_df: DataFrame with 'genre' and 'cluster' columns
-    - cluster_label_mapping: Optional mapping from cluster ID to label name
+    - mapping_json_path: Path to the genre mapping JSON file
+    - cluster_label_mapping: Optional mapping from cluster ID to label name (for display)
     """
+    # Load genre mapping from JSON file (same as data_utils.py)
+    try:
+        with open(mapping_json_path, "r") as f:
+            genre_mapping = json.loads(f.read())
+    except FileNotFoundError:
+        print(f"Warning: Genre mapping file not found at {mapping_json_path}")
+        print("Falling back to cluster-based grouping...")
+        genre_mapping = {}
+    except Exception as e:
+        print(f"Warning: Error loading genre mapping: {e}")
+        print("Falling back to cluster-based grouping...")
+        genre_mapping = {}
+    
     # Create a copy to avoid modifying original
     print_df = genre_df.copy()
     
-    # Sort by cluster
-    print_df = print_df.sort_values('cluster')
+    # Filter out NaN values
+    print_df = print_df[print_df['genre'].notna() & print_df['genre'].apply(lambda x: isinstance(x, str))].copy()
     
-    # Get unique clusters
-    unique_clusters = sorted(print_df['cluster'].unique())
+    # Create a mapping from genre to cluster label using the JSON mapping
+    # Clean genre names the same way as data_utils.py does
+    genre_to_cluster_label = {}
+    for _, row in print_df.iterrows():
+        genre = row['genre']
+        cleaned_genre = genre.lower().replace("film", "").strip()
+        
+        if cleaned_genre in genre_mapping:
+            cluster_label = genre_mapping[cleaned_genre]
+        else:
+            # If not in mapping, use cluster ID as string
+            cluster_label = str(row['cluster'])
+        
+        if cluster_label not in genre_to_cluster_label:
+            genre_to_cluster_label[cluster_label] = []
+        genre_to_cluster_label[cluster_label].append(genre)
+    
+    # Sort cluster labels (try as int first, then as string)
+    def sort_key(label):
+        try:
+            return int(label)
+        except ValueError:
+            return float('inf')
+    
+    sorted_labels = sorted(genre_to_cluster_label.keys(), key=sort_key)
     
     print("\n" + "=" * 80)
-    print("Genres by Cluster:")
+    print("Genres by Cluster Label (from genre mapping):")
     print("=" * 80)
     
-    for cluster_id in unique_clusters:
-        cluster_genres = print_df[print_df['cluster'] == cluster_id]['genre'].tolist()
+    for cluster_label in sorted_labels:
+        genres = sorted(genre_to_cluster_label[cluster_label])
         
-        # Create label for cluster
-        if cluster_label_mapping and cluster_id in cluster_label_mapping:
-            cluster_label = f"Cluster {cluster_id} ({cluster_label_mapping[cluster_id]})"
+        # Create display label
+        if cluster_label_mapping:
+            # Try to find cluster ID from the label
+            try:
+                cluster_id = int(cluster_label)
+                if cluster_id in cluster_label_mapping:
+                    display_label = f"Cluster {cluster_label} ({cluster_label_mapping[cluster_id]})"
+                else:
+                    display_label = f"Cluster {cluster_label}"
+            except ValueError:
+                display_label = f"Cluster {cluster_label}"
         else:
-            cluster_label = f"Cluster {cluster_id}"
+            display_label = f"Cluster {cluster_label}"
         
-        print(f"\n{cluster_label}:")
-        print(f"  {', '.join(cluster_genres)}")
-        print(f"  ({len(cluster_genres)} genres)")
+        print(f"\n{display_label}:")
+        print(f"  {', '.join(genres)}")
+        print(f"  ({len(genres)} genres)")
     
     print("=" * 80)
 
@@ -383,17 +485,19 @@ def classify_genres(
     n_clusters: int = 25,
     model_name: str = 'Qwen/Qwen3-Embedding-0.6B',
     cluster_label_mapping: Optional[Dict[int, str]] = None,
-    random_state: int = 123
-) -> Dict[str, str]:
+    random_state: int = 123,
+    apply_data_cleaning: bool = True
+) -> Tuple[Dict[str, str], pd.DataFrame]:
     """
     Main function to classify genres from movie dataframe.
     
     This function:
-    1. Extracts unique genres from movie_df
-    2. Fetches Wikipedia descriptions (cached in CSV)
-    3. Embeds descriptions using sentence transformers
-    4. Clusters genres
-    5. Generates and saves mapping JSON
+    1. Applies data cleaning (optional)
+    2. Extracts unique genres from movie_df
+    3. Fetches Wikipedia descriptions (cached in CSV)
+    4. Embeds descriptions using sentence transformers
+    5. Clusters genres
+    6. Generates and saves mapping JSON
     
     Parameters:
     - movie_df: DataFrame with 'genre' column
@@ -403,13 +507,22 @@ def classify_genres(
     - model_name: Sentence transformer model name
     - cluster_label_mapping: Optional mapping from cluster ID to label name
     - random_state: Random state for reproducibility
+    - apply_data_cleaning: Whether to apply data cleaning from data_cleaning.py (default: True)
     
     Returns:
-    - Dictionary mapping genre -> cluster_label
+    - Tuple of (mapping_dict, genre_df_clustered):
+      - mapping_dict: Dictionary mapping genre -> cluster_label
+      - genre_df_clustered: DataFrame with 'genre', 'cluster', and 'new_label' columns
     """
     print("=" * 60)
     print("Genre Classification Pipeline")
     print("=" * 60)
+    
+    # Step 0: Apply data cleaning if requested
+    if apply_data_cleaning:
+        print("\nStep 0: Applying data cleaning...")
+        movie_df = clean_dataset(movie_df, filter_single_genres=True)
+        print(f"Dataset size after cleaning: {len(movie_df)}")
     
     # Step 1: Extract unique genres
     print("\nStep 1: Extracting unique genres...")
@@ -438,6 +551,10 @@ def classify_genres(
     # Step 6: Save mapping
     print("\nStep 6: Saving genre mapping...")
     save_genre_mapping(mapping_dict, output_json_path)
+    
+    # Step 7: Print genres by cluster
+    print("\nStep 7: Printing genres by cluster...")
+    print_genres_by_cluster(genre_df_clustered, output_json_path, cluster_label_mapping)
 
     print("\n" + "=" * 60)
     print("Genre classification complete!")
@@ -461,21 +578,21 @@ if __name__ == "__main__":
     
     print("Loading movie data...")
     movie_df = load_movie_data(data_dir, verbose=True)
-    movie_df = clean_dataset(movie_df)
     
     if movie_df.empty:
         print("Error: No movie data loaded.")
         sys.exit(1)
     
-    # Run classification
+    # Run classification (data cleaning is applied inside classify_genres)
     print("\nStarting genre classification...")
     mapping_dict, genre_df_clustered = classify_genres(
         movie_df,
         descriptions_csv_path=descriptions_csv_path,
         output_json_path=output_json_path,
-        n_clusters=20
+        n_clusters=15,
+        apply_data_cleaning=True
     )
 
-    print_genres_by_cluster(genre_df_clustered, mapping_dict)
+    print_genres_by_cluster(genre_df_clustered, output_json_path)
 
     
