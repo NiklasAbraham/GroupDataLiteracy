@@ -20,8 +20,17 @@ from sklearn.multioutput import MultiOutputClassifier
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import os
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Import the general predictor function
+# calculations.py is in src/analysis/chunking/
+# predictor_logistic_regression.py is in src/predictions/
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+SRC_DIR = BASE_DIR / 'src'
+sys.path.insert(0, str(SRC_DIR))
+from predictions.predictor_logistic_regression import predict_genres_logistic_regression
 
 
 def compute_length_norm_correlation(embeddings: np.ndarray, text_lengths: np.ndarray, pre_norms: np.ndarray = None) -> float:
@@ -278,6 +287,8 @@ def compute_genre_classification_metrics(embeddings: np.ndarray, genres: np.ndar
     Train a multi-label logistic regression classifier to predict genres from embeddings.
     Each movie can have multiple genres. Compute subset accuracy and F1 score.
     
+    This function now uses the general predictor from predictor_logistic_regression.py.
+    
     Args:
         embeddings (np.ndarray): Array of embeddings [n_samples, embedding_dim]
         genres (np.ndarray): Array of genre labels [n_samples]
@@ -288,102 +299,14 @@ def compute_genre_classification_metrics(embeddings: np.ndarray, genres: np.ndar
     Returns:
         Dict[str, float]: Dictionary with 'genre_accuracy' (subset accuracy) and 'genre_f1_score' (micro-averaged)
     """
-    # Handle both multi-label (list of lists) and single-label (array of strings) formats
-    # Convert to list of lists format
-    genres_list = []
-    valid_indices = []
-    
-    for idx, genre in enumerate(genres):
-        if genre is None or (isinstance(genre, float) and np.isnan(genre)):
-            continue
-        if isinstance(genre, str):
-            # Single label: convert to list
-            genre_list = [g.strip() for g in genre.split(',') if g.strip()]
-        elif isinstance(genre, list):
-            # Already a list
-            genre_list = [g.strip() if isinstance(g, str) else str(g).strip() for g in genre if g and str(g).strip()]
-        else:
-            # Try to convert to string and split
-            genre_list = [g.strip() for g in str(genre).split(',') if g.strip()]
-        
-        if len(genre_list) > 0:
-            genres_list.append(genre_list)
-            valid_indices.append(idx)
-    
-    if len(genres_list) < 2:
-        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
-    
-    valid_embeddings = embeddings[valid_indices]
-    
-    # Convert to binary indicator matrix using MultiLabelBinarizer
-    mlb = MultiLabelBinarizer()
-    y_binary = mlb.fit_transform(genres_list)  # [n_samples, n_labels]
-    
-    if y_binary.shape[1] < 1:
-        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
-    
-    if valid_embeddings.shape[0] < 2:
-        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
-    
-    # Split data into train and test sets
-    # For multi-label, we can't use standard stratification, so we use shuffle split
-    X_train, X_test, y_train, y_test = train_test_split(
-        valid_embeddings, y_binary, 
-        test_size=test_size, 
+    # Use the general predictor function
+    return predict_genres_logistic_regression(
+        embeddings=embeddings,
+        genres=genres,
+        test_size=test_size,
         random_state=random_state,
-        shuffle=True
+        return_model=False
     )
-    
-    # Train multi-label logistic regression classifier
-    # sklearn's LogisticRegression already uses efficient internal batching
-    # We optimize solver choice based on dataset size for better performance
-    try:
-        # Determine best solver based on dataset size
-        n_samples = X_train.shape[0]
-        
-        # For large datasets, use 'lbfgs' which is memory efficient and handles batching well
-        # For smaller datasets, 'liblinear' is faster
-        if n_samples > 10000:
-            solver = 'lbfgs'
-        else:
-            solver = 'liblinear'
-        
-        # Use MultiOutputClassifier to handle multi-label classification
-        # Each label gets its own binary classifier
-        base_clf = LogisticRegression(
-            random_state=random_state, 
-            max_iter=1000, 
-            solver=solver,
-            n_jobs=1  # sklearn handles internal batching, we parallelize at higher level
-        )
-        clf = MultiOutputClassifier(base_clf, n_jobs=1)
-        clf.fit(X_train, y_train)
-        
-        # Predict on test set (predictions are already batched internally by sklearn)
-        y_pred = clf.predict(X_test)
-        
-        # Compute metrics for multi-label classification
-        # Subset accuracy: exact match (all labels must be correct)
-        subset_accuracy = accuracy_score(y_test, y_pred)
-        
-        # Micro-averaged F1: treats each label prediction as an individual binary prediction
-        f1_micro = f1_score(y_test, y_pred, average='micro', zero_division=0)
-        
-        # Also compute macro-averaged F1 for additional insight
-        f1_macro = f1_score(y_test, y_pred, average='macro', zero_division=0)
-        
-        # Hamming loss: fraction of labels that are incorrectly predicted
-        hamming = hamming_loss(y_test, y_pred)
-        
-        return {
-            'genre_accuracy': subset_accuracy,  # Subset accuracy (exact match)
-            'genre_f1_score': f1_micro,  # Micro-averaged F1 (primary metric)
-            'genre_f1_macro': f1_macro,  # Macro-averaged F1 (additional metric)
-            'genre_hamming_loss': hamming  # Hamming loss (lower is better)
-        }
-    except Exception as e:
-        print(f"Error computing genre classification metrics: {e}")
-        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan, 'genre_f1_macro': np.nan, 'genre_hamming_loss': np.nan}
 
 def compute_cosine_distance(row):
     if np.all(pd.isna(row['next_avg_embedding'])):
