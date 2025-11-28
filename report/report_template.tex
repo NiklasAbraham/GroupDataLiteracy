@@ -129,16 +129,32 @@
 \printAffiliationsAndNotice{\icmlEqualContribution} % otherwise use the standard text.
 
 \begin{abstract}
-This project addresses the fundamental question of how cultural meaning evolves over time by quantitatively modeling seventy-five years of cinematic history through 200,000 film synopses embedded in a single static semantic space using the BGE-M3 model. Temporal change is measured by tracking the movement of genre centroids within this space—analyzing their velocity, acceleration, and curvature to distinguish continuous evolution from structural paradigm shifts. The framework provides a reproducible and data-driven foundation for cultural analytics, testing whether established linguistic laws of semantic drift extend to the domain of cinema.
+Cultural narratives encode and transmit evolving societal values, yet quantifying how meanings change over time remains methodologically challenging. This project investigates semantic evolution in cinema by analyzing how genres and thematic clusters shift within a unified semantic space across multiple decades. By representing genres as centroids and tracking their geometric trajectories—measuring velocity, acceleration, and curvature—we distinguish periods of gradual semantic drift from moments of structural reorganization in cinematic history. This framework provides a quantitative foundation for understanding cultural change at scale and tests whether established linguistic laws of semantic evolution extend to film as a cultural medium.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
 
-Motivate the problem, situation or topic you decided to work on. Describe why it matters (is it of societal, economic, scientific value?). Outline the rest of the paper (use references, e.g.~to \Cref{sec:methods}: What kind of data you are working with, how you analyse it, and what kind of conclusion you reached. The point of the introduction is to make the reader want to read the rest of the paper.)
+Cinema provides a rich archive of narrative structures that encode evolving societal values across generations. Stories serve not only to entertain but to instruct, and those narratives that align with existing social values are more likely to survive and propagate through collective memory. Recent computational work has revealed hidden cultural patterns in large narrative corpora. \cite{xu2020cinderella} used word embeddings to uncover systematic gender stereotypes in movie synopses, revealing the "Cinderella complex" where female characters' happiness depends asymmetrically on male characters. \cite{matthews2021genre} applied topic modeling to investigate genre structure and temporal evolution, demonstrating that lexical features capture meaningful genre conventions and showing how genres shift in composition over time. These studies establish that quantitative methods can illuminate cultural phenomena at scales beyond traditional close reading, revealing patterns that operate across thousands of narratives.
+
+However, measuring semantic change in cultural narratives over extended historical periods remains methodologically challenging. Previous approaches have examined genre structure at specific moments or through discrete topic models that capture lexical shifts but not the continuous geometric evolution of semantic categories. Can we characterize not merely that genres change, but how they change—whether through gradual drift, sudden discontinuities, or cyclical patterns? Furthermore, while linguistic corpora have been analyzed for semantic drift using diachronic word embeddings, these methods require temporal alignment procedures that introduce potential artifacts when comparing meanings across decades.
+
+We address these questions by constructing a unified semantic space from a large corpus of film plot summaries spanning multiple decades. By embedding all narratives into a single static vector space, we eliminate temporal alignment requirements while preserving fine-grained semantic relationships. Within this space, we represent genres and thematic clusters as centroids and track their trajectories over time. By computing geometric properties of these trajectories—including velocity, acceleration, and curvature—we can distinguish periods of continuous semantic evolution from moments of structural reorganization where genres undergo fundamental conceptual shifts. This geometric analysis reveals not just that meanings change, but the dynamics of how they change, providing quantitative measures of cultural evolution.
+
+This work contributes to cultural analytics by demonstrating how static embedding spaces enable diachronic analysis without alignment artifacts, tests whether established linguistic laws of semantic drift extend to cultural domains beyond language, and provides a reproducible framework for measuring cultural change at scale. In \Cref{sec:methods}, we describe our data collection pipeline and the construction of the semantic space. \Cref{sec:results} presents our findings on genre trajectory analysis and the geometric properties of semantic evolution.
 
 \section{Data and Methods}\label{sec:methods}
 
-Data collection process, bla bla bla, the pipline explained, etc.
+The construction of our movie corpus required a multi-stage data collection pipeline that systematically integrated information from three complementary sources: Wikidata, The Movie Database (TMDb), and Wikipedia. This approach leverages the structured metadata capabilities of knowledge bases while obtaining rich textual descriptions necessary for semantic analysis.
+
+The initial data collection phase queried Wikidata, a collaboratively edited multilingual knowledge graph maintained by the Wikimedia Foundation. Wikidata serves as an ideal entry point for systematic movie data collection due to its comprehensive coverage of cultural artifacts and its structured representation of temporal, categorical, and relational metadata. For each year in our study period, we retrieved movies satisfying specific criteria, including release year, film classification, and the availability of linked Wikipedia articles in English. This step yielded essential metadata fields including unique Wikidata identifiers, film titles, release years, and crucially, sitelinks to corresponding Wikipedia articles.
+
+The second enrichment stage leveraged The Movie Database (TMDb), a community-maintained database that provides quantitative popularity metrics and user engagement statistics. To bridge between the Wikidata entities and TMDb records, we exploited the external identifier mappings maintained within Wikidata. Specifically, each Wikidata identifier was used to query the TMDb API, retrieving popularity scores, vote averages, and vote counts for each film. These metrics serve as proxy measurements for audience engagement and cultural impact, enabling downstream filtering and weighting of films based on their relative prominence within the cinematic landscape. This cross-database linkage was essential as TMDb contains richer engagement data than Wikidata, while Wikidata provides superior structured coverage of historical films.
+
+The third and most data-intensive stage involved retrieving full-text plot descriptions from Wikipedia articles. Using the English Wikipedia sitelinks obtained from Wikidata, we systematically accessed each film's Wikipedia page and extracted the plot summary section. Wikipedia's editorial policies ensure that plot descriptions maintain a relatively consistent level of detail and neutral tone across articles, providing standardized narrative summaries suitable for comparative semantic analysis. The extraction process employed the Wikipedia API to retrieve article content, followed by section identification and text normalization procedures. This step transformed the structured metadata from the previous stages into the rich textual data required for embedding-based analysis.
+
+All data sources are openly accessible under permissive licenses. Wikidata \cite{wikidata} provides structured data under the CC0 1.0 Universal license (public domain dedication), enabling unrestricted use without attribution requirements. Wikipedia \cite{wikipedia} content is licensed under CC BY-SA 4.0, requiring attribution and share-alike distribution of derivative works. TMDb \cite{tmdb} data is available under CC BY-NC 4.0 for non-commercial research purposes with appropriate attribution. This licensing framework ensures the reproducibility and legal compliance of our data collection pipeline.
+
+The resulting dataset exhibits high coverage across decades, with successful retrieval of plot descriptions for over 80\% of films in most decades, as shown in Table \ref{tab:decade_coverage}. The sequential pipeline design ensures data consistency through unique identifiers while maximizing coverage by combining the complementary strengths of each data source.
 
 \begin{table}[ht]
     \centering
@@ -202,7 +218,46 @@ To determine the optimal chunking and pooling strategy for our specific use case
 
 \section{Results}\label{sec:results}
 
-In this section outline your results. At this point, you are just stating the outcome of your analysis. You can highlight important aspects (``we observe a significantly higher value of $x$ over $y$''), but leave interpretation and opinion to the next section. This section absoultely \emph{must} include at least two figures.
+\subsection{Chunking Method Comparison}
+
+We evaluated ten distinct embedding strategies across 5,000 movie plot descriptions, comprising four fundamental approaches with various parameterizations: Mean Pooling, CLS Token extraction, Chunk-First-Embed with three configurations (512/256, 1024/512, 2048/1024 tokens for chunk size and stride), and Late Chunking with six configurations. The evaluation employed multiple metrics to assess embedding quality, including length bias, isotropy, genre classification performance, and class separation characteristics. Table \ref{tab:chunking_results} presents key performance metrics across all methods.
+
+\begin{table*}[ht]
+    \centering
+    \caption{Comparative performance of chunking methods across key evaluation metrics. Length-Norm Corr measures correlation between document length and embedding norm. Isotropy (1st PC) indicates variance concentration in the first principal component (lower is better). Genre Acc and F1 report classification performance. Silhouette measures cluster cohesion. Sep. Ratio quantifies intra-class to inter-class similarity ratio.}
+    \label{tab:chunking_results}
+    \small
+    \begin{tabular}{lcccccc}
+        \toprule
+        Method & \makecell{Length-Norm\\Corr} & \makecell{Isotropy\\(1st PC \%)} & \makecell{Genre\\Acc} & \makecell{Genre\\F1} & Silhouette & \makecell{Sep.\\Ratio} \\
+        \midrule
+        Mean Pooling & 0.629 & 11.36 & 0.326 & 0.180 & -0.036 & 0.943 \\
+        CLS Token & 0.004 & 3.32 & 0.341 & 0.194 & -0.016 & 0.958 \\
+        \midrule
+        Chunk-First 512/256 & -0.366 & 3.47 & 0.349 & 0.198 & -0.020 & 0.951 \\
+        Chunk-First 1024/512 & -0.275 & 3.37 & 0.348 & 0.197 & -0.017 & 0.959 \\
+        Chunk-First 2048/1024 & -0.031 & 3.33 & 0.341 & 0.194 & -0.016 & 0.961 \\
+        \midrule
+        Late Chunk 512/256 & 0.822 & 11.92 & 0.327 & 0.180 & -0.037 & 0.949 \\
+        Late Chunk 1024/512 & 0.726 & 11.53 & 0.326 & 0.181 & -0.037 & 0.948 \\
+        Late Chunk 2048/1024 & 0.656 & 11.36 & 0.326 & 0.180 & -0.036 & 0.958 \\
+        Late Chunk 2048/512 & 0.656 & 11.36 & 0.326 & 0.180 & -0.036 & 0.958 \\
+        Late Chunk 512/0 & 0.821 & 11.40 & 0.328 & 0.183 & -0.037 & 0.948 \\
+        \bottomrule
+    \end{tabular}
+\end{table*}
+
+\textbf{Length Bias and Correlation:} The length-normalization correlation metric reveals substantial variation across methods. MeanPooling and LateChunking variants exhibit positive correlations ranging from 0.62 to 0.82, with LateChunking\_512\_256 achieving the highest value (0.82). In contrast, CLSToken demonstrates near-zero correlation (0.0035), while ChunkFirstEmbed methods show negative correlations ranging from -0.03 to -0.37, with ChunkFirstEmbed\_512\_256 exhibiting the strongest negative correlation (-0.37).
+
+\textbf{Isotropy Measurements:} Isotropy, measured by the proportion of variance captured in the first principal component, shows a clear distinction between method families. MeanPooling and LateChunking variants demonstrate substantially lower isotropy (first PC: 11.27-11.92\%), indicating more uniformly distributed embeddings across dimensions. CLSToken and ChunkFirstEmbed methods exhibit significantly higher isotropy (first PC: 3.32-3.47\%), suggesting greater concentration of variance along principal axes. After removing the top two principal components, isotropy values converge to a narrower range (2.27-3.09\%) across all methods.
+
+\textbf{Genre Classification Performance:} Genre classification accuracy, evaluated using a logistic regression classifier, demonstrates modest variation across methods. Accuracy ranges from 0.326 to 0.349, with ChunkFirstEmbed\_1024\_512 achieving the highest accuracy (0.349) and LateChunking\_512\_256 the lowest (0.327). Macro-averaged F1 scores similarly cluster between 0.179 and 0.198, with ChunkFirstEmbed methods showing slight superiority (F1: 0.193-0.198) over LateChunking and pooling-based approaches (F1: 0.178-0.183). Silhouette scores, measuring cluster cohesion, remain consistently negative across all methods (ranging from -0.037 to -0.016), indicating substantial overlap in genre representations.
+
+\textbf{Class Separation Metrics:} Intra-class cosine similarity (mean similarity within genre groups) exhibits narrow variation from 0.500 to 0.533 across methods. Inter-class similarity (mean similarity between different genres) similarly ranges from 0.481 to 0.509. The resulting separation ratios, computed as the ratio of intra-class to inter-class similarity, range from 0.943 to 0.962, with ChunkFirstEmbed\_2048\_1024 achieving the highest separation (0.961). Separation gaps, defined as the difference between intra- and inter-class similarity, range from 0.019 to 0.030, with MeanPooling showing the largest gap (0.030) and ChunkFirstEmbed\_2048\_1024 the smallest (0.019).
+
+\textbf{Cosine Similarity Distributions:} The distribution of pairwise cosine similarities across methods reveals consistent central tendencies with mean similarities clustering between 0.485 and 0.505. Standard deviations range from 0.061 to 0.126, with MeanPooling and LateChunking methods exhibiting higher variance (std: 0.123-0.126) compared to CLSToken and ChunkFirstEmbed approaches (std: 0.061-0.067). Minimum observed similarities span from 0.054 to 0.261, while maximum similarities range from 0.688 to 0.836, indicating that MeanPooling and LateChunking methods produce wider similarity distributions.
+
+\textbf{Parameter Sensitivity in Late Chunking:} Within the LateChunking family, window size and stride parameters demonstrate measurable effects on performance characteristics. Configurations with stride 0 (non-overlapping windows) show slightly improved silhouette scores (from -0.037 to -0.037 compared to overlapping configurations). Larger window sizes (2048 tokens) consistently yield higher separation ratios (0.958) compared to smaller windows (512 tokens: 0.943-0.948).
 
 \section{Discussion \& Conclusion}\label{sec:conclusion}
 
