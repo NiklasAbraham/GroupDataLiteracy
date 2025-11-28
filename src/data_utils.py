@@ -472,3 +472,76 @@ def cluster_genres(movie_df: pd.DataFrame) -> pd.DataFrame:
     # Preprocess genre
     movie_df["new_genre"] = movie_df["genre"].apply(preprocess_genres)
     return movie_df
+
+
+def search_movies_by_keywords(
+    movie_df: pd.DataFrame,
+    keywords: List[str],
+    search_columns: List[str] = None,
+    case_sensitive: bool = False
+) -> List[str]:
+    """
+    Search for movies in a dataframe based on keywords in specified columns.
+    
+    Parameters:
+    - movie_df: DataFrame containing movie data
+    - keywords: List of keywords to search for (all must match)
+    - search_columns: List of column names to search in. If None, searches in 'title' column only.
+                     Default is None (searches only in 'title')
+    - case_sensitive: Whether search should be case sensitive. Default is False
+    
+    Returns:
+    - List of movie_id (QIDs) that match the search criteria
+    """
+    if movie_df.empty:
+        return []
+    
+    if search_columns is None:
+        search_columns = ['title']
+    
+    # Validate that all search columns exist in the dataframe
+    missing_columns = [col for col in search_columns if col not in movie_df.columns]
+    if missing_columns:
+        raise ValueError(f"Columns not found in dataframe: {missing_columns}")
+    
+    if 'movie_id' not in movie_df.columns:
+        raise ValueError("DataFrame must contain 'movie_id' column")
+    
+    # Filter out rows with missing movie_id
+    df_filtered = movie_df[movie_df['movie_id'].notna()].copy()
+    
+    if df_filtered.empty:
+        return []
+    
+    # Create a mask that starts as all True
+    mask = pd.Series([True] * len(df_filtered), index=df_filtered.index)
+    
+    # For each keyword, check if it appears in any of the search columns
+    for keyword in keywords:
+        if not keyword or not keyword.strip():
+            continue
+            
+        keyword_clean = keyword.strip()
+        
+        # Create a column mask: True if keyword appears in any search column for that row
+        keyword_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
+        
+        for col in search_columns:
+            # Get non-null values in this column
+            col_data = df_filtered[col].astype(str)
+            
+            # Search for keyword in this column
+            if case_sensitive:
+                col_mask = col_data.str.contains(keyword_clean, na=False, regex=False)
+            else:
+                col_mask = col_data.str.contains(keyword_clean, na=False, regex=False, case=False)
+            
+            keyword_mask = keyword_mask | col_mask
+        
+        # Update overall mask: all keywords must match (AND logic)
+        mask = mask & keyword_mask
+    
+    # Get matching movie_ids
+    matching_movie_ids = df_filtered[mask]['movie_id'].unique().tolist()
+    
+    return matching_movie_ids
