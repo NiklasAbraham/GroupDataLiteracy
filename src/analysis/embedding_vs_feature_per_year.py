@@ -14,6 +14,7 @@ import seaborn as sns
 from pathlib import Path
 import sys
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 
 # Set up paths - navigate from src/analysis to data directory
 try:
@@ -180,7 +181,7 @@ print(f"After genre filtering: {len(all_movie_ids)} movies with known genres")
 print(f"Embedding shape: {all_embeddings.shape}")
 
 # Sample 5000 random points for visualization
-n_samples = 8000
+n_samples = 15_000
 sample_indices = np.random.choice(len(all_movie_ids), size=n_samples, replace=False)
 
 sampled_embeddings = all_embeddings[sample_indices]
@@ -212,7 +213,7 @@ scatter = plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1],
                      c=sampled_years, cmap='viridis', 
                      s=10, alpha=0.6, edgecolors='none')
 plt.colorbar(scatter, label='Year')
-plt.title('UMAP Visualization of Movie Embeddings Colored by Year', fontsize=16, fontweight='bold')
+plt.title(f'UMAP Visualization of Movie Embeddings Colored by Year of {START_YEAR} to {END_YEAR} with {n_samples} movies', fontsize=16, fontweight='bold')
 plt.xlabel('UMAP Dimension 1', fontsize=12)
 plt.ylabel('UMAP Dimension 2', fontsize=12)
 plt.grid(True, alpha=0.3)
@@ -243,7 +244,7 @@ for genre in unique_genres:
     plt.scatter(umap_embedding[mask, 0], umap_embedding[mask, 1], 
                c=[color_map[genre]], label=genre, s=10, alpha=0.6, edgecolors='none')
 
-plt.title('UMAP Visualization of Movie Embeddings Colored by Genre', fontsize=16, fontweight='bold')
+plt.title(f'UMAP Visualization of Movie Embeddings Colored by Genre with {n_samples} movies', fontsize=16, fontweight='bold')
 plt.xlabel('UMAP Dimension 1', fontsize=12)
 plt.ylabel('UMAP Dimension 2', fontsize=12)
 plt.grid(True, alpha=0.3)
@@ -256,7 +257,15 @@ print("Saved: umap_by_genre.png")
 
 # Create t-SNE reduction
 print("Computing t-SNE reduction...")
-tsne = TSNE(n_components=2, random_state=42, perplexity=30, max_iter=1000, verbose=1)
+# Parameters adjusted to increase separation between groups:
+# - early_exaggeration: Higher values (20-50) help separate groups in early iterations
+# - perplexity: For 15k samples, 30-50 is reasonable. Lower values (20-25) create more local structure
+# - learning_rate: Higher values (300-500) can help with separation
+# - max_iter: More iterations help convergence
+# - min_grad_norm: Lower values allow more fine-tuning
+tsne = TSNE(n_components=2, random_state=42, perplexity=55, 
+            early_exaggeration=30, learning_rate=500, 
+            max_iter=2000, min_grad_norm=1e-7, verbose=1)
 tsne_embedding = tsne.fit_transform(sampled_embeddings)
 
 print(f"t-SNE embedding shape: {tsne_embedding.shape}")
@@ -267,7 +276,7 @@ scatter = plt.scatter(tsne_embedding[:, 0], tsne_embedding[:, 1],
                      c=sampled_years, cmap='viridis', 
                      s=10, alpha=0.6, edgecolors='none')
 plt.colorbar(scatter, label='Year')
-plt.title('t-SNE Visualization of Movie Embeddings Colored by Year', fontsize=16, fontweight='bold')
+plt.title(f't-SNE Visualization of Movie Embeddings Colored by Year of {START_YEAR} to {END_YEAR} with {n_samples} movies', fontsize=16, fontweight='bold')
 plt.xlabel('t-SNE Dimension 1', fontsize=12)
 plt.ylabel('t-SNE Dimension 2', fontsize=12)
 plt.grid(True, alpha=0.3)
@@ -298,7 +307,7 @@ for genre in unique_genres:
     plt.scatter(tsne_embedding[mask, 0], tsne_embedding[mask, 1], 
                c=[color_map[genre]], label=genre, s=10, alpha=0.6, edgecolors='none')
 
-plt.title('t-SNE Visualization of Movie Embeddings Colored by Genre', fontsize=16, fontweight='bold')
+plt.title(f't-SNE Visualization of Movie Embeddings Colored by Genre with {n_samples} movies', fontsize=16, fontweight='bold')
 plt.xlabel('t-SNE Dimension 1', fontsize=12)
 plt.ylabel('t-SNE Dimension 2', fontsize=12)
 plt.grid(True, alpha=0.3)
@@ -308,6 +317,86 @@ plt.savefig(os.path.join(DATA_DIR, 'tsne_by_genre.png'), dpi=300, bbox_inches='t
 # plt.show()
 
 print("Saved: tsne_by_genre.png")
+
+# Create PCA reduction
+print("Computing PCA reduction...")
+pca = PCA(n_components=20, random_state=42)
+pca_embedding = pca.fit_transform(sampled_embeddings)
+
+print(f"PCA embedding shape: {pca_embedding.shape}")
+print(f"Explained variance ratio (first 20 components): {pca.explained_variance_ratio_[:20].sum():.4f}")
+
+# Plot 5: PCA colored by year with gradient
+plt.figure(figsize=(14, 10))
+scatter = plt.scatter(pca_embedding[:, 0], pca_embedding[:, 1], 
+                     c=sampled_years, cmap='viridis', 
+                     s=10, alpha=0.6, edgecolors='none')
+plt.colorbar(scatter, label='Year')
+plt.title(f'PCA Visualization of Movie Embeddings Colored by Year of {START_YEAR} to {END_YEAR} with {n_samples} movies', fontsize=16, fontweight='bold')
+plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]*100:.2f}% variance)', fontsize=12)
+plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]*100:.2f}% variance)', fontsize=12)
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig(os.path.join(DATA_DIR, 'pca_by_year.png'), dpi=300, bbox_inches='tight')
+# plt.show()
+
+print("Saved: pca_by_year.png")
+
+# Plot 6: PCA colored by genre
+plt.figure(figsize=(16, 12))
+
+# Get unique genres and assign colors (reuse the same color map from previous plots)
+unique_genres = sorted(set(sampled_genres))
+n_genres = len(unique_genres)
+
+# Use a colormap with enough colors
+colors = plt.cm.tab20(np.linspace(0, 1, 20))
+if n_genres > 20:
+    # Cycle through colors if we have more than 20 genres
+    color_map = {genre: colors[i % 20] for i, genre in enumerate(unique_genres)}
+else:
+    color_map = {genre: colors[i] for i, genre in enumerate(unique_genres)}
+
+# Plot each genre with its color
+for genre in unique_genres:
+    mask = np.array(sampled_genres) == genre
+    plt.scatter(pca_embedding[mask, 0], pca_embedding[mask, 1], 
+               c=[color_map[genre]], label=genre, s=10, alpha=0.6, edgecolors='none')
+
+plt.title(f'PCA Visualization of Movie Embeddings Colored by Genre with {n_samples} movies', fontsize=16, fontweight='bold')
+plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]*100:.2f}% variance)', fontsize=12)
+plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]*100:.2f}% variance)', fontsize=12)
+plt.grid(True, alpha=0.3)
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+plt.tight_layout()
+plt.savefig(os.path.join(DATA_DIR, 'pca_by_genre.png'), dpi=300, bbox_inches='tight')
+# plt.show()
+
+print("Saved: pca_by_genre.png")
+
+# Plot 7: PCA explained variance bar plot for first 20 dimensions
+plt.figure(figsize=(14, 8))
+explained_var = pca.explained_variance_ratio_[:20]
+dimensions = range(1, 21)
+bars = plt.bar(dimensions, explained_var * 100, alpha=0.7, color='steelblue', edgecolor='black')
+plt.xlabel('Principal Component', fontsize=12)
+plt.ylabel('Explained Variance (%)', fontsize=12)
+plt.title('PCA Explained Variance for First 20 Dimensions', fontsize=16, fontweight='bold')
+plt.xticks(dimensions)
+plt.grid(True, alpha=0.3, axis='y')
+plt.tight_layout()
+
+# Add value labels on top of bars
+for i, (bar, var) in enumerate(zip(bars, explained_var)):
+    height = bar.get_height()
+    plt.text(bar.get_x() + bar.get_width()/2., height,
+             f'{var*100:.2f}%',
+             ha='center', va='bottom', fontsize=8)
+
+plt.savefig(os.path.join(DATA_DIR, 'pca_explained_variance.png'), dpi=300, bbox_inches='tight')
+# plt.show()
+
+print("Saved: pca_explained_variance.png")
 
 print("Analysis complete!")
 print(f"\nSummary:")
@@ -320,4 +409,7 @@ print(f"  {os.path.join(DATA_DIR, 'umap_by_year.png')}")
 print(f"  {os.path.join(DATA_DIR, 'umap_by_genre.png')}")
 print(f"  {os.path.join(DATA_DIR, 'tsne_by_year.png')}")
 print(f"  {os.path.join(DATA_DIR, 'tsne_by_genre.png')}")
+print(f"  {os.path.join(DATA_DIR, 'pca_by_year.png')}")
+print(f"  {os.path.join(DATA_DIR, 'pca_by_genre.png')}")
+print(f"  {os.path.join(DATA_DIR, 'pca_explained_variance.png')}")
 
