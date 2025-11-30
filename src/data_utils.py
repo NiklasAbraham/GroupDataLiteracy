@@ -331,7 +331,9 @@ def _load_all_data_with_embeddings(
     metadata_df = load_movie_data(data_dir, verbose=verbose)
     combined_df = pd.merge(metadata_df, embeddings_df, on="movie_id", how="inner")
 
-    return combined_df
+    genres_clustered_df = cluster_genres(combined_df)
+
+    return genres_clustered_df
 
 
 def load_movie_data_limited(
@@ -545,3 +547,22 @@ def search_movies_by_keywords(
     matching_movie_ids = df_filtered[mask]['movie_id'].unique().tolist()
     
     return matching_movie_ids
+
+def expand_by_genre(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Takes a DataFrame with a 'new_genre' column containing codes separated
+    by '|' and duplicates the movie rows so that each genre code gets its
+    own row.
+
+    Parameters:
+    - df (pd.DataFrame): The input DataFrame.
+
+    Returns:
+    - pd.DataFrame: A new DataFrame with expanded rows, where the
+                    'new_genre' column holds only one code per row.
+    """
+    df_expanded = df.copy()
+    df_expanded['new_genre'] = df_expanded['new_genre'].str.split('|')
+    df_expanded = df_expanded.explode('new_genre')
+
+    return df_expanded
