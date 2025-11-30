@@ -19,6 +19,7 @@ from tqdm import tqdm
 import wikipediaapi
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
 
 import sys
 from pathlib import Path
@@ -27,7 +28,7 @@ from pathlib import Path
 base_path = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(base_path))
 
-from src.data_utils import load_movie_data
+from src.data_utils import load_movie_data, preprocess_genres
 from src.api.wikipedia_handler import get_page_from_url
 from src.data_cleaning import clean_dataset
 
@@ -59,6 +60,44 @@ def extract_unique_genres(movie_df: pd.DataFrame) -> List[str]:
     unique_genres = list(set(split_genres))
     
     return unique_genres
+
+
+def extract_genre_to_id_mapping(movie_df: pd.DataFrame) -> Dict[str, str]:
+    """
+    Extract mapping from genre names to their Wikidata IDs (wids).
+    
+    Parameters:
+    - movie_df: DataFrame with 'genre' and 'genre_id' columns
+    
+    Returns:
+    - Dictionary mapping genre -> genre_id (comma-separated if multiple IDs)
+    """
+    if "genre" not in movie_df.columns or "genre_id" not in movie_df.columns:
+        return {}
+    
+    genre_to_id = {}
+    
+    # Process rows with both genre and genre_id
+    for _, row in movie_df.iterrows():
+        if pd.isna(row.get('genre')) or pd.isna(row.get('genre_id')):
+            continue
+        
+        genres = [g.strip() for g in str(row['genre']).split(",")]
+        genre_ids = [gid.strip() for gid in str(row['genre_id']).split(",")]
+        
+        # Match genres with their corresponding IDs
+        for i, genre in enumerate(genres):
+            if i < len(genre_ids):
+                genre_id = genre_ids[i]
+                # If genre already exists, append ID if different
+                if genre in genre_to_id:
+                    existing_ids = set(genre_to_id[genre].split(","))
+                    if genre_id not in existing_ids:
+                        genre_to_id[genre] = ",".join(sorted(existing_ids | {genre_id}))
+                else:
+                    genre_to_id[genre] = genre_id
+    
+    return genre_to_id
 
 
 def clean_description(description: str) -> str:
@@ -395,7 +434,8 @@ def save_genre_mapping(
 def print_genres_by_cluster(
     genre_df: pd.DataFrame,
     mapping_json_path: str = "src/genre_fix_mapping.json",
-    cluster_label_mapping: Optional[Dict[int, str]] = None
+    cluster_label_mapping: Optional[Dict[int, str]] = None,
+    genre_to_id: Optional[Dict[str, str]] = None
 ):
     """
     Print genres grouped by their cluster labels using the genre mapping from data_utils.py.
@@ -404,6 +444,7 @@ def print_genres_by_cluster(
     - genre_df: DataFrame with 'genre' and 'cluster' columns
     - mapping_json_path: Path to the genre mapping JSON file
     - cluster_label_mapping: Optional mapping from cluster ID to label name (for display)
+    - genre_to_id: Optional mapping from genre name to Wikidata ID (wid)
     """
     # Load genre mapping from JSON file (same as data_utils.py)
     try:
@@ -472,10 +513,226 @@ def print_genres_by_cluster(
             display_label = f"Cluster {cluster_label}"
         
         print(f"\n{display_label}:")
-        print(f"  {', '.join(genres)}")
+        # Format genres with IDs if available
+        if genre_to_id:
+            genre_strings = []
+            for genre in genres:
+                if genre in genre_to_id:
+                    genre_strings.append(f"{genre} ({genre_to_id[genre]})")
+                else:
+                    genre_strings.append(genre)
+            print(f"  {', '.join(genre_strings)}")
+        else:
+            print(f"  {', '.join(genres)}")
         print(f"  ({len(genres)} genres)")
     
     print("=" * 80)
+
+
+def count_movies_by_cluster(
+    movie_df: pd.DataFrame,
+    mapping_json_path: str = "src/genre_fix_mapping_new.json",
+    cluster_label_mapping: Optional[Dict[int, str]] = None
+) -> Dict[str, int]:
+    """
+    Count how many movies are in each cluster/genre classification using the genre mapping.
+    
+    Parameters:
+    - movie_df: DataFrame with 'genre' column
+    - mapping_json_path: Path to the genre mapping JSON file
+    - cluster_label_mapping: Optional mapping from cluster ID to label name (for display)
+    
+    Returns:
+    - Dictionary mapping cluster_label -> count of movies
+    """
+    if "genre" not in movie_df.columns:
+        raise ValueError("DataFrame must have 'genre' column")
+    
+    # Apply preprocess_genres to get new genre classifications
+    print("\nApplying genre mapping to movies...")
+    movie_df = movie_df.copy()
+    movie_df['new_genre'] = movie_df['genre'].apply(preprocess_genres)
+    
+    # Count movies per cluster
+    # Since a movie can have multiple genres (separated by |), we need to count each occurrence
+    cluster_counts = {}
+    unique_movie_counts = {}  # Count unique movies per cluster
+    
+    for _, row in movie_df.iterrows():
+        new_genre = row['new_genre']
+        
+        # Skip Unknown genres
+        if new_genre == "Unknown" or pd.isna(new_genre):
+            continue
+        
+        # Split by | to get individual cluster labels
+        cluster_labels = new_genre.split("|")
+        
+        # Track unique clusters for this movie
+        movie_clusters = set()
+        
+        for cluster_label in cluster_labels:
+            cluster_label = cluster_label.strip()
+            if not cluster_label:
+                continue
+            
+            # Count total occurrences
+            cluster_counts[cluster_label] = cluster_counts.get(cluster_label, 0) + 1
+            movie_clusters.add(cluster_label)
+        
+        # Count unique movies per cluster
+        # Use movie_id if available, otherwise use index
+        movie_identifier = row.get('movie_id') if 'movie_id' in row and pd.notna(row.get('movie_id')) else row.name
+        
+        for cluster_label in movie_clusters:
+            if cluster_label not in unique_movie_counts:
+                unique_movie_counts[cluster_label] = set()
+            unique_movie_counts[cluster_label].add(movie_identifier)
+    
+    # Convert unique movie sets to counts
+    unique_movie_counts_final = {k: len(v) for k, v in unique_movie_counts.items()}
+    
+    return cluster_counts, unique_movie_counts_final
+
+
+def print_movie_counts_by_cluster(
+    cluster_counts: Dict[str, int],
+    unique_movie_counts: Dict[str, int],
+    cluster_label_mapping: Optional[Dict[int, str]] = None
+):
+    """
+    Print movie counts per cluster.
+    
+    Parameters:
+    - cluster_counts: Dictionary mapping cluster_label -> total count (including duplicates from multi-genre movies)
+    - unique_movie_counts: Dictionary mapping cluster_label -> unique movie count
+    - cluster_label_mapping: Optional mapping from cluster ID to label name (for display)
+    """
+    print("\n" + "=" * 80)
+    print("Movie Counts by Cluster (using new genre mapping):")
+    print("=" * 80)
+    
+    # Sort cluster labels (try as int first, then as string)
+    def sort_key(label):
+        try:
+            return int(label)
+        except ValueError:
+            return float('inf')
+    
+    sorted_labels = sorted(cluster_counts.keys(), key=sort_key)
+    
+    print(f"\n{'Cluster Label':<20} {'Total Count':<15} {'Unique Movies':<15}")
+    print("-" * 80)
+    
+    total_movies = 0
+    total_unique = 0
+    
+    for cluster_label in sorted_labels:
+        total_count = cluster_counts[cluster_label]
+        unique_count = unique_movie_counts.get(cluster_label, 0)
+        total_movies += total_count
+        total_unique += unique_count
+        
+        # Create display label
+        if cluster_label_mapping:
+            try:
+                cluster_id = int(cluster_label)
+                if cluster_id in cluster_label_mapping:
+                    display_label = f"{cluster_label} ({cluster_label_mapping[cluster_id]})"
+                else:
+                    display_label = cluster_label
+            except ValueError:
+                display_label = cluster_label
+        else:
+            display_label = cluster_label
+        
+        print(f"{display_label:<20} {total_count:<15} {unique_count:<15}")
+    
+    print("-" * 80)
+    print(f"{'TOTAL':<20} {total_movies:<15} {total_unique:<15}")
+    print("=" * 80)
+    print("\nNote: Total Count includes duplicates (movies with multiple genres).")
+    print("      Unique Movies counts each movie only once per cluster.")
+
+
+def plot_movie_counts_by_cluster(
+    cluster_counts: Dict[str, int],
+    unique_movie_counts: Dict[str, int],
+    cluster_label_mapping: Optional[Dict[int, str]] = None,
+    figsize: Tuple[int, int] = (14, 8)
+):
+    """
+    Plot movie counts per cluster.
+    
+    Parameters:
+    - cluster_counts: Dictionary mapping cluster_label -> total count
+    - unique_movie_counts: Dictionary mapping cluster_label -> unique movie count
+    - cluster_label_mapping: Optional mapping from cluster ID to label name (for display)
+    - figsize: Figure size tuple
+    """
+    # Sort cluster labels
+    def sort_key(label):
+        try:
+            return int(label)
+        except ValueError:
+            return float('inf')
+    
+    sorted_labels = sorted(cluster_counts.keys(), key=sort_key)
+    
+    # Prepare data for plotting
+    labels = []
+    total_counts = []
+    unique_counts = []
+    
+    for cluster_label in sorted_labels:
+        # Create display label
+        if cluster_label_mapping:
+            try:
+                cluster_id = int(cluster_label)
+                if cluster_id in cluster_label_mapping:
+                    display_label = f"{cluster_label}\n({cluster_label_mapping[cluster_id]})"
+                else:
+                    display_label = cluster_label
+            except ValueError:
+                display_label = cluster_label
+        else:
+            display_label = cluster_label
+        
+        labels.append(display_label)
+        total_counts.append(cluster_counts[cluster_label])
+        unique_counts.append(unique_movie_counts.get(cluster_label, 0))
+    
+    # Create figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # Plot 1: Bar chart of total counts
+    x_pos = np.arange(len(labels))
+    width = 0.6
+    ax1.bar(x_pos, total_counts, width, label='Total Count (with duplicates)', color='steelblue', alpha=0.7)
+    ax1.set_xlabel('Cluster Label', fontsize=12)
+    ax1.set_ylabel('Number of Movies', fontsize=12)
+    ax1.set_title('Total Movie Counts by Cluster\n(including duplicates from multi-genre movies)', fontsize=14, fontweight='bold')
+    ax1.set_xticks(x_pos)
+    ax1.set_xticklabels(labels, rotation=45, ha='right', fontsize=9)
+    ax1.legend()
+    ax1.grid(axis='y', alpha=0.3)
+    ax1.set_yscale('log')
+    
+    # Plot 2: Bar chart of unique movie counts
+    ax2.bar(x_pos, unique_counts, width, label='Unique Movies', color='coral', alpha=0.7)
+    ax2.set_xlabel('Cluster Label', fontsize=12)
+    ax2.set_ylabel('Number of Unique Movies', fontsize=12)
+    ax2.set_title('Unique Movie Counts by Cluster\n(each movie counted once per cluster)', fontsize=14, fontweight='bold')
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(labels, rotation=45, ha='right', fontsize=9)
+    ax2.legend()
+    ax2.grid(axis='y', alpha=0.3)
+    ax2.set_yscale('log')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    print("\nPlot displayed.")
 
 
 def classify_genres(
@@ -487,7 +744,7 @@ def classify_genres(
     cluster_label_mapping: Optional[Dict[int, str]] = None,
     random_state: int = 123,
     apply_data_cleaning: bool = True
-) -> Tuple[Dict[str, str], pd.DataFrame]:
+) -> Tuple[Dict[str, str], pd.DataFrame, Dict[str, str]]:
     """
     Main function to classify genres from movie dataframe.
     
@@ -510,9 +767,10 @@ def classify_genres(
     - apply_data_cleaning: Whether to apply data cleaning from data_cleaning.py (default: True)
     
     Returns:
-    - Tuple of (mapping_dict, genre_df_clustered):
+    - Tuple of (mapping_dict, genre_df_clustered, genre_to_id):
       - mapping_dict: Dictionary mapping genre -> cluster_label
       - genre_df_clustered: DataFrame with 'genre', 'cluster', and 'new_label' columns
+      - genre_to_id: Dictionary mapping genre -> Wikidata ID (wid)
     """
     print("=" * 60)
     print("Genre Classification Pipeline")
@@ -552,15 +810,20 @@ def classify_genres(
     print("\nStep 6: Saving genre mapping...")
     save_genre_mapping(mapping_dict, output_json_path)
     
-    # Step 7: Print genres by cluster
-    print("\nStep 7: Printing genres by cluster...")
-    print_genres_by_cluster(genre_df_clustered, output_json_path, cluster_label_mapping)
+    # Step 7: Extract genre to ID mapping
+    print("\nStep 7: Extracting genre to ID mapping...")
+    genre_to_id = extract_genre_to_id_mapping(movie_df)
+    print(f"Extracted IDs for {len(genre_to_id)} genres")
+    
+    # Step 8: Print genres by cluster
+    print("\nStep 8: Printing genres by cluster...")
+    print_genres_by_cluster(genre_df_clustered, output_json_path, cluster_label_mapping, genre_to_id)
 
     print("\n" + "=" * 60)
     print("Genre classification complete!")
     print("=" * 60)
     
-    return mapping_dict, genre_df_clustered
+    return mapping_dict, genre_df_clustered, genre_to_id
 
 
 if __name__ == "__main__":
@@ -585,14 +848,32 @@ if __name__ == "__main__":
     
     # Run classification (data cleaning is applied inside classify_genres)
     print("\nStarting genre classification...")
-    mapping_dict, genre_df_clustered = classify_genres(
+    mapping_dict, genre_df_clustered, genre_to_id = classify_genres(
         movie_df,
         descriptions_csv_path=descriptions_csv_path,
         output_json_path=output_json_path,
-        n_clusters=15,
+        n_clusters=25,
         apply_data_cleaning=True
     )
 
-    print_genres_by_cluster(genre_df_clustered, output_json_path)
+    print_genres_by_cluster(genre_df_clustered, output_json_path, None, genre_to_id)
+    
+    # Step 9: Count and plot movies by cluster
+    # Apply the same data cleaning that was used in classify_genres
+    print("\nStep 9: Counting movies by cluster...")
+    movie_df_for_counting = clean_dataset(movie_df.copy(), filter_single_genres=True)
+    print(f"Using {len(movie_df_for_counting)} movies for counting (after data cleaning)")
+    
+    cluster_label_mapping = None  # Can be set to a dict mapping cluster IDs to names if needed
+    cluster_counts, unique_movie_counts = count_movies_by_cluster(
+        movie_df_for_counting,
+        output_json_path,
+        cluster_label_mapping
+    )
+    
+    print_movie_counts_by_cluster(cluster_counts, unique_movie_counts, cluster_label_mapping)
+    
+    print("\nStep 10: Plotting movie counts by cluster...")
+    plot_movie_counts_by_cluster(cluster_counts, unique_movie_counts, cluster_label_mapping)
 
     

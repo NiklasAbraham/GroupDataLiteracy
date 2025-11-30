@@ -1,0 +1,68 @@
+\documentclass[a3paper,10pt]{article}
+\usepackage[landscape,margin=0.75in]{geometry}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+
+\begin{document}
+
+\section*{Genre Classification by Cluster}
+
+\begin{longtable}{cp{3cm}p{8cm}p{7cm}cc}
+\toprule
+\textbf{Cluster} & \textbf{Cluster Name} & \textbf{Genres} & \textbf{QIDs} & \textbf{Genre Count} & \textbf{Total Movies} \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}%
+{{\bfseries \tablename\ \thetable{} -- continued from previous page}} \\
+\toprule
+\textbf{Cluster} & \textbf{Cluster Name} & \textbf{Genres} & \textbf{QIDs} & \textbf{Genre Count} & \textbf{Total Movies} \\
+\midrule
+\endhead
+\midrule \multicolumn{6}{r}{{Continued on next page}} \\ \midrule
+\endfoot
+\bottomrule
+\endlastfoot
+0 & Action Crime \& Exploitation & Satanic film, Z movie, anti-war film, arthouse science fiction film, boxing film, buddy cop film, gangster film, ghost film, girls with guns, mafia comedy film, mafia film, ninja film, nunsploitation, outlaw biker film, poliziotteschi, prison film, psychedelic film, rape and revenge film, stoner film, superhero film, supernatural horror film, vigilante film, zombie film & Q18355406, Q1117103, Q4774498, Q108084492,Q2484376, Q895583, Q4984974, Q17013749,Q7444356, Q16702172,Q31888058, Q1776156, Q6729489, Q33130924, Q3745429, Q1377546, Q4075563, Q1740789, Q586250, Q21858363, Q1067324,Q2254193, Q457832, Q1535153, Q3634883,Q43911809, Q2642760, Q2724311,Q3072049 & 23 & 2807 \\
+\midrule
+1 & Satire \& Dark Comedy & absurdist fiction, black comedy, black comedy film, burlesque, comedy of manners, humor, parable, political satire, religious satire, satire, surreal humour, tragedy & Q1770859, Q53094, Q5778924, Q217117, Q222926, Q60548032, Q208555, Q7225114, Q7311396, Q128758, Q1092460, Q80930 & 12 & 366 \\
+\midrule
+2 & Action Western \& International & B movie, B western, Bollywood, Bruceploitation, Christmas film, Filmfarsi, Masala film, Ostern, Revisionist Western, Rumberas film, Spaghetti Western, Tamil cinema, Western, Western film, acid Western, action film, action thriller, action-adventure film, art film, auteur film, blaxploitation film, disaster film, epic film, heist film, heroic bloodshed, hood film, independent film, kung fu film, martial arts film, pirate film, race film, road movie, science fiction action film, splatter film & Q223770, Q4836991, Q93196, Q580013, Q17175676,Q28026639, Q5712461, Q3028680, Q26268098, Q491158, Q7379160, Q212781, Q926324, Q21590660, Q172980, Q4674071,Q638364, Q188473,Q200092,Q2143665,Q542475, Q3990883, Q78461348, Q1135802, Q13209138, Q883179, Q814158,Q846544, Q576131,Q652256, Q496523, Q622310, Q11304653,Q5897543, Q157394,Q240911,Q459290, Q3072042, Q1033891, Q2096633, Q2125170, Q628165, Q20656232, Q644437,Q909586 & 34 & 13383 \\
+\midrule
+3 & Horror \& Sci-Fi & Weird West, alien invasion, biopunk, body horror, body horror film, cyberpunk, gothic film, horror fiction, horror film, horror western, list of holiday horror films, monster film, natural horror film, psychological horror, psychological horror film, religious horror, science fiction horror film, slasher film, space Western, space opera, surrealist cinema, vampire film, werewolf film, white savior film & Q775169, Q2447078, Q1077883, Q3641550, Q102260466, Q174526, Q5769663, Q16575965, Q157394,Q200092,Q319221, Q108280930, Q20649626, Q1065444,Q1342372,Q2973181, Q109626272, Q604725, Q109629396, Q123291714, Q10663882, Q531067,Q853630, Q4235011, Q468478, Q1190502, Q2137852, Q5258881, Q132803402 & 24 & 7139 \\
+\midrule
+4 & Exploitation \& Erotic & Bavarian porn, Nazi exploitation, Redsploitation, cannibal film, cartoon pornography, erotic film, erotic thriller, erotic thriller film, exploitation film, pink film, pornographic film, pornographic parody film, psycho-biddy, sex film, sexploitation film, softcore pornography, women in prison film & Q84041, Q535518, Q66425231, Q1723850, Q4373044, Q599558, Q2254193,Q2439025,Q317309, Q109733294, Q1067324,Q909586, Q1194365, Q185529, Q16254232, Q7256286, Q2275499, Q2292320, Q2000136, Q583768 & 17 & 1381 \\
+\midrule
+5 & Adventure \& Fantasy & Christian fiction, bildungsroman, children's literature, robinsonade, swashbuckler film, sword and sorcery, sword and sorcery film, wuxia, wuxia film & Q100339660, Q223945, Q131539, Q279060, Q222639, Q1999690, Q130130466, Q754803, Q15858553 & 9 & 233 \\
+\midrule
+6 & Romance & love, romance, romance film, romantic comedy, romantic comedy film, romantic drama, romantic drama film, romantic fantasy, romantic fiction & Q316, Q599510,Q738473, Q1047337,Q1054574,Q860626, Q226730,Q860626, Q118612349, Q3038946, Q117536422, Q930383, Q19765983 & 9 & 9402 \\
+\midrule
+7 & Anime & adventure anime, drama anime, fantasy anime, mystery anime, romance anime, science fiction anime & Q104536870, Q104536994, Q104536896, Q104623091, Q104536771, Q103925569 & 6 & 53 \\
+\midrule
+8 & Fantasy \& Sci-Fi & adaptation, alternate history, apocalyptic film, crossover fiction, dark fantasy, dieselpunk, dystopia, dystopian fiction, dystopian film, epic poem, fairy tale, fantasy, fantasy film, film adaptation, high fantasy, historical fiction, military science fiction, mythology, nonlinear narrative, post-apocalyptic fiction, post-apocalyptic film, psychological film, retrofuturism, science fantasy, science fiction, science fiction film, speculative fiction, speculative fiction film, steampunk, supernatural, supernatural fiction, supernatural film, technofantasy, urban fantasy & Q1213562, Q224989, Q47009776, Q21192427, Q200092,Q794912, Q2376899, Q180774, Q15062348, Q20443008,Q2484376, Q37484, Q699, Q132311, Q157394,Q188473,Q52162262,Q83440,Q859369, Q1257444, Q326439, Q1196408, Q904447, Q9134, Q2894685, Q197949, Q1341051, Q122360343, Q919036, Q1080374, Q24925, Q130232,Q1342372,Q471839, Q1782964,Q9326077, Q130232,Q2973181, Q223685, Q80837, Q7644030, Q2975633,Q3634883, Q20819599, Q1188977 & 34 & 6911 \\
+\midrule
+9 & Family Youth \& War & beach party film, buddy film, chick flick, children's film, coming-of-age film, family film, female buddy film, partisan film, social guidance film, social problem film, sport film, sports drama, submarine film, surf film, survival film, teen film, war film & Q4875794, Q663106, Q2075808, Q188473,Q2143665, Q102429885,Q15428604,Q18450913, Q1361932, Q5442753, Q3442060, Q7551149, Q7551315, Q1339864, Q117830868, Q1615638, Q7645884, Q15898171, Q1146335,Q130232, Q369747,Q645928 & 17 & 6513 \\
+\midrule
+10 & Comedy & action comedy film, comedy, comedy drama, comedy film, comedy horror, comedy horror film, comedy of remarriage, comedy thriller, comics, commedia all'italiana, commedia sexy all'italiana, fantasy comedy, fantasy comedy film, farce, parody, parody film, science fiction comedy, screwball comedy film, sex comedy, sitcom, slapstick, slapstick film, stand-up comedy, tragicomedy, zombie comedy & Q1760610,Q2059703,Q2678111, Q40831, Q157394,Q859369, Q157443, Q224700, Q108466999,Q853630, Q5151497, Q16950433, Q1004, Q1115187, Q2991565, Q1159671,Q1637212, Q95440291, Q193979, Q170539, Q622548, Q761469, Q248583, Q2991560, Q170238, Q624771, Q17112331, Q145806, Q192881, Q1747837 & 25 & 19227 \\
+\midrule
+11 & Adventure Music \& Diverse & Eastern, Quinqui, adventure, adventure film, children's music, coming of age, gore, harem, jazz, martial art, mysticism, pop music, world music, yuri & Q1278107, Q3677206, Q1436734, Q147516,Q319221,Q471839,Q52207399, Q2389651, Q681737, Q1538137, Q690342, Q8341, Q11417, Q16861950, Q11399,Q37073, Q205049, Q320568 & 14 & 3557 \\
+\midrule
+12 & Documentary Animation \& Educational & Christian film, animated documentary, animated film, animation, collage film, concert film, dance film, educational film, interactive film, live action, live-action/animated film, medieval film, political film, rockumentary, screenlife, social film, television adaptation, television film & Q110324066,Q115122793, Q4765076, Q202866, Q11425, Q5145881, Q430525, Q3072043, Q596138, Q1635956, Q517386, Q25110269,Q7832972,Q870889, Q3327002, Q2973201, Q1800833, Q60753838, Q7551110, Q101716172, Q506240 & 18 & 773 \\
+\midrule
+13 & Biographical & autobiography, biographical drama film, biographical film, biography, jukebox musical, slice of life & Q4184, Q104559206, Q2421031,Q645928, Q36279, Q643684, Q2561438 & 6 & 2502 \\
+\midrule
+14 & Film Noir & French New Wave, film noir, neo-noir, noir fiction, queer film, tech noir & Q193541, Q185867, Q1494434,Q2421031,Q5897543, Q26221026, Q114079176,Q128149892, Q1894374 & 6 & 1194 \\
+\midrule
+15 & Drama & docudrama, drama, drama film, drama television series, family drama, family drama film, fantasy drama, historical drama, historical drama film, historical film, history, legal drama, medical drama, melodrama, period drama film, period film, political drama, psychological drama, psychological drama film, war drama & Q622370, Q25372, Q130232,Q157394,Q369747,Q44342,Q471839,Q8434,Q959790, Q1366112, Q29621749, Q65224847, Q110024700, Q7168625, Q114413232,Q116514801,Q188473, Q113485322,Q16976178,Q17013749,Q474090,Q603291, Q309, Q643873, Q1786567, Q191489,Q1919632, Q542475,Q959790, Q116513497, Q7210294, Q108102008, Q2439025,Q63214877, Q116456802 & 21 & 33391 \\
+\midrule
+16 & Crime \& Thriller & action fiction, crime, crime comedy film, crime drama film, crime fiction, crime film, crime literature, crime thriller film, detective fiction, detective film, financial thriller, giallo, legal thriller, mystery fiction, mystery film, police film, police procedural, police procedural film, political thriller, political thriller film, psychological thriller, psychological thriller film, romantic thriller, spy film, suspense, suspense film, techno-thriller, thriller, thriller film, trial film, true crime & Q1762165, Q83267, Q1788980, Q113485322,Q130232,Q19367312, Q5937792, Q2484376,Q959790, Q20664530, Q116514801,Q12049743,Q1321123,Q19367312, Q186424, Q25533274, Q1864294, Q1332055, Q2490520, Q6585139, Q1128592,Q1200678, Q2101714, Q2321734, Q109733630, Q622291, Q109733333, Q242488,Q590103, Q107397740,Q109733304,Q52207399,Q63214877, Q7362831, Q2297927, Q9503, Q11304653,Q19367312, Q580850, Q182015, Q1141200,Q1200678,Q1341831,Q1342372,Q2116008,Q2439025,Q2484376,Q3072039,Q650118,Q7444356, Q130232,Q3072039, Q3541116 & 31 & 13329 \\
+\midrule
+17 & Documentary Experimental \& Film History & Heimatfilm, Turksploitation, anthology film, compilation film, docufiction film, documentary film, environmental film, essay film, ethnofiction, experimental film, fan film, fiction, fiction film, film score, filmi music, found footage, miniseries, mockbuster, mockumentary, mondo film, nature documentary, propaganda film, pseudo-documentary, puppet film, rubble film, short film, silent film, sound film, soundtrack, talk show, television documentary & Q304538, Q1092361, Q336144, Q455315, Q472637, Q27406,Q37073,Q93204, Q112633637, Q11356864, Q3059309, Q459290,Q790192, Q2301591, Q8253, Q12912091, Q492264, Q544440, Q2484376,Q3272147, Q1259759, Q1941707, Q459435, Q1474387, Q1760864, Q1935609, Q8812380, Q10475300,Q3745424, Q882006, Q24862, Q226730,Q39818, Q848512, Q107736421, Q622812, Q7603925 & 31 & 4796 \\
+\midrule
+18 & Japanese Media & J-pop, Japanese horror, Jidaigeki, adult animation, anime, anime film, ecchi, hentai, isekai, kaiju, magical girl, mecha, samurai cinema, tokusatsu, yakuza film & Q131578, Q2584671, Q629917, Q3249257, Q1107, Q20650540, Q219559, Q172067, Q53911753, Q1065444,Q846544, Q752321, Q4292083,Q858784, Q169672, Q275934, Q731194 & 15 & 353 \\
+\midrule
+19 & Musical & musical, musical comedy, musical film, opera, opera film, operetta, vaudeville & Q2743, Q1548170, Q49451,Q842256, Q1344, Q16909344, Q170384, Q186286 & 7 & 3378 \\
+\bottomrule
+\end{longtable}
+
+\end{document}
