@@ -323,6 +323,16 @@ def calculate_drift_vector(row):
     except TypeError:
         return np.nan
 
+def compute_simple_difference(row):
+    """Computes the simple difference: (Value at t+1) - (Value at t) (Acceleration)."""
+    val_t = row['drift_distance']
+    val_t_plus_1 = row['next_drift_distance']
+
+    if pd.isna(val_t_plus_1):
+        return np.nan
+
+    return val_t_plus_1 - val_t
+
 def compute_cosine_similarity_variance(embeddings: np.ndarray, n_samples: int = 5000, random_state: int = 42, abtt_pc: int = 0) -> Dict[str, float]:
     """
     Compute variance and statistics of cosine similarity across all pairs of embeddings.

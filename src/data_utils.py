@@ -548,6 +548,7 @@ def search_movies_by_keywords(
     
     return matching_movie_ids
 
+
 def expand_by_genre(df: pd.DataFrame) -> pd.DataFrame:
     """
     Takes a DataFrame with a 'new_genre' column containing codes separated
@@ -566,3 +567,21 @@ def expand_by_genre(df: pd.DataFrame) -> pd.DataFrame:
     df_expanded = df_expanded.explode('new_genre')
 
     return df_expanded
+
+def map_genre_ids_to_strings(df: pd.DataFrame, genre_strings_json) -> pd.DataFrame:
+        dict = json.load(open(genre_strings_json))
+        df['new_genre'] = df['new_genre'].map(dict)
+        df.dropna(subset=['new_genre'], inplace=True)
+
+        return df
+
+def keep_top_n_genres(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
+    genre_counts = df['genre'].value_counts()
+    top_n_genres = genre_counts.head(n).index.tolist()
+    df['top_genre'] = df['genre'].isin(top_n_genres)
+    df = df[df['top_genre']]
+    df = df.drop(columns=['top_genre'])
+
+    return df
+
+
