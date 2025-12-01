@@ -33,12 +33,17 @@ WRONG_WIKIDATA_CLASSES = {
     "Q7889", # video game
 }
 
-def filter_non_movies(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH) -> pd.DataFrame:
+async def filter_non_movies(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH, new_event_loop: bool = True) -> pd.DataFrame:
     if os.path.exists(wrong_classes_save_path):
         with open(wrong_classes_save_path, 'r') as f:
             wrong_classes = set(json.load(f))
     else:
-        wrong_classes = asyncio.run(get_wikidata_subclasses(WRONG_WIKIDATA_CLASSES))
+        if new_event_loop:
+            wrong_classes = asyncio.run(get_wikidata_subclasses(WRONG_WIKIDATA_CLASSES))
+        else:
+            wrong_classes = await get_wikidata_subclasses(WRONG_WIKIDATA_CLASSES)
+
+        os.makedirs(os.path.dirname(wrong_classes_save_path), exist_ok=True)
         with open(wrong_classes_save_path, 'w') as f:
             json.dump(list(wrong_classes), f)
 
@@ -100,13 +105,13 @@ def filter_movies_with_single_occurrence_genres(df: pd.DataFrame) -> pd.DataFram
     df_copy['genre'] = df_copy['genre'].apply(remove_single_occurrence_genres)
     return df_copy
 
-def clean_dataset(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH, max_plot_length: int = MAX_PLOT_LENGTH, filter_single_genres: bool = True) -> pd.DataFrame:
+async def clean_dataset(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH, max_plot_length: int = MAX_PLOT_LENGTH, filter_single_genres: bool = True, new_event_loop: bool = True) -> pd.DataFrame:
     df['duration'] = pd.to_numeric(df['duration'], errors='coerce')
 
     print(f"Original dataset size: {len(df)}")
     df_filtered = filter_movies_without_plot(df)
     print(f"After filtering movies without plot: {len(df_filtered)}")
-    df_filtered = filter_non_movies(df_filtered, wrong_classes_save_path=wrong_classes_save_path)
+    df_filtered = await filter_non_movies(df_filtered, wrong_classes_save_path=wrong_classes_save_path, new_event_loop=new_event_loop)
     print(f"After filtering non-movies: {len(df_filtered)}")
     
     if filter_single_genres:
