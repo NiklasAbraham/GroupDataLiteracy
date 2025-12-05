@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SRC_DIR = BASE_DIR / 'src'
 sys.path.insert(0, str(SRC_DIR))
 
-from data_utils import load_movie_data
+from data_utils import load_final_dataset
 from embedding.embedding import EmbeddingService
 from concept_words.concept_extraction_dense import (
     extract_concepts_from_dense_embedding,
@@ -21,6 +21,7 @@ from concept_words.concept_space import get_concept_space_filenames
 
 # Configuration
 DATA_DIR = str(BASE_DIR / "data" / "data_final")  # Movie data location
+CSV_PATH = str(BASE_DIR / "data" / "data_final" / "final_dataset.csv")  # Movie CSV path
 CONCEPT_DIR = BASE_DIR / "data" / "concept_space"  # Concept space folder location
 MODEL_NAME = "BAAI/bge-m3"
 TARGET_DEVICES = ['cuda:0']
@@ -30,7 +31,7 @@ TARGET_DEVICES = ['cuda:0']
 def main():
     """Example usage of dense embedding concept extraction."""
     # Load data
-    df = load_movie_data(DATA_DIR, verbose=True)
+    df = load_final_dataset(CSV_PATH, verbose=True)
     df = df[df['plot'].notna() & (df['plot'].str.len() > 2000)].copy()
     
     # Select a random movie

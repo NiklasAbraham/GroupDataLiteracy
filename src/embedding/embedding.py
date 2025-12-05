@@ -10,17 +10,7 @@ using various embedding model libraries.
 import logging
 import numpy as np
 
-# Handle imports - try relative import first, then absolute
-try:
-    from .models import AbstractEmbeddingStrategy, get_embedding_strategy
-except ImportError:
-    try:
-        from models import AbstractEmbeddingStrategy, get_embedding_strategy
-    except ImportError:
-        import sys
-        import os
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from embedding.models import AbstractEmbeddingStrategy, get_embedding_strategy
+from .models import AbstractEmbeddingStrategy, get_embedding_strategy
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,

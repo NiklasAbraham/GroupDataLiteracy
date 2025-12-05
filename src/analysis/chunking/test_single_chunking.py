@@ -19,12 +19,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 SRC_DIR = BASE_DIR / 'src'
 sys.path.insert(0, str(SRC_DIR))
 
-from data_utils import load_movie_data
+from data_utils import load_final_dataset
 from analysis.chunking.chunk_late_chunking import LateChunking
 from embedding.embedding import EmbeddingService
 from transformers import AutoTokenizer
 
-DATA_DIR = str(BASE_DIR / "data")
+DATA_DIR = str(BASE_DIR / "data" / "data_final")
+CSV_PATH = str(BASE_DIR / "data" / "data_final" / "final_dataset.csv")
 MODEL_NAME = "BAAI/bge-m3"
 WINDOW_SIZE = 512
 STRIDE = 256
@@ -434,7 +435,7 @@ def extract_top_concepts(text, lexical_weights, tokenizer, nlp, concept_embedder
     return [(concepts[i], concept_scores[i]) for i in ranked[:top_k] if concept_scores[i] > 0]
 
 if __name__ == '__main__':
-    df = load_movie_data(DATA_DIR, verbose=True)
+    df = load_final_dataset(CSV_PATH, verbose=True)
     df = df[df['plot'].notna() & (df['plot'].str.len() > 2000)].copy()
 
     random_movie = df.sample(n=1, random_state=41).iloc[0]

@@ -72,22 +72,22 @@ async def get_movie_by_wiki_id(
                 return data
             elif response.status == 404:
                 if verbose:
-                    print(f"✗ Movie Wiki ID {wiki_id}: Not found")
+                    print(f"Movie Wiki ID {wiki_id}: Not found")
                 return None
             elif response.status == 429:
                 if verbose:
-                    print(f"✗ Movie Wiki ID {wiki_id}: Rate limit exceeded, waiting...")
+                    print(f"Movie Wiki ID {wiki_id}: Rate limit exceeded, waiting...")
                 await asyncio.sleep(10)
                 return await get_movie_by_wiki_id(session, wiki_id, api_key, verbose)
             else:
                 if verbose:
                     error_text = await response.text()
                     print(
-                        f"✗ Movie Wiki ID {wiki_id}: HTTP Error {response.status} - {error_text}"
+                        f"Movie Wiki ID {wiki_id}: HTTP Error {response.status} - {error_text}"
                     )
     except Exception as e:
         if verbose:
-            print(f"✗ Movie Wiki ID {wiki_id}: Error - {e}")
+            print(f"Movie Wiki ID {wiki_id}: Error - {e}")
 
     return None
 
@@ -127,11 +127,11 @@ async def get_movie_by_id(
                 return data
             elif response.status == 404:
                 if verbose:
-                    print(f"✗ Movie ID {movie_id}: Not found")
+                    print(f"Movie ID {movie_id}: Not found")
                 return None
             elif response.status == 429:
                 if verbose:
-                    print(f"✗ Movie ID {movie_id}: Rate limit exceeded, waiting...")
+                    print(f"Movie ID {movie_id}: Rate limit exceeded, waiting...")
                 await asyncio.sleep(10)
                 return await get_movie_by_id(
                     session, movie_id, api_key, include_additional, verbose
@@ -140,11 +140,11 @@ async def get_movie_by_id(
                 if verbose:
                     error_text = await response.text()
                     print(
-                        f"✗ Movie ID {movie_id}: HTTP Error {response.status} - {error_text}"
+                        f"Movie ID {movie_id}: HTTP Error {response.status} - {error_text}"
                     )
     except Exception as e:
         if verbose:
-            print(f"✗ Movie ID {movie_id}: Error - {e}")
+            print(f"Movie ID {movie_id}: Error - {e}")
 
     return None
 
@@ -186,18 +186,18 @@ async def search_movies(
                 return data.get("results", [])
             elif response.status == 429:
                 if verbose:
-                    print(f"✗ Search '{query}': Rate limit exceeded, waiting...")
+                    print(f"Search '{query}': Rate limit exceeded, waiting...")
                 await asyncio.sleep(10)
                 return await search_movies(session, query, api_key, year, page, verbose)
             else:
                 if verbose:
                     error_text = await response.text()
                     print(
-                        f"✗ Search '{query}': HTTP Error {response.status} - {error_text}"
+                        f"Search '{query}': HTTP Error {response.status} - {error_text}"
                     )
     except Exception as e:
         if verbose:
-            print(f"✗ Search '{query}': Error - {e}")
+            print(f"Search '{query}': Error - {e}")
 
     return []
 
@@ -264,23 +264,23 @@ async def get_movies_by_year(
 
                 elif response.status == 429:
                     if verbose:
-                        print(f"✗ {year}: Rate limit exceeded, waiting...")
+                        print(f"{year}: Rate limit exceeded, waiting...")
                     await asyncio.sleep(10)
                     continue
                 else:
                     if verbose:
                         error_text = await response.text()
-                        print(f"✗ {year}: HTTP Error {response.status} - {error_text}")
+                        print(f"{year}: HTTP Error {response.status} - {error_text}")
                     break
 
         if verbose:
-            print(f"✓ {year}: {len(movies)} movies fetched")
+            print(f"{year}: {len(movies)} movies fetched")
 
         return movies[:limit]
 
     except Exception as e:
         if verbose:
-            print(f"✗ {year}: Error - {e}")
+            print(f"{year}: Error - {e}")
 
     return []
 
@@ -348,7 +348,7 @@ async def get_movies_comprehensive_by_year(
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             if verbose:
-                print(f"  ✗ Error fetching details for movie: {result}")
+                print(f"  Error fetching details for movie: {result}")
             continue
 
         if not result:
@@ -492,7 +492,7 @@ async def get_movies_comprehensive_by_year(
         comprehensive_movies.append(movie_data)
 
     if verbose:
-        print(f"✓ {year}: {len(comprehensive_movies)} movies with comprehensive data")
+        print(f"{year}: {len(comprehensive_movies)} movies with comprehensive data")
 
     return comprehensive_movies
 
