@@ -270,35 +270,6 @@ def preprocess_genres(genre: str) -> str:
 
     return "|".join(new_genres)
 
-def load_and_preprocess_data(data_path, n_movies_per_year, start_year, top_x_genres):
-    """
-    Loads movie data, cleans missing values, splits multi-genre entries,
-    and filters the data to include only the top X most frequent genres.
-
-    (Use only for non cleaned data, we should use the clustered genres)
-    """
-    print(f"\nLoading movie data from {data_path}...")
-    df = load_movie_data_limited(data_path, n_movies_per_year, verbose=False)
-    print(f"Initial number of movies: {df.shape[0]}")
-
-    # Remove rows with missing genre, year, or embedding, and filter by start year
-    df_cleaned = df.dropna(subset=['genre', 'year', 'embedding']).copy()
-    df_cleaned = df_cleaned[df_cleaned['year'] >= start_year]
-    print(f"Number of movies after cleaning: {df_cleaned.shape[0]}")
-
-    # Split and explode multi-genre entries
-    df_cleaned['genre_list'] = df_cleaned['genre'].str.split(', ')
-    df_exploded = df_cleaned.explode('genre_list')
-    df_exploded.rename(columns={'genre_list': 'single_genre'}, inplace=True)
-    print(f"Number of movie-genre entries after exploding: {df_exploded.shape[0]}")
-
-    # Filter for the top X genres
-    top_genres = df_exploded['single_genre'].value_counts().nlargest(top_x_genres).index.tolist()
-    df_filtered = df_exploded[df_exploded['single_genre'].isin(top_genres)].copy()
-    print(f"Top {top_x_genres} genres: {df_filtered.shape[0]} total entries")
-
-    return df_filtered
-
 def cluster_genres(movie_df: pd.DataFrame) -> pd.DataFrame:
     """
     Splits and cleans genre strings, embed cleaned genre strings and clusters them into 10 main genres.

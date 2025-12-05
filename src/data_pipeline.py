@@ -1284,6 +1284,4 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
-    # nohup python data_pipeline.py > data_pipeline.log 2>&1 &
-
 

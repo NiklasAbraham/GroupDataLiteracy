@@ -1,12 +1,8 @@
 import pandas as pd
 from src.data_utils import load_movie_data
 import os
-import tqdm
-import wikipediaapi
-import json
 
 DATA_DIR = '../all_data_run_2511/data'
-NEW_WIKIPEDIA_DATA_PATH = os.path.join(DATA_DIR, 'wikipedia_fix.json')
 
 def print_data(df: pd.DataFrame) -> None:
     print(df.to_string())
@@ -58,23 +54,6 @@ def print_rows_with_class(
 
 
 if __name__ == "__main__":
-    wiki = wikipediaapi.Wikipedia(
-        user_agent='GroupDataLiteracy/1.0 (movie data pipeline)',
-        language='en'
-    )
-
     pd.set_option('display.width', 300)
     df = load_movie_data(DATA_DIR, verbose=False)
-    # check_for_duplicates(df)
-    # print(df.info())
     print_wikidata_column_appearances(df, "genre")
-    # print_rows_with_class(df, "shirokuban")
-
-    # has_plot_dict = has_actual_wikipedia_plot(df, wiki, save_path=NEW_WIKIPEDIA_DATA_PATH)
-    # print(f"Actually have plot: {sum(has_plot_dict.values())} out of {len(has_plot_dict)} movies.")
-    # has_plot_dict = json.load(open(NEW_WIKIPEDIA_DATA_PATH, 'r'))
-    # first_ten = list(has_plot_dict.items())[:10]
-
-    # for movie_id, has_plot in first_ten:
-    #     print(f"Movie ID: {movie_id}, Has Plot: {has_plot}")
-    #     print(f"Plot beginning: {df[df['movie_id'] == movie_id]['plot'].values[0][:100]}")
