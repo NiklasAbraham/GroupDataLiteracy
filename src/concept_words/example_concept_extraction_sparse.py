@@ -15,10 +15,10 @@ sys.path.insert(0, str(SRC_DIR))
 
 from data_utils import load_movie_data
 from embedding.embedding import EmbeddingService
-from analysis.concept_extraction import extract_concepts_from_embedding_results
+from concept_words.concept_extraction_sparse import extract_concepts_from_embedding_results
 
 # Configuration
-DATA_DIR = str(BASE_DIR / "data")
+DATA_DIR = str(BASE_DIR / "data" / "data_final")
 MODEL_NAME = "BAAI/bge-m3"
 TARGET_DEVICES = ['cuda:0']
 
@@ -30,7 +30,7 @@ def main():
     df = df[df['plot'].notna() & (df['plot'].str.len() > 2000)].copy()
     
     # Select a random movie
-    random_movie = df.sample(n=1, random_state=41).iloc[0]
+    random_movie = df.sample(n=1, random_state=39).iloc[0]
     plot_text = random_movie['plot']
     
     print(f"\nSelected movie ID: {random_movie['movie_id']}")
@@ -54,8 +54,11 @@ def main():
         embedding_results=results,
         tokenizer=tokenizer,
         nlp=nlp,
+        concept_model=MODEL_NAME,  # Use same model as embeddings
         top_k=30,
-        zipf_threshold=4.0
+        zipf_threshold=4.0,
+        min_zipf_vocab=2.5,
+        max_vocab=20000
     )
     
     # Display results
