@@ -6,6 +6,7 @@ within groups and between groups of embeddings.
 """
 
 import numpy as np
+import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
 
@@ -54,9 +55,25 @@ def calculate_average_cosine_distance_between_groups(group1_embeddings, group2_e
     Returns:
     - Average cosine distance (float)
     """
-    if len(group1_embeddings) == 0 or len(group2_embeddings) == 0:
-        return 0.0
-    
+    if group1_embeddings is None or group2_embeddings is None:
+        return None
+
+    if pd.isna(group1_embeddings).all() or pd.isna(group2_embeddings).all():
+        return None
+
+    if (len(group1_embeddings) == 0 or
+            len(group2_embeddings) == 0 or
+            np.any(np.isnan(group1_embeddings)) or
+            np.any(np.isnan(group2_embeddings))):
+        return None
+
+    # 3. Reshape 1D vectors to 2D matrices (1, D) to satisfy axis=1 requirement
+    if group1_embeddings.ndim == 1:
+        group1_embeddings = np.expand_dims(group1_embeddings, axis=0)
+
+    if group2_embeddings.ndim == 1:
+        group2_embeddings = np.expand_dims(group2_embeddings, axis=0)
+
     # Normalize embeddings
     norms1 = np.linalg.norm(group1_embeddings, axis=1, keepdims=True)
     norms1[norms1 == 0] = 1

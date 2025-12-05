@@ -26,6 +26,7 @@ from scipy.spatial.distance import cosine as another_cosine
 from analysis.chunking.calculations import compute_cosine_distance, calculate_drift_vector, compute_simple_difference
 from scipy.spatial.distance import cosine as cos_dist
 
+from analysis.math_functions import calculate_average_cosine_distance_between_groups
 
 # Setup logging
 logging.basicConfig(
@@ -391,70 +392,6 @@ def main(data_dir: str = None, save_stats: bool = True, save_histogram: bool = T
     print("=" * 80)
 
 
-def calculate_rate_of_change(df: pd.DataFrame, group_col: str, value_col: str, change_col_name: str,
-                             change_func) -> pd.DataFrame:
-    """
-    Calculates the annual change (drift/acceleration) for a column, grouped by a key.
-
-    Args:
-        df: The DataFrame containing the data.
-        group_col: The column to group by (e.g., 'new_genre').
-        value_col: The column containing the value to measure the change of.
-        change_col_name: The name for the new column (e.g., 'drift_distance').
-        change_func: The function to apply to calculate the change/distance.
-
-    Returns:
-        The DataFrame with a new column for the calculated change.
-    """
-
-    # 1. Shift the value column within each group
-    df[f'next_{value_col}'] = df.groupby(group_col)[value_col].shift(-1)
-
-    # 2. Calculate the change (distance or difference) row-wise
-    df[change_col_name] = df.apply(change_func, axis=1)
-
-    # Drop the temporary 'next_' column
-    df = df.drop(columns=[f'next_{value_col}'])
-
-    return df.dropna(subset=[change_col_name]).copy()
-
-def calculate_drift_metrics(df_filtered):
-    """
-    Groups by year && genre
-    Calculates change Velocity
-    Calculates change Acceleration
-    Calculates cumulative Change
-    """
-
-    # 1. Calculate average embedding (Position)
-    grouped_embeddings = df_filtered.groupby(['year', 'new_genre'])['embedding'].apply(
-        lambda x: np.mean(np.vstack(x), axis=0)
-    )
-    group_df = grouped_embeddings.reset_index(name='avg_embedding')
-    group_df = group_df.sort_values(by=['new_genre', 'year']).copy()
-
-    # Velocity -> Calculate embedding change in group per year -> apply cosine to embeddings
-    drift_df = calculate_rate_of_change(
-        df=group_df.copy(),
-        group_col='new_genre',
-        value_col='avg_embedding',
-        change_col_name='drift_distance',
-        change_func=compute_cosine_distance
-    )
-
-    # Acceleration -> Calculate velocity change in group per year -> apply simple difference to velocity
-    acceleration_df = calculate_rate_of_change(
-        df=drift_df.copy(),
-        group_col='new_genre',
-        value_col='drift_distance',
-        change_col_name='acceleration',
-        change_func=compute_simple_difference
-    )
-
-    # 4. Calculate cumulative change
-    acceleration_df['cumulative_change'] = acceleration_df.groupby('new_genre')['drift_distance'].cumsum()
-
-    return acceleration_df
 
 def prepare_heatmap_data(group_df, target_genre, bin_size=5):
     """
@@ -651,7 +588,7 @@ def plot_genre_drift(df, y_column, title, y_label, softness_window=None):
     """
 
     sns.set_theme(style="whitegrid")
-    df['year'] = pd.to_numeric(df['year'])
+    df['year_group'] = pd.to_numeric(df['year_group'])
 
     y_column_to_plot = y_column
     if softness_window is not None and softness_window > 1:
@@ -671,7 +608,7 @@ def plot_genre_drift(df, y_column, title, y_label, softness_window=None):
 
     sns.lineplot(
         data=df,
-        x='year',
+        x='year_group',
         y=y_column_to_plot,
         hue='new_genre',
         marker='o',
@@ -679,7 +616,7 @@ def plot_genre_drift(df, y_column, title, y_label, softness_window=None):
     )
 
     plt.title(title, fontsize=16)
-    plt.xlabel('Year', fontsize=12)
+    plt.xlabel('year group', fontsize=12)
     plt.ylabel(y_label, fontsize=12)
 
     plt.legend(title='Genre', bbox_to_anchor=(1.05, 1), loc='upper left')
