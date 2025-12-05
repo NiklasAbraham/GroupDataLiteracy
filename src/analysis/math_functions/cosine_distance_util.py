@@ -7,51 +7,54 @@ within groups and between groups of embeddings.
 
 import numpy as np
 import pandas as pd
+from scipy.spatial.distance import cdist
 from sklearn.metrics.pairwise import cosine_similarity
 
 
 def calculate_average_cosine_distance(embeddings):
     """
     Calculate average pairwise cosine distance within a group of embeddings.
-    
+
     Parameters:
     - embeddings: numpy array of shape (n_samples, embedding_dim)
-    
+
     Returns:
     - Average cosine distance (float)
     """
     if len(embeddings) < 2:
         return 0.0
-    
+
     # Normalize embeddings
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     norms[norms == 0] = 1  # Avoid division by zero
     normalized_embeddings = embeddings / norms
-    
+
     # Calculate pairwise cosine similarities
     # cosine_similarity returns a matrix where entry (i,j) is the cosine similarity
     # between embeddings[i] and embeddings[j]
     similarity_matrix = cosine_similarity(normalized_embeddings)
-    
+
     # Convert to distance (1 - similarity)
     distance_matrix = 1 - similarity_matrix
-    
+
     # Get upper triangle (excluding diagonal) to avoid counting pairs twice
     n = len(embeddings)
     upper_triangle_indices = np.triu_indices(n, k=1)
     distances = distance_matrix[upper_triangle_indices]
-    
+
     return np.mean(distances)
 
 
-def calculate_average_cosine_distance_between_groups(group1_embeddings, group2_embeddings):
+def calculate_average_cosine_distance_between_groups(
+    group1_embeddings, group2_embeddings
+):
     """
     Calculate average cosine distance between two groups of embeddings.
-    
+
     Parameters:
     - group1_embeddings: numpy array of shape (n1, embedding_dim)
     - group2_embeddings: numpy array of shape (n2, embedding_dim)
-    
+
     Returns:
     - Average cosine distance (float)
     """
@@ -78,17 +81,34 @@ def calculate_average_cosine_distance_between_groups(group1_embeddings, group2_e
     norms1 = np.linalg.norm(group1_embeddings, axis=1, keepdims=True)
     norms1[norms1 == 0] = 1
     normalized_group1 = group1_embeddings / norms1
-    
+
     norms2 = np.linalg.norm(group2_embeddings, axis=1, keepdims=True)
     norms2[norms2 == 0] = 1
     normalized_group2 = group2_embeddings / norms2
-    
+
     # Calculate pairwise cosine similarities between groups
     similarity_matrix = cosine_similarity(normalized_group1, normalized_group2)
-    
+
     # Convert to distance (1 - similarity)
     distance_matrix = 1 - similarity_matrix
-    
+
     # Return mean of all pairwise distances
     return np.mean(distance_matrix)
 
+
+def find_nearest_and_furthest_medoid(embeddings: np.ndarray) -> tuple[int, int]:
+    """
+    Returns the nearest & furthest medoid index of a set of embeddings.
+    Uses cosine distance as the distance measure.
+
+    :param embeddings: 2D np array containing rows of data
+    :type embeddings: np.ndarray
+    :rtype: tuple[int, ndarray[Any, Any]]
+    """
+
+    # Calculate pairwise cosine distance matrix
+    pairwise_distance_matrix = cdist(embeddings, embeddings, metric="cosine")
+    most_sim_medoid_index = np.argmin(pairwise_distance_matrix.sum(axis=0))
+    most_dissim_medoid_index = np.argmax(pairwise_distance_matrix.sum(axis=0))
+
+    return int(most_sim_medoid_index), int(most_dissim_medoid_index)

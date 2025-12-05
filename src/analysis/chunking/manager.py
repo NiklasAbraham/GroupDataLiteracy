@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 SRC_DIR = BASE_DIR / 'src'
 sys.path.insert(0, str(SRC_DIR))
 
-from data_utils import load_movie_data, cluster_genres
+from data_utils import load_final_dataset
 from analysis.chunking.chunk_base_class import ChunkBase
 from analysis.chunking import calculations
 from embedding.embedding import EmbeddingService
@@ -123,30 +123,22 @@ def main():
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     
-    # Load movie data
-    print(f"\nLoading movie data from {DATA_DIR}...")
-    df = load_movie_data(DATA_DIR, verbose=True)
+    # Load movie data from consolidated CSV
+    csv_path = str(BASE_DIR / "data" / "data_final" / "final_dataset.csv")
+    print(f"\nLoading movie data from {csv_path}...")
+    df = load_final_dataset(csv_path, verbose=True)
     print(f"Loaded {len(df)} movies")
     
-    # Filter to movies with plot data, and a genre
-    df = df[df['plot'].notna() & (df['plot'].str.len() > 200) & (df['genre'].notna())].copy()
-    print(f"Movies with plot data and genre: {len(df)}")
+    # Filter to movies with plot data
+    df = df[df['plot'].notna() & (df['plot'].str.len() > 200)].copy()
+    print(f"Movies with plot data: {len(df)}")
     
-    # Apply genre clustering/filtering from data_utils
-    # This uses the genre_fix_mapping.json to map and clean genres
-    # Note: cluster_genres expects genre_fix_mapping.json in src directory
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(str(SRC_DIR))
-        print("Processing genres using cluster_genres from data_utils...")
-        df = cluster_genres(df)
-    finally:
-        os.chdir(original_cwd)
-    
-    # Filter to movies with valid processed genres (new_genre column)
-    if 'new_genre' in df.columns:
-        df = df[df['new_genre'].notna() & (df['new_genre'] != 'Unknown')].copy()
-        print(f"Movies with processed genres: {len(df)}")
+    # Filter to movies with valid processed genres (using genre_cluster_names from CSV)
+    if 'genre_cluster_names' in df.columns:
+        df = df[df['genre_cluster_names'].notna() & (df['genre_cluster_names'].astype(str).str.strip() != '') & (df['genre_cluster_names'].astype(str).str.strip() != 'nan')].copy()
+        print(f"Movies with valid processed genres: {len(df)}")
+    else:
+        print("Warning: 'genre_cluster_names' column not found in dataset")
     
     # Sample movies
     np.random.seed(RANDOM_SEED)
@@ -163,17 +155,17 @@ def main():
     movie_ids = sampled_df['movie_id'].values
     years = sampled_df['year'].values if 'year' in sampled_df.columns else None
     
-    # Use new_genre column (processed genres) instead of raw genre column
-    # new_genre contains genres separated by | (from cluster_genres)
-    if 'new_genre' in sampled_df.columns:
-        genres_raw = sampled_df['new_genre'].values
+    # Use genre_cluster_names column (processed genres) from CSV
+    # genre_cluster_names contains genres separated by comma, e.g., "drama,romance" -> ["drama", "romance"]
+    if 'genre_cluster_names' in sampled_df.columns:
+        genres_raw = sampled_df['genre_cluster_names'].values
         # Convert genres to lists of genre strings (multi-label format)
-        # Each movie can have multiple genres separated by |, e.g., "Action|Drama|Thriller" -> ["Action", "Drama", "Thriller"]
-        genres_list = [[g.strip() for g in str(genre).split('|') if g.strip() and g.strip() != 'Unknown'] for genre in genres_raw]
+        # Each movie can have multiple genres separated by comma, e.g., "drama,romance" -> ["drama", "romance"]
+        genres_list = [[g.strip() for g in str(genre).split(',') if g.strip() and g.strip() != 'Unknown' and g.strip() != 'nan'] for genre in genres_raw]
         # Convert to numpy array with object dtype to preserve list structure
         genres = np.array(genres_list, dtype=object) if genres_list else None
     else:
-        # Fallback to raw genre column if new_genre is not available
+        # Fallback to raw genre column if genre_cluster_names is not available
         genres_raw = sampled_df['genre'].values if 'genre' in sampled_df.columns else None
         if genres_raw is not None:
             # Convert genres to lists of genre strings (multi-label format)
