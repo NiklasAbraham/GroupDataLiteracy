@@ -34,7 +34,7 @@ def main():
     df = df[df['plot'].notna() & (df['plot'].str.len() > 2000)].copy()
     
     # Select a random movie
-    random_movie = df.sample(n=1, random_state=39).iloc[0]
+    random_movie = df.sample(n=1, random_state=38).iloc[0]
     plot_text = random_movie['plot']
     
     print(f"\nSelected movie ID: {random_movie['movie_id']}")
