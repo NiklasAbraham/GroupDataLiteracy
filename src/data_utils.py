@@ -412,7 +412,7 @@ def preprocess_genres(genre: str) -> str:
     """
     # Handle NaN, None, or empty values
     if pd.isna(genre) or genre is None or not str(genre).strip():
-        return "Unknown"
+        return None
     
     # Convert to string if not already
     genre = str(genre)
@@ -452,7 +452,7 @@ def preprocess_genres(genre: str) -> str:
     
     # Return Unknown if no genres found
     if not new_genres:
-        return "Unknown"
+        return None
 
     return "|".join(new_genres)
 

@@ -1,21 +1,23 @@
 import pandas as pd
-from src.data_utils import load_movie_data
-from src.api.wikidata_handler import get_wikidata_subclasses
 import asyncio
 import json
 import os
-from src.data_exploration import print_wikidata_column_appearances
 import sys
 from pathlib import Path
-from data_exploration import print_wikidata_column_appearances
 from transformers import AutoTokenizer
 from tqdm.auto import tqdm
 import numpy as np
 
 # Add parent directory to path for imports
 base_path = Path(__file__).parent.parent
+sys.path.insert(0, str(base_path))
 
-DATA_DIR = os.path.join(base_path, 'data', 'data_final')
+from src.data_utils import load_movie_data, preprocess_genres
+from src.api.wikidata_handler import get_wikidata_subclasses
+
+
+DATA_DIR = os.path.join(base_path, 'data')
+CLEAN_DATASET_SAVE_PATH = os.path.join(DATA_DIR, 'final_dataset.csv')
 MAX_PLOT_LENGTH = 14000
 WRONG_CLASSES_SAVE_PATH = os.path.join(DATA_DIR, 'wrong_wikidata_classes.json')
 WRONG_WIKIDATA_CLASSES = {
@@ -37,6 +39,42 @@ WRONG_WIKIDATA_CLASSES = {
     "Q7889", # video game
 }
 MODEL_NAME = "BAAI/bge-m3"
+ENTROPY_THRESHOLD = 4.8398  # determined by cutoff_exploration.py
+
+GENRE_TO_CLUSTER_ID_PATH =  os.path.join(base_path, "src/genre_fix_mapping_new.json")
+GENRE_CLUSTER_ID_TO_NAME_PATH = os.path.join(base_path, "src/cluster_to_genre_mapping_01122025.json")
+GENRE_CLUSTER_IDS_TO_REMOVE = ["4"]  # exploitation genre cluster ID
+STRING_COLUMNS = [
+    "country",
+    "imdb_id",
+    "duration_all",
+    "actors_id",
+    "actors",
+    "directors_id",
+    "directors",
+    "genre_id",
+    "genre",
+    "release_date",
+    "wikidata_class",
+    "wikipedia_link",
+    "title",
+    "set_in_period",
+    "awards",
+    "budget",
+    "budget_currency",
+    "box_office",
+    "box_office_currency",
+    "box_office_worldwide",
+    "box_office_worldwide_currency",
+    "popularity",
+    "vote_average",
+    "vote_count",
+    "tmdb_id",
+    "plot",
+    "plot_section",
+    "genre_cluster_ids",
+    "genre_cluster_names",
+]
 
 async def filter_non_movies(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH, new_event_loop: bool = True) -> pd.DataFrame:
     if os.path.exists(wrong_classes_save_path):
@@ -147,12 +185,64 @@ def add_token_features_columns(df: pd.DataFrame, model_name: str = MODEL_NAME) -
     
     return df
 
+def add_genres_clustered_columns(
+    df: pd.DataFrame,
+    genre_name_to_cluster_id: dict,
+    genre_cluster_id_to_cluster_name: dict
+) -> pd.DataFrame:
+    def map_genres_to_cluster_ids(genre_str: str) -> str:
+        if pd.isna(genre_str) or not isinstance(genre_str, str) or genre_str.strip() == "":
+            return ""
+        preprocessed_genres = preprocess_genres(genre_str)
+        if not preprocessed_genres:
+            return ""
+        return ",".join(preprocessed_genres.split("|"))
+    
+    def map_genre_cluster_ids_to_names(cluster_id_str: str) -> str:
+        if pd.isna(cluster_id_str) or not isinstance(cluster_id_str, str) or cluster_id_str.strip() == "":
+            return ""
+        cluster_ids = [cid.strip() for cid in cluster_id_str.split(',') if cid.strip()]
+        cluster_names = set()
+        for cid in cluster_ids:
+            if cid in genre_cluster_id_to_cluster_name:
+                cluster_names.add(genre_cluster_id_to_cluster_name[cid])
+        return ",".join(sorted(cluster_names))
+    
+    tqdm.pandas()
+    print("Mapping genres to genre cluster IDs...")
+    df["genre_cluster_ids"] = df["genre"].progress_apply(map_genres_to_cluster_ids)
+    df["genre_cluster_names"] = df["genre_cluster_ids"].progress_apply(map_genre_cluster_ids_to_names)
+    return df
+
+def remove_movies_with_genre_cluster(df: pd.DataFrame, genre_cluster_id: str) -> pd.DataFrame:
+    def has_genre_cluster(genre_cluster_ids_str: str) -> bool:
+        if pd.isna(genre_cluster_ids_str) or not isinstance(genre_cluster_ids_str, str):
+            return False
+        cluster_ids = {cid.strip() for cid in genre_cluster_ids_str.split(',') if cid.strip()}
+        return genre_cluster_id in cluster_ids
+    
+    tqdm.pandas()
+    print(f"Removing movies with genre cluster ID: {genre_cluster_id}...")
+    filtered_df = df[~df['genre_cluster_ids'].progress_apply(has_genre_cluster)].reset_index(drop=True)
+    return filtered_df
+
+def convert_string_solumns_nans_to_empty_strings(df: pd.DataFrame, string_columns: list) -> pd.DataFrame:
+    for col in string_columns:
+        if col in df.columns:
+            df[col] = df[col].fillna("").astype(str)
+    return df
+
 async def clean_dataset(
     df: pd.DataFrame,
+    genre_to_cluster_id_dict: dict = None,
+    cluster_id_to_genre_name_dict: dict = None,
+    entropy_threshold: float = ENTROPY_THRESHOLD,
     wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH,
     max_plot_length: int = MAX_PLOT_LENGTH,
     filter_single_genres: bool = True,
-    new_event_loop: bool = True
+    new_event_loop: bool = True,
+    genre_cluster_ids_to_remove: list = GENRE_CLUSTER_IDS_TO_REMOVE,
+    string_columns_for_nan_to_empty: list = STRING_COLUMNS
 ) -> pd.DataFrame:
     df['duration'] = pd.to_numeric(df['duration'], errors='coerce')
 
@@ -172,15 +262,35 @@ async def clean_dataset(
     
     print(f"Adding token features columns...")
     df_filtered = add_token_features_columns(df_filtered)
-    print("Finished!")
+
+    df_filtered = df_filtered[df_filtered["token_shannon_entropy"] >= entropy_threshold].reset_index(drop=True)
+    print(f"After filtering movies with token Shannon entropy < {entropy_threshold}: {len(df_filtered)}")
+
+    if genre_to_cluster_id_dict is not None and cluster_id_to_genre_name_dict is not None:
+        print("Adding genres clustered columns...")
+        df_filtered = add_genres_clustered_columns(df_filtered, genre_to_cluster_id_dict, cluster_id_to_genre_name_dict)
+        for genre_cluster_id in genre_cluster_ids_to_remove:
+            df_filtered = remove_movies_with_genre_cluster(df_filtered, genre_cluster_id)
+            print(f"After removing movies with genre cluster ID {genre_cluster_id}: {len(df_filtered)}")
+    else:
+        print("Skipping adding genres clustered columns and removing movies with specified genre cluster IDs due to missing mapping dictionaries.")
+
+    print("Converting NaNs to empty strings in string columns...")
+    df_filtered = convert_string_solumns_nans_to_empty_strings(df_filtered, string_columns_for_nan_to_empty)
+
+    print("FINAL dataset size:", len(df_filtered))
 
     return df_filtered
 
 if __name__ == "__main__":
-    df = load_movie_data(DATA_DIR, verbose=False)
+    df = load_movie_data(DATA_DIR, verbose=True)
+    genre_to_cluster_id_dict = json.load(open(GENRE_TO_CLUSTER_ID_PATH, 'r'))
+    cluster_id_to_genre_name_dict = json.load(open(GENRE_CLUSTER_ID_TO_NAME_PATH, 'r'))
 
-    df = clean_dataset(df)
-    df.to_csv(os.path.join(DATA_DIR, 'cleaned_movie_data.csv'), index=False)
-    # print_wikidata_column_appearances(df, "wikidata_class")
-    # print_wikidata_column_appearances(df, "genre")
-    # print(df[df["genre"].str.contains("rock music", case=False, na=False)]["movie_id"])
+    df = asyncio.run(clean_dataset(
+        df,
+        genre_to_cluster_id_dict=genre_to_cluster_id_dict,
+        cluster_id_to_genre_name_dict=cluster_id_to_genre_name_dict
+    ))
+    df.to_csv(CLEAN_DATASET_SAVE_PATH, index=False)
+    print(f"Cleaned dataset saved to {CLEAN_DATASET_SAVE_PATH}")

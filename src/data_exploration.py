@@ -1,9 +1,15 @@
 import pandas as pd
-from src.data_utils import load_movie_data
 import os
 import tqdm
 import wikipediaapi
 import json
+import sys
+from pathlib import Path
+
+base_path = Path(__file__).parent.parent
+sys.path.insert(0, str(base_path))
+
+from src.data_utils import load_movie_data
 
 DATA_DIR = '../all_data_run_2511/data'
 NEW_WIKIPEDIA_DATA_PATH = os.path.join(DATA_DIR, 'wikipedia_fix.json')
@@ -23,7 +29,11 @@ def check_for_duplicates(df: pd.DataFrame) -> None:
     print(f"Found {duplicates_wikipedia.value_counts().get(True, 0)} duplicate entries based on 'wikipedia_link'.")
     # print(df["title"][duplicates_wikipedia][:50])
 
-def print_wikidata_column_appearances(df: pd.DataFrame, column_name: str) -> int:
+def print_wikidata_column_appearances(
+    df: pd.DataFrame,
+    column_name: str,
+    verbose = False
+) -> int:
     values_counts = {}
     num_of_movies_with_value_count = {}
     for _, row in df.iterrows():
@@ -38,13 +48,17 @@ def print_wikidata_column_appearances(df: pd.DataFrame, column_name: str) -> int
             values_counts[cls] = values_counts.get(cls, 0) + 1
     
     sorted_values = sorted(values_counts.items(), key=lambda x: x[1], reverse=True)
-    print(f"Value Appearances of column {column_name}:")
-    for cls, count in sorted_values:
-        print(f"{cls}: {count}")
-    print(f"Different values of column {column_name} found:", len(values_counts))
-    print(f"Number of Movies by Value Count for column {column_name}:")
-    for count, num_movies in sorted(num_of_movies_with_value_count.items()):
-        print(f"{count} : {num_movies} movies")
+
+    print(f"Total different values in column {column_name}: {len(values_counts)}")
+
+    if verbose:
+        print(f"Value Appearances of column {column_name}:")
+        for cls, count in sorted_values:
+            print(f"{cls}: {count}")
+        print(f"Different values of column {column_name} found:", len(values_counts))
+        print(f"Number of Movies by Value Count for column {column_name}:")
+        for count, num_movies in sorted(num_of_movies_with_value_count.items()):
+            print(f"{count} : {num_movies} movies")
 
 
 def print_rows_with_class(
