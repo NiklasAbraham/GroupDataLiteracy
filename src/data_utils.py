@@ -419,3 +419,7 @@ def keep_top_n_genres(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
     df = df[df['top_genre']]
 
     return df
+
+def drop_nan_in_column(df: pd.DataFrame, column_name: str) -> pd.DataFrame:
+    """Drops rows with NaN values in the specified column."""
+    return df.dropna(subset=[column_name])

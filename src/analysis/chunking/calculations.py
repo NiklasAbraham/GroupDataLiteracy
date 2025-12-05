@@ -30,7 +30,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 SRC_DIR = BASE_DIR / 'src'
 sys.path.insert(0, str(SRC_DIR))
-from predictions.predictor_logistic_regression import predict_genres_logistic_regression
+#from predictions.predictor_logistic_regression import predict_genres_logistic_regression
 
 
 def compute_length_norm_correlation(embeddings: np.ndarray, text_lengths: np.ndarray, pre_norms: np.ndarray = None) -> float:
