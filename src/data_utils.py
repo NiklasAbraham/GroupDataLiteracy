@@ -5,6 +5,33 @@ import numpy as np
 import json
 import os
 
+def load_embeddings_as_dict(data_dir: str, start_year: int = 1930, end_year: int = 2024) -> Dict[str, np.ndarray]:
+    """
+    Loads all movie embeddings from .npy files in the specified directory and returns them as a dictionary.
+
+    Parameters:
+    - data_dir: absolute path for data_final folder
+    - start_year: first year to load (inclusive)
+    - end_year: last year to load (inclusive)
+
+    Returns:
+    - embeddings_dict: dictionary mapping movie_id (str) to embedding (np.ndarray)
+    """
+    embeddings_dict = {}
+
+    for year in range(start_year, end_year + 1):
+        embeddings_path = os.path.join(data_dir, f"movie_embeddings_{year}_cls_token.npy")
+        movie_ids_path = os.path.join(data_dir, f"movie_ids_{year}_cls_token.npy")
+
+        if os.path.exists(embeddings_path) and os.path.exists(movie_ids_path):
+            embeddings = np.load(embeddings_path)
+            movie_ids = np.load(movie_ids_path)
+
+            for movie_id, embedding in zip(movie_ids, embeddings):
+                embeddings_dict[str(movie_id)] = embedding
+
+    return embeddings_dict
+
 
 def load_movie_embeddings(
     data_dir: str, 

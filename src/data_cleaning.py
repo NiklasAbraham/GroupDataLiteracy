@@ -7,6 +7,10 @@ import os
 from src.data_exploration import print_wikidata_column_appearances
 import sys
 from pathlib import Path
+from data_exploration import print_wikidata_column_appearances
+from transformers import AutoTokenizer
+from tqdm.auto import tqdm
+import numpy as np
 
 # Add parent directory to path for imports
 base_path = Path(__file__).parent.parent
@@ -32,6 +36,7 @@ WRONG_WIKIDATA_CLASSES = {
     "Q17362920", # Wikimedia duplicated page
     "Q7889", # video game
 }
+MODEL_NAME = "BAAI/bge-m3"
 
 async def filter_non_movies(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH, new_event_loop: bool = True) -> pd.DataFrame:
     if os.path.exists(wrong_classes_save_path):
@@ -105,7 +110,50 @@ def filter_movies_with_single_occurrence_genres(df: pd.DataFrame) -> pd.DataFram
     df_copy['genre'] = df_copy['genre'].apply(remove_single_occurrence_genres)
     return df_copy
 
-async def clean_dataset(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH, max_plot_length: int = MAX_PLOT_LENGTH, filter_single_genres: bool = True, new_event_loop: bool = True) -> pd.DataFrame:
+def add_token_features_columns(df: pd.DataFrame, model_name: str = MODEL_NAME) -> pd.DataFrame:
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    def get_token_length(text: str) -> int:
+        if not isinstance(text, str):
+            return 0
+        tokens = tokenizer.encode(text, add_special_tokens=False)
+        return len(tokens)
+    
+    def get_num_different_tokens(text: str) -> int:
+        if not isinstance(text, str):
+            return 0
+        tokens = tokenizer.encode(text, add_special_tokens=False)
+        return len(set(tokens))
+    
+    def get_token_shannon_entropy(text: str) -> float:
+        if not isinstance(text, str):
+            return 0.0
+        tokens = tokenizer.encode(text, add_special_tokens=False)
+        if len(tokens) == 0:
+            return 0.0
+        token_counts = pd.Series(tokens).value_counts(normalize=True)
+        entropy = -sum(token_counts * np.log2(token_counts))
+        return entropy
+
+    tqdm.pandas()
+    print("Calculating plot lengths in tokens...")
+    df['plot_length_tokens'] = df['plot'].progress_apply(get_token_length)
+    
+    print("Calculating number of different tokens in plots...")
+    df['num_different_tokens'] = df['plot'].progress_apply(get_num_different_tokens)
+    
+    print("Calculating token Shannon entropy in plots...")
+    df['token_shannon_entropy'] = df['plot'].progress_apply(get_token_shannon_entropy)
+    
+    return df
+
+async def clean_dataset(
+    df: pd.DataFrame,
+    wrong_classes_save_path: str = WRONG_CLASSES_SAVE_PATH,
+    max_plot_length: int = MAX_PLOT_LENGTH,
+    filter_single_genres: bool = True,
+    new_event_loop: bool = True
+) -> pd.DataFrame:
     df['duration'] = pd.to_numeric(df['duration'], errors='coerce')
 
     print(f"Original dataset size: {len(df)}")
@@ -122,10 +170,17 @@ async def clean_dataset(df: pd.DataFrame, wrong_classes_save_path: str = WRONG_C
     df_filtered = df_filtered[df_filtered["plot_length_chars"] <= max_plot_length].reset_index(drop=True)
     print(f"After filtering movies with plot length > {max_plot_length} chars: {len(df_filtered)}")
     
+    print(f"Adding token features columns...")
+    df_filtered = add_token_features_columns(df_filtered)
+    print("Finished!")
+
     return df_filtered
 
 if __name__ == "__main__":
     df = load_movie_data(DATA_DIR, verbose=False)
 
-    clean_dataset(df)
-
+    df = clean_dataset(df)
+    df.to_csv(os.path.join(DATA_DIR, 'cleaned_movie_data.csv'), index=False)
+    # print_wikidata_column_appearances(df, "wikidata_class")
+    # print_wikidata_column_appearances(df, "genre")
+    # print(df[df["genre"].str.contains("rock music", case=False, na=False)]["movie_id"])
