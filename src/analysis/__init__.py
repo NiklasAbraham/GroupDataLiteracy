@@ -5,7 +5,7 @@
 def __getattr__(name):
     if name in ['extract_concepts_from_text', 'extract_concepts_from_embedding_results', 
                 'build_noun_lemma_weights', 'filter_by_zipf']:
-        from concept_words.concept_extraction_sparse import (
+        from ..concept_words.concept_extraction_sparse import (
             extract_concepts_from_text,
             extract_concepts_from_embedding_results,
             build_noun_lemma_weights,
@@ -19,7 +19,7 @@ def __getattr__(name):
         })
         return globals()[name]
     elif name in ['ConceptSpace', 'build_wordnet_concept_vocab', 'embed_and_save_concept_vocab']:
-        from concept_words.concept_space import (
+        from ..concept_words.concept_space import (
             ConceptSpace,
             build_wordnet_concept_vocab,
             embed_and_save_concept_vocab,

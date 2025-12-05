@@ -25,15 +25,9 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add src directory to Python path for imports
-try:
-    SRC_DIR = os.path.dirname(os.path.abspath(__file__))
-    if SRC_DIR not in sys.path:
-        sys.path.insert(0, SRC_DIR)
-except NameError:
-    # Fallback if __file__ is not defined
-    SRC_DIR = os.path.abspath(os.path.join(os.getcwd(), 'src'))
-    if SRC_DIR not in sys.path:
-        sys.path.insert(0, SRC_DIR)
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
 # Import handlers
 from api.wikidata_handler import (
@@ -65,10 +59,7 @@ except ImportError:
     logger.warning("Chunking classes not available. Install required dependencies or check path.")
 
 # Base directory paths
-try:
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-except NameError:
-    BASE_DIR = os.path.abspath(os.path.join(os.getcwd(), '..'))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 

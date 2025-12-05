@@ -25,6 +25,11 @@ def example_1_load_metadata_only():
     
     # Load the final dataset
     df = load_final_dataset(verbose=False)
+
+    # count the number of nan entires in the genre column
+    print(f"\nNumber of nan entries in genre column: {df['genre'].isna().sum()}")
+    # now in the genre_cluster_names column
+    print(f"\nNumber of nan entries in genre_cluster_names column: {df['genre_cluster_names'].isna().sum()}")
     
     print(f"\nTotal movies: {len(df)}")
     print(f"Columns: {list(df.columns)}")
@@ -208,7 +213,7 @@ def main():
         print("="*80 + "\n")
         
     except Exception as e:
-        print(f"\n\n❌ ERROR: {e}")
+        print(f"\n\nERROR: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

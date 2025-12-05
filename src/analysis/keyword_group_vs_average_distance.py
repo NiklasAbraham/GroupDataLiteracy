@@ -12,7 +12,6 @@ import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from pathlib import Path
 import logging
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,14 +26,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import functions from data_utils and data_cleaning
+# Import functions from data_utils
 from src.data_utils import (
-    load_movie_embeddings, 
-    load_movie_data, 
-    cluster_genres,
+    load_final_dense_embeddings,
+    load_final_dataset,
     search_movies_by_keywords
 )
-from src.data_cleaning import clean_dataset
 
 # Import cosine distance functions from math module
 from src.analysis.math_functions.cosine_distance_util import (
@@ -43,9 +40,9 @@ from src.analysis.math_functions.cosine_distance_util import (
 )
 
 DATA_DIR = os.path.join(BASE_DIR, 'data', 'data_final')
+CSV_PATH = os.path.join(BASE_DIR, 'data', 'data_final', 'final_dataset.csv')
 START_YEAR = 1930
 END_YEAR = 2024
-CHUNKING_SUFFIX = None  # Auto-detect
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -56,33 +53,10 @@ logger.info(f"Year range: {START_YEAR} to {END_YEAR}")
 
 
 def main():
-    # Auto-detect chunking suffix if not specified
-    if CHUNKING_SUFFIX is None:
-        test_year = START_YEAR
-        found_suffix = None
-        for suffix in ['_cls_token', '_mean_pooling', '']:
-            test_path = os.path.join(DATA_DIR, f'movie_embeddings_{test_year}{suffix}.npy')
-            if os.path.exists(test_path):
-                found_suffix = suffix
-                break
-        
-        if found_suffix is not None:
-            chunking_suffix = found_suffix
-            logger.info(f"Auto-detected chunking suffix: '{chunking_suffix}'")
-        else:
-            chunking_suffix = ''
-            logger.info("No chunking suffix detected, using default (no suffix)")
-    else:
-        chunking_suffix = CHUNKING_SUFFIX
-        logger.info(f"Using chunking suffix: '{chunking_suffix}'")
-    
     # Load all embeddings and corresponding movie IDs
     logger.info("Loading embeddings...")
-    all_embeddings, all_movie_ids = load_movie_embeddings(
+    all_embeddings, all_movie_ids = load_final_dense_embeddings(
         DATA_DIR,
-        chunking_suffix=chunking_suffix,
-        start_year=START_YEAR,
-        end_year=END_YEAR,
         verbose=False
     )
     
@@ -92,41 +66,31 @@ def main():
     logger.info(f"Total movies with embeddings: {len(all_movie_ids)}")
     logger.info(f"Embedding shape: {all_embeddings.shape}")
     
-    # Load movie metadata
+    # Load movie metadata from consolidated CSV
     logger.info("Loading movie metadata...")
-    movie_data = load_movie_data(DATA_DIR, verbose=False)
+    movie_data = load_final_dataset(CSV_PATH, verbose=False)
     
     if movie_data.empty:
-        raise ValueError(f"No movie data found in {DATA_DIR}")
+        raise ValueError(f"No movie data found in {CSV_PATH}")
     
-    logger.info(f"Loaded {len(movie_data)} movies from metadata files")
+    logger.info(f"Loaded {len(movie_data)} movies from metadata file")
     
-    # Apply data cleaning
-    logger.info("Applying data cleaning...")
-    movie_data = clean_dataset(movie_data, filter_single_genres=True)
-    logger.info(f"Movies after cleaning: {len(movie_data)}")
+    # Filter by year range if year column exists
+    if 'year' in movie_data.columns:
+        movie_data = movie_data[
+            (movie_data['year'] >= START_YEAR) & 
+            (movie_data['year'] <= END_YEAR)
+        ].copy()
+        logger.info(f"Filtered to {len(movie_data)} movies between {START_YEAR} and {END_YEAR}")
     
-    # Fill NaN values in genre column
-    if 'genre' in movie_data.columns:
-        movie_data['genre'] = movie_data['genre'].fillna('')
-    
-    # Apply genre clustering
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(SRC_DIR)
-        logger.info("Processing genres...")
-        movie_data = cluster_genres(movie_data)
-    finally:
-        os.chdir(original_cwd)
-    
-    # Filter embeddings to only include movies that are in the cleaned metadata
-    logger.info("Filtering embeddings to match cleaned metadata...")
-    cleaned_movie_ids_set = set(movie_data['movie_id'].values)
-    mask = np.array([mid in cleaned_movie_ids_set for mid in all_movie_ids])
+    # Filter embeddings to only include movies in the filtered metadata
+    logger.info("Filtering embeddings to match metadata...")
+    movie_ids_set = set(movie_data['movie_id'].values)
+    mask = np.array([mid in movie_ids_set for mid in all_movie_ids])
     all_embeddings = all_embeddings[mask]
     all_movie_ids = all_movie_ids[mask]
     
-    logger.info(f"After filtering: {len(all_movie_ids)} movies with both embeddings and cleaned metadata")
+    logger.info(f"After filtering: {len(all_movie_ids)} movies with both embeddings and metadata")
     logger.info(f"Embedding shape: {all_embeddings.shape}")
     
     # Create mapping from movie_id to index in all_movie_ids

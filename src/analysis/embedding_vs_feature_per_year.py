@@ -30,125 +30,61 @@ if BASE_DIR not in sys.path:
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-# Import functions from data_utils and data_cleaning
-# data_cleaning uses 'from src.data_utils import ...' so we need BASE_DIR in path
-from src.data_utils import cluster_genres, load_movie_data
-from src.data_cleaning import clean_dataset
+# Import functions from data_utils
+from src.data_utils import load_final_dataset, load_final_dense_embeddings
 
 DATA_DIR = os.path.join(BASE_DIR, 'data', 'data_final')
+CSV_PATH = os.path.join(BASE_DIR, 'data', 'data_final', 'final_dataset.csv')
 START_YEAR = 1930
 END_YEAR = 2024
-# Chunking suffix (e.g., '_cls_token', '_mean_pooling', or '' for no chunking)
-# If None, will auto-detect from existing files
-CHUNKING_SUFFIX = None  # Set to '_cls_token' or other suffix, or None to auto-detect
 
 print(f"Base directory: {BASE_DIR}")
 print(f"Data directory: {DATA_DIR}")
 print(f"Year range: {START_YEAR} to {END_YEAR}")
 
-# Auto-detect chunking suffix if not specified
-if CHUNKING_SUFFIX is None:
-    # Try to find a file to detect the suffix
-    test_year = START_YEAR
-    found_suffix = None
-    # Try common suffixes
-    for suffix in ['_cls_token', '_mean_pooling', '']:
-        test_path = os.path.join(DATA_DIR, f'movie_embeddings_{test_year}{suffix}.npy')
-        if os.path.exists(test_path):
-            found_suffix = suffix
-            break
-    
-    if found_suffix is not None:
-        CHUNKING_SUFFIX = found_suffix
-        print(f"Auto-detected chunking suffix: '{CHUNKING_SUFFIX}'")
-    else:
-        CHUNKING_SUFFIX = ''
-        print("No chunking suffix detected, using default (no suffix)")
-else:
-    print(f"Using chunking suffix: '{CHUNKING_SUFFIX}'")
+# Load all embeddings and corresponding movie IDs from consolidated files
+print("Loading embeddings from consolidated files...")
+all_embeddings, all_movie_ids = load_final_dense_embeddings(DATA_DIR, verbose=True)
 
-# Load all embeddings and corresponding movie IDs
-all_embeddings = []
-all_movie_ids = []
-all_years = []
+if len(all_movie_ids) == 0:
+    raise ValueError(f"No embeddings found in {DATA_DIR}")
 
-for year in range(START_YEAR, END_YEAR + 1):
-    embeddings_path = os.path.join(DATA_DIR, f'movie_embeddings_{year}{CHUNKING_SUFFIX}.npy')
-    movie_ids_path = os.path.join(DATA_DIR, f'movie_ids_{year}{CHUNKING_SUFFIX}.npy')
-    
-    if os.path.exists(embeddings_path) and os.path.exists(movie_ids_path):
-        embeddings = np.load(embeddings_path)
-        movie_ids = np.load(movie_ids_path)
-        
-        all_embeddings.append(embeddings)
-        all_movie_ids.append(movie_ids)
-        all_years.extend([year] * len(movie_ids))
-        
-        print(f"Loaded year {year}: {len(movie_ids)} movies")
-
-# Check if any embeddings were loaded
-if len(all_embeddings) == 0:
-    raise ValueError(
-        f"No embedding files found in {DATA_DIR} for years {START_YEAR}-{END_YEAR} "
-        f"with suffix '{CHUNKING_SUFFIX}'. "
-        f"Please check that embedding files exist (e.g., movie_embeddings_YYYY{CHUNKING_SUFFIX}.npy)"
-    )
-
-# Concatenate all embeddings
-all_embeddings = np.vstack(all_embeddings)
-all_movie_ids = np.concatenate(all_movie_ids)
-all_years = np.array(all_years)
-
-print(f"\nTotal movies: {len(all_movie_ids)}")
+print(f"\nTotal movies with embeddings: {len(all_movie_ids)}")
 print(f"Embedding shape: {all_embeddings.shape}")
 
-# Load movie metadata using data_utils function
-print("Loading movie metadata using load_movie_data from data_utils...")
-movie_data = load_movie_data(DATA_DIR, verbose=True)
+# Load movie metadata from consolidated CSV
+print("\nLoading movie metadata from consolidated CSV...")
+movie_data = load_final_dataset(CSV_PATH, verbose=True)
 
 if movie_data.empty:
-    raise ValueError(f"No movie data found in {DATA_DIR}")
+    raise ValueError(f"No movie data found in {CSV_PATH}")
 
-print(f"Loaded {len(movie_data)} movies from metadata files")
+print(f"Loaded {len(movie_data)} movies from metadata file")
 
-# Apply data cleaning from data_cleaning.py
-print("\nApplying data cleaning from data_cleaning.py...")
-movie_data = clean_dataset(movie_data, filter_single_genres=True)
-print(f"Movies after cleaning: {len(movie_data)}")
+# Filter by year range if year column exists
+if 'year' in movie_data.columns:
+    movie_data = movie_data[
+        (movie_data['year'] >= START_YEAR) & 
+        (movie_data['year'] <= END_YEAR)
+    ].copy()
+    print(f"Filtered to {len(movie_data)} movies between {START_YEAR} and {END_YEAR}")
 
-# Fill NaN values in genre column with empty string (preprocess_genres will handle it)
-if 'genre' in movie_data.columns:
-    movie_data['genre'] = movie_data['genre'].fillna('')
-
-# Apply genre clustering/filtering from data_utils
-# This uses the genre_fix_mapping.json to map and clean genres
-# Note: preprocess_genres expects genre_fix_mapping.json in current directory
-# Temporarily change to src directory to find the file
-original_cwd = os.getcwd()
-try:
-    os.chdir(SRC_DIR)
-    print("\nProcessing genres using cluster_genres from data_utils...")
-    print("Using genre mapping from genre_classifier.py (genre_fix_mapping.json or genre_fix_mapping_new.json)")
-    movie_data = cluster_genres(movie_data)
-finally:
-    os.chdir(original_cwd)
-
-# Create a mapping from movie_id to genre
+# Create a mapping from movie_id to genre using genre_cluster_names from CSV
 movie_to_genre = {}
 movie_to_title = {}
 
 for idx, row in movie_data.iterrows():
     movie_id = row['movie_id']
-    # Use the new_genre column created by cluster_genres
-    new_genre = row.get('new_genre', 'Unknown')
+    # Use the genre_cluster_names column which already exists in the CSV
+    genre_cluster_names = row.get('genre_cluster_names', '')
     title = row['title']
     
     movie_to_title[movie_id] = title
     
-    # Extract first genre if multiple genres are separated by |
-    if pd.notna(new_genre) and new_genre.strip() and new_genre != 'Unknown':
-        # Split by | and take the first genre (genres are separated by | after preprocessing)
-        first_genre = new_genre.split('|')[0].strip()
+    # Extract first genre if multiple genres are separated by comma
+    if pd.notna(genre_cluster_names) and str(genre_cluster_names).strip() and str(genre_cluster_names).strip() != '':
+        # Split by comma and take the first genre (genres are comma-separated in genre_cluster_names)
+        first_genre = str(genre_cluster_names).split(',')[0].strip()
         movie_to_genre[movie_id] = first_genre
     else:
         movie_to_genre[movie_id] = 'Unknown'
@@ -157,15 +93,26 @@ print(f"Loaded metadata for {len(movie_data)} movies")
 print(f"Unique movie_ids with metadata: {len(movie_to_genre)}")
 print(f"Unique processed genres: {len(set(movie_to_genre.values()))}")
 
-# Filter embeddings to only include movies that are in the cleaned metadata
-print("\nFiltering embeddings to match cleaned metadata...")
-cleaned_movie_ids_set = set(movie_data['movie_id'].values)
-mask = np.array([mid in cleaned_movie_ids_set for mid in all_movie_ids])
+# Create year array for movies with embeddings by looking up year from metadata
+print("\nCreating year mapping for embeddings...")
+movie_id_to_year = dict(zip(movie_data['movie_id'], movie_data['year']))
+all_years = np.array([movie_id_to_year.get(mid, -1) for mid in all_movie_ids])
+
+# Filter embeddings to only include movies that are in the filtered metadata
+print("Filtering embeddings to match metadata...")
+movie_ids_set = set(movie_data['movie_id'].values)
+mask = np.array([mid in movie_ids_set for mid in all_movie_ids])
 all_embeddings = all_embeddings[mask]
 all_movie_ids = all_movie_ids[mask]
 all_years = all_years[mask]
 
-print(f"After filtering: {len(all_movie_ids)} movies with both embeddings and cleaned metadata")
+# Remove any movies where year lookup failed (year == -1)
+valid_year_mask = all_years != -1
+all_embeddings = all_embeddings[valid_year_mask]
+all_movie_ids = all_movie_ids[valid_year_mask]
+all_years = all_years[valid_year_mask]
+
+print(f"After filtering: {len(all_movie_ids)} movies with both embeddings and metadata")
 print(f"Embedding shape: {all_embeddings.shape}")
 
 # Filter out movies with "Unknown" genre
