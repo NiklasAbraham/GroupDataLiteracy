@@ -46,3 +46,19 @@ math/
 - Comparing keyword groups to random movies
 - Measuring separation between different categories
 - Evaluating inter-cluster distances
+
+---
+
+### `find_nearest_and_furthest_medoids(embeddings)`
+
+**Purpose**: Identifies the nearest and furthest medoids within a set of embeddings.
+
+**Parameters**:
+- `embeddings`: numpy array of shape `(n_samples, embedding_dim)`
+
+**Returns**:
+- `tuple`: (nearest_medoid_index, furthest_medoid_index)
+
+**Use Cases**:
+- Identifying the most and least representative movies
+- Analyzing centrality in movie groups
