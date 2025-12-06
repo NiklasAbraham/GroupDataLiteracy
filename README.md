@@ -1,12 +1,6 @@
 # GroupDataLiteracy
-Welcome to Group 3 of ML4102 Data Literacy. 
 
-This repo serves to document our project implementation, data engineering as well as exploration.
-
-## Movies
-We are using the Movies dataset
-
-### Idea List for Datasets
+Group 3 project for ML4102 Data Literacy. This repository contains a complete pipeline for analyzing temporal semantic drift in movie plots using embedding-based techniques. The project collects movie metadata and plot summaries from Wikidata, Wikipedia, and TMDb, generates semantic embeddings, and analyzes how movie content evolves over time through concept extraction, PCA analysis, and genre classification.
 
 ## Project Structure
 
@@ -64,6 +58,13 @@ GroupDataLiteracy/
 │   │   ├── wikidata_handler.py   # Wikidata data collection
 │   │   ├── moviedb_handler.py    # TMDb API integration for movie metadata
 │   │   └── wikipedia_handler.py # Wikipedia plot retrieval
+│   ├── concept_words/            # Concept space and PCA analysis
+│   │   ├── concept_space.py      # Concept space vocabulary and embeddings
+│   │   ├── concept_extraction_dense.py  # Dense concept extraction
+│   │   ├── concept_extraction_sparse.py  # Sparse concept extraction
+│   │   ├── pca_analysis.py       # PCA analysis with concept space projection
+│   │   ├── example_pca_analysis.py  # Example PCA analysis script
+│   │   └── example_concept_extraction_*.py  # Concept extraction examples
 │   ├── data_pipeline.py          # Main data processing pipeline orchestrator
 │   ├── data_utils.py             # Utility methods for data loading and genre clustering
 │   ├── data_cleaning.py          # Data cleaning and filtering utilities
@@ -120,6 +121,10 @@ The project follows a clear separation of concerns:
     - `example_concept_extraction.py`: Example script demonstrating concept extraction usage
     - `embedding_vs_feature_per_year.py`: Creates UMAP/TSNE visualizations of embeddings colored by year and genre
     - `chunking/`: Experimental framework for comparing document embedding aggregation methods (bias-variance analysis)
+  - **`concept_words/`**: Concept space vocabulary and PCA analysis tools
+    - `concept_space.py`: Manages WordNet-based concept vocabulary and embeddings
+    - `pca_analysis.py`: Performs PCA on movie embeddings with concept space projection for semantic interpretation
+    - `concept_extraction_dense.py` and `concept_extraction_sparse.py`: Dense and sparse concept extraction implementations
   - **Root level scripts**:
     - `data_pipeline.py`: Main orchestrator that runs the complete pipeline (Wikidata → MovieDB → Wikipedia → Embeddings)
     - `data_utils.py`: Helper functions for loading movie data and embeddings
@@ -166,30 +171,22 @@ conda activate dataLiteracy
 
 ## Data Pipeline
 
-The main data processing pipeline is orchestrated by `src/data_pipeline.py`. This pipeline performs the following steps:
+The data processing pipeline (`src/data_pipeline.py`) collects and processes movie data for temporal semantic drift analysis. The pipeline executes four sequential steps:
 
-1. **Wikidata Collection**: Fetches movie metadata from Wikidata by year (1950-2024)
-2. **MovieDB Enrichment**: Enriches data with TMDb popularity, votes, and ratings via Wikidata ID
-3. **Wikipedia Plot Retrieval**: Retrieves movie plots from Wikipedia via sitelinks
-4. **Embedding Generation**: Generates embeddings for movie plots using SentenceTransformer models (default: BAAI/bge-m3)
+1. **Wikidata Collection**: Queries Wikidata SPARQL endpoint to fetch movie metadata (titles, release years, genres, Wikidata IDs) for films released between 1950-2024. Filters for feature-length films and excludes TV series, short films, and other non-feature content.
+
+2. **MovieDB Enrichment**: Enriches Wikidata entries with TMDb metadata via API lookup using Wikidata IDs. Retrieves popularity scores, vote counts, average ratings, and additional metadata to supplement the dataset for analysis.
+
+3. **Wikipedia Plot Retrieval**: Fetches full plot summaries from Wikipedia using Wikidata sitelinks. Handles redirects, extracts main plot sections, and filters out plots that are too short or contain insufficient narrative content.
+
+4. **Embedding Generation**: Generates dense and sparse embeddings for all retrieved plot texts using BAAI/bge-m3 model by default. Produces both CLS token embeddings and lexical weight matrices for concept extraction. Supports multiple chunking strategies and parallel GPU processing.
 
 The pipeline is designed to be incremental and resumable:
 - Only processes years where data doesn't exist (unless `force_refresh=True`)
 - Skips movies that already have enriched data
 - Verifies existing embeddings before regenerating
 
-To run the pipeline:
-
-```bash
-# Activate conda environment
-conda activate dataLiteracy
-
-# Run pipeline
-cd /home/nab/Niklas/GroupDataLiteracy/src
-python data_pipeline.py
-```
-
-Note: The pipeline outputs data to `data/data_final/` directory.
+Run the pipeline by executing `src/data_pipeline.py`. The pipeline outputs all processed data to `data/data_final/` directory, organized by year and including consolidated files for efficient loading.
 
 Configuration can be modified in `data_pipeline.py`:
 - `START_YEAR` and `END_YEAR`: Year range to process
@@ -201,28 +198,21 @@ Configuration can be modified in `data_pipeline.py`:
 
 ## Loading Data
 
-Helper methods have been created in `src/data_utils.py`.
+Data loading utilities are provided in `src/data_utils.py`. The project uses consolidated data files for efficient access:
 
-Use `load_movie_embeddings(data_dir, verbose=False, chunking_suffix='_cls_token')` to get an ordered array of embeddings and the respective ordered array of movie IDs. The function loads embeddings from per-year files (1950-2024) and concatenates them. The `chunking_suffix` parameter specifies which embedding variant to load (e.g., `'_cls_token'`, `'_mean_pooling'`, or `''` for no suffix).
+- **`load_final_data_with_embeddings()`**: Loads the complete movie dataset with embeddings merged into a single DataFrame. This is the primary function for analysis workflows. The function loads from `final_dataset.csv` and `final_dense_embeddings.npy`, merges them on movie_id, and applies genre clustering.
 
-Use `load_movie_data(data_dir, verbose=False)` to get a pd.DataFrame of movie features. The embeddings can be joined if needed using the movie_id column.
+- **`load_final_dense_embeddings()`**: Loads embeddings and movie IDs from consolidated NumPy files. Returns a tuple of (embeddings array, movie_ids array) for direct embedding operations.
 
-Example usage:
+- **`load_movie_embeddings()`**: Legacy function for loading embeddings from per-year files (1950-2024). Supports chunking suffixes like `_cls_token`, `_mean_pooling`, etc. for different embedding aggregation methods.
 
-```python
-from src.data_utils import load_movie_embeddings, load_movie_data
-import os
+- **`load_movie_data()`**: Loads movie metadata DataFrame from per-year CSV files.
 
-data_dir = os.path.join(os.path.dirname(__file__), '..', 'data', 'data_final')
-embeddings, movie_ids = load_movie_embeddings(data_dir, verbose=True, chunking_suffix='_cls_token')
-movie_data = load_movie_data(data_dir, verbose=True)
-```
-
-Note: The data directory should point to `data/data_final/` which contains the final processed data files.
+All functions default to `/home/nab/Niklas/GroupDataLiteracy/data/data_final/` as the data directory. The consolidated files (`final_dense_embeddings.npy`, `final_dataset.csv`) are generated by the pipeline and provide faster loading than per-year files.
 
 ## Embedding Bias-Variance Experiment
 
-The `src/analysis/chunking/` module implements an experimental framework to quantitatively compare document embedding aggregation methods on the movie corpus.
+The `src/analysis/chunking/` module implements an experimental framework to quantitatively compare document embedding aggregation methods on the movie corpus. This experiment evaluates how different text chunking and pooling strategies affect embedding quality, isotropy, genre clustering, and temporal stability metrics across 75 years of movie data.
 
 ### Methods Implemented
 
@@ -265,14 +255,7 @@ cd /home/nab/GroupDataLiteracy
 python src/analysis/chunking/manager.py
 ```
 
-#### Using as a Module
-
-```python
-from analysis.chunking.manager import main
-
-# Run experiment (uses configuration in manager.py)
-metrics, embeddings = main()
-```
+The experiment can also be imported as a module. The `main()` function returns a metrics DataFrame and embeddings dictionary for further analysis.
 
 ### Genre Processing
 
@@ -309,7 +292,7 @@ This ensures maximum GPU utilization and efficient processing of large datasets.
 
 ## Concept Extraction from Movie Plots
 
-The `src/analysis/chunking/test_single_chunking.py` script implements a concept extraction pipeline that maps movie plot nouns to a fixed semantic concept space using embedding-based similarity.
+The concept extraction pipeline maps movie plot nouns to a fixed semantic concept space, enabling quantitative analysis of thematic content evolution over time. This is implemented in `src/analysis/chunking/test_single_chunking.py` for single-movie analysis and supports batch processing for temporal drift studies.
 
 ### Overview
 
@@ -331,16 +314,7 @@ The concept space is built from:
 
 The concept space is built once and reused for all movies, providing a consistent semantic basis for comparison.
 
-### Running Concept Extraction
-
-```bash
-# Activate conda environment
-conda activate dataLiteracy
-
-# Run single movie test
-cd /home/nab/GroupDataLiteracy
-python src/analysis/chunking/test_single_chunking.py
-```
+The script `src/analysis/chunking/test_single_chunking.py` implements concept extraction for a single movie, demonstrating the full pipeline from plot text to concept signature. It processes one movie at a time for detailed inspection and debugging.
 
 ### Configuration
 
@@ -352,77 +326,11 @@ Edit parameters in `test_single_chunking.py`:
 
 ### Output
 
-The script displays:
-- Movie plot text
-- Token count
-- Embedding array shapes (colbert_vecs, window_embeddings, final_embedding)
-- Top concepts ranked by aggregated lexical weights
-
-### Example Output
-
-Example output from running `test_single_chunking.py`:
-
-```
-Selected movie ID: Q28416981
-Plot length: 6253 characters
-
-================================================================================
-PLOT TEXT:
-================================================================================
-The story focuses on two young talented chefs, Gao Tian Ci (Nicholas Tse), a southern-style Chinese chef, and Paul Ahn (Jung Yong-hwa), a Michelin-starred Korean chef trained in France. Both have reasons to climb the culinary ladder—When Tian Ci was ten years old, his father, Gao Feng (Anthony Wong), left him behind with his friend, Uncle Seven (Ge You), master chef of Seven Restaurant. When asked why, Gao Feng told Tian Ci that he has no talent as a cook and he would only take him back if he can prove to be a great cook. In reality, Gao Feng chose to pursue his culinary career over being a father and made the excuse that Tian Ci can't even make a decent bowl of noodles. Because of that, Tian Ci spent twenty years training to become a great chef under Uncle Seven. On the other side, Paul made a promise to his dying father that he would become a great cook. Through that journey, he became a highly successful chef in Europe and decides to run his own restaurant in Hong Kong, Stellar. However, this brings conflict between Paul and Tian Ci. In an old area of Hong Kong, Tian Ci is now an acclaimed chef at Seven. However, the Li Management Group arrives and starts buying various properties of the old sector, including developing Stellar for Paul. The opening of Stellar proves to be a threat to Tian Ci as these two chefs find themselves fighting for the best ingredients in the markets and maintaining their clientele. Stellar's fine haute cuisine represents a form of aggressive gentrification to the neighborhood and a threat to traditional Chinese cuisine. Their rivalry begins with a challenge for the best fish and the culinary masters agreed to face each other in a culinary duel. Tian Ci makes a traditional salt-baked duck while Paul makes a foie gras sorbet. While both tied in points, the judges declare Paul the victor, as his dish presentation was superior to Tian Ci's bland plating. Although the victory should've solidified Paul's abilities as a cook, things do not go as expected. It was while celebrating their victory that the manager of Li Group tells Paul he wants to replace him with Mei You (Michelle Bai), sous chef and girlfriend, reasoning that a woman is far more appealing on media than a man. Betrayed and confused, Paul tries to defend his position as head chef, but Mei You exposes his dark secret: Paul has problems tasting certain flavors, especially saltiness. To compensate, he would utilize a notebook containing all his recipes and have others test taste for him. To make matters worse, the manager announces that he and Mei You are romantically involved. Mei You explains to Paul that she never loved him and only sided with him to surpass him. Now that she can take the title as executive chef of Stellar, she doesn't need Paul anymore. Angry that he has lost everything, Paul leaves. Tian Ci bumps into Paul drinking at an event stadium. Both share their past and troubles, and find mutual respect for each other. Both have a common goal of reaching the culinary top and decided to team up. At Seven, the Li Group wants Uncle Seven to sign away his restaurant, but Uncle Seven refuses. Paul and Tian Ci then appear, announcing their partnership. Paul reminds the manager that as the winner of the competition, he is eligible to compete at the culinary championship, not the Li Group. Surprised by that technicality, the Li Group leaves, hypocritically calling Paul a traitor but not before Paul headbutted the manager in revenge. Tian Ci trains Paul in the ways of Chinese cooking as well as developing Paul's limited palate to help create something new for the competition. In Macau, at the Studio City Casino, attending the 7th International Culinary Competition, Tian Ci and Paul use both their culinary strengths to compete against four other great chefs. Whoever wins the competition will gain the chance to face the current god of Cookery, Gao Feng Ko. In this competition, they face a French team, Indian team, a Japanese chef, and Mei You. The French team make a roasted squab dish, the Indian team make a five-flavor curry, the Japanese chef makes koi nigiri, Mei You, impliying that she is in the final stage thanks to manager's bribery because she hadn't enrolled to be in the competition, makes an oyster dish with frozen foam, and the duo create a deconstructed mapo tofu. Paul used Tian Ci's sense of taste to help him determine the flavor of the ingredients and Tian Ci relies on Paul's knowledge of molecular science and culinary artistry to create a traditional dish with a modern design. The victory goes to Paul and Tian Ci. In defeat, a shameful Mei You is unable to bring herself to look at Paul's in the eyes for having betrayed him and now once again having to live under Paul's shadow. Before the final round, Paul points out only one chef can compete against Gao Feng and he realizes Tian Ci's desire to beat Gao Feng was a very personal one. Grateful he managed to make it this far with his condition, Paul gives Tian Ci the chance to face his father. In the final competition, Tian Ci finally faces his father, and the judges allow the two to cook anything they want as long as it is considered the highest expression of cooking. While Gao Feng begins cooking, Tian Ci is distracted by his thoughts about how Seven and the people in the neighborhood mean the most to him. Gao Feng angrily splashes water at his son's face, demanding that he focus and show him something. Gao Feng creates a beautiful artistic sugar display of molten lava with a single flower on top. Tian Ci cooks something far more personal: an interpretation of the original noodle dish that Gao Feng made all those years ago before abandoning Tian Ci. Before the judges can score the dish, Tian Ci gives the bowl of noodles to Gao Feng, who is moved as he remembers what the noodles represent. Acknowledging his skills as a chef, Gao Feng calls his son brilliant before Tian Ci walks off the stage. Gao Feng continues to emotionally eat his noodles, with the victor unclear. Some time has passed and the people at Seven are getting ready for a poon choi Chinese New Year party with the neighborhood's people. The movie ends with the staff of Seven announcing: We wish you all 2017 a happy rooster year!
-================================================================================
-
-Token count: 1475
-
-Loaded concept space: 18852 concepts
-
-================================================================================
-TOP 30 CONCEPTS (WORDNET 10K CONCEPT SPACE, Zipf >= 4.0):
-================================================================================
- 1. chef                          : 0.159699
- 2. competition                   : 0.049049
- 3. manager                       : 0.040440
- 4. father                        : 0.038061
- 5. cook                          : 0.035920
- 6. victory                       : 0.032845
- 7. dish                          : 0.031582
- 8. judge                         : 0.029551
- 9. team                          : 0.023605
-10. flavor                        : 0.019188
-11. neighborhood                  : 0.017827
-12. victor                        : 0.017512
-13. cooking                       : 0.017109
-14. people                        : 0.015481
-15. threat                        : 0.014922
-16. year                          : 0.014125
-17. master                        : 0.013373
-18. taste                         : 0.013083
-19. son                           : 0.011803
-20. bowl                          : 0.011665
-21. revenge                       : 0.010659
-22. ladder                        : 0.010458
-23. top                           : 0.010082
-24. story                         : 0.009451
-25. restaurant                    : 0.009424
-26. movie                         : 0.009415
-27. defeat                        : 0.009407
-28. secret                        : 0.008948
-29. talent                        : 0.008523
-30. conflict                      : 0.008394
-================================================================================
-
-colbert_vecs[0] shape: (1476, 1024)
-window_embeddings shape: (5, 1024)
-final_embedding_pre_norm shape: (1024,)
-final_embedding shape: (1024,)
-```
-
-The output shows:
-- The full movie plot text
-- Token count (1475 tokens)
-- Concept space size (18852 concepts loaded)
-- Top 30 concepts extracted from the plot, ranked by aggregated lexical weights
-- Embedding array shapes at various stages of processing
+The script processes a single movie plot and outputs:
+- Movie plot text and token count
+- Embedding array shapes at each processing stage (colbert_vecs, window_embeddings, final_embedding)
+- Top-K concepts ranked by aggregated lexical weights from the concept space
+- Concept space metadata (number of concepts loaded, filtering parameters)
 
 ### Mathematical Foundation
 
@@ -436,6 +344,24 @@ The embedding-based mapping works as follows:
 6. **Ranking**: Return top-K concepts by aggregated score
 
 This provides a normalized, comparable representation of movies in a fixed semantic space, suitable for temporal drift analysis and cross-movie comparison.
+
+## PCA Analysis with Concept Space Projection
+
+The `src/concept_words/pca_analysis.py` module performs Principal Component Analysis on movie embeddings to identify latent semantic dimensions and projects concept words onto these dimensions for interpretability. This enables understanding of what semantic factors drive variation in movie plot embeddings over time.
+
+The analysis pipeline:
+1. Extracts embeddings from movie DataFrame and performs PCA with column-wise centering
+2. Loads the WordNet-based concept space vocabulary and embeddings
+3. Selects top-K most relevant concepts based on cosine similarity to movie embedding centroid
+4. Projects concept vectors onto PCA principal directions
+5. Identifies top concepts per principal component dimension
+6. Generates visualization with movies colored by genre and concept words overlaid
+
+The `run_pca_analysis()` function accepts a DataFrame with an 'embedding' column and returns PCA scores, eigenvalues, principal directions, the fitted PCA model, and the concept space. Key parameters include `n_components` (default: 2), `top_k_concepts` for concept selection (default: 30), `top_per_dimension` for displaying concepts per PC (default: 10), and concept space configuration (`min_zipf_vocab`, `max_vocab`, `concept_model`).
+
+Outputs include explained variance statistics per component, ranked lists of top concepts per dimension with projection scores, and a 2D scatterplot visualization saved as PNG. The visualization overlays concept word positions on the PCA space, enabling interpretation of what semantic dimensions each principal component captures.
+
+This analysis is used to study how semantic concepts evolve in movie plots across different time periods and genres, revealing patterns in cultural and thematic shifts reflected in film content.
 
 ## Genre Classification
 
@@ -452,14 +378,7 @@ The genre classification system:
 
 ### Running Genre Classification
 
-```bash
-# Activate conda environment
-conda activate dataLiteracy
-
-# Run genre classification
-cd /home/nab/GroupDataLiteracy
-python src/analysis/genre_classifier.py
-```
+Run `src/analysis/genre_classifier.py` to generate genre clusters. The script processes all unique genres in the dataset, fetches Wikipedia descriptions for each, embeds them, and performs KMeans clustering to group similar genres.
 
 ### Configuration
 
@@ -488,18 +407,7 @@ The concept extraction system:
 3. Maps to concepts using WordNet hypernyms or embedding similarity
 4. Aggregates weights per concept to create semantic signatures
 
-### Running Concept Extraction
-
-See `src/analysis/example_concept_extraction.py` for a complete example:
-
-```bash
-# Activate conda environment
-conda activate dataLiteracy
-
-# Run example
-cd /home/nab/GroupDataLiteracy
-python src/analysis/example_concept_extraction.py
-```
+The module supports both dense and sparse concept extraction approaches. Dense extraction works directly with sentence embeddings, while sparse extraction uses lexical weights from BGE-M3 models for more granular word-level concept mapping.
 
 ### Configuration
 
@@ -522,20 +430,7 @@ The cleaning functions are used by the genre classifier and can be applied indep
 
 The `tests/` directory contains comprehensive tests for the codebase. See `tests/README.md` for detailed documentation.
 
-### Running Tests
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run specific test file
-pytest tests/test_data_loading.py -v
-
-# Run specific test class
-pytest tests/test_data_loading.py::TestCSVLoading -v
-```
-
-The tests validate:
+Tests are run using pytest. The test suite validates:
 - CSV file loading and validation
 - Lexical weights loading
 - Data alignment between different sources

@@ -62,7 +62,7 @@ def main():
         top_k=30,
         zipf_threshold=4.0,
         min_zipf_vocab=2.5,
-        max_vocab=20000
+        max_vocab=10000
     )
     
     # Compute cosine similarities for each concept
@@ -77,7 +77,7 @@ def main():
     # Load concept space to get concept vectors
     concept_dir = DEFAULT_CONCEPT_DIR
     min_zipf_vocab = 2.5
-    max_vocab = 20000
+    max_vocab = 10000
     words_filename, vecs_filename = get_concept_space_filenames(
         min_zipf_vocab, max_vocab, MODEL_NAME
     )

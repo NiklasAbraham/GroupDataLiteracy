@@ -176,7 +176,7 @@ def extract_concepts_from_text(
         
         if not concept_words_path.exists() or not concept_vecs_path.exists():
             if build_concept_space:
-                vocab = build_wordnet_concept_vocab(min_zipf=min_zipf_vocab, max_vocab=max_vocab, filter_verbs=False, filter_generic=True)
+                vocab = build_wordnet_concept_vocab(min_zipf=min_zipf_vocab, max_vocab=max_vocab, filter_verbs=True, filter_generic=True)
                 embed_and_save_concept_vocab(
                     vocab, concept_dir, 
                     model_name=concept_model,
