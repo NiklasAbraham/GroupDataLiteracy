@@ -323,16 +323,33 @@ def calculate_drift_vector(row):
     except TypeError:
         return np.nan
 
-def compute_simple_difference(v_t: float, v_t_plus_1: float) -> float:
+def compute_scalar_difference(prev_value, next_value):
     """
-    Computes the simple difference between two values: (Value at t+1) - (Value at t).
-    """
+    Computes the difference between two scalar values or arrays.
+    Always returns a 1D array for consistency with embedding operations.
 
-    # Check if the next value is missing (np.nan or pd.NA)
-    if pd.isna(v_t_plus_1):
+    Args:
+        prev_value: Previous value (scalar or array)
+        next_value: Next value (scalar or array)
+
+    Returns:
+        1D numpy array containing the difference(s)
+    """
+    diff = next_value - prev_value
+    # Ensure we always return a 1D array
+    return np.atleast_1d(diff)
+
+def compute_vector_difference(v_t: np.ndarray, v_t_plus_1: np.ndarray) -> np.ndarray:
+    """
+    Computes the simple difference between two vector values (np.ndarray):
+    (Vector at t+1) - (Vector at t).
+    """
+    # Check if ANY element in either vector is NaN
+    if np.any(pd.isna(v_t_plus_1)) or np.any(pd.isna(v_t)):
         return np.nan
 
     return v_t_plus_1 - v_t
+
 
 def compute_cosine_similarity_variance(embeddings: np.ndarray, n_samples: int = 5000, random_state: int = 42, abtt_pc: int = 0) -> Dict[str, float]:
     """

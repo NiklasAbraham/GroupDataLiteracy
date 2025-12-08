@@ -23,7 +23,7 @@ from scipy.stats import cosine
 from itertools import combinations
 from scipy.spatial.distance import cosine as another_cosine
 
-from analysis.chunking.calculations import compute_cosine_distance, calculate_drift_vector, compute_simple_difference
+from analysis.chunking.calculations import compute_cosine_distance, calculate_drift_vector
 from scipy.spatial.distance import cosine as cos_dist
 
 from analysis.math_functions import calculate_average_cosine_distance_between_groups
@@ -393,35 +393,6 @@ def main(data_dir: str = None, save_stats: bool = True, save_histogram: bool = T
 
 
 
-def prepare_heatmap_data(group_df, target_genre, bin_size=5):
-    """
-    Groups average embeddings into year intervals, calculates the drift vector 
-    between intervals, and formats the result for a heatmap.
-    """
-    genre_df = group_df[group_df['new_genre'] == target_genre].copy()
-
-    # Group by year intervals
-    genre_df['year_interval'] = (genre_df['year'] // bin_size) * bin_size
-    interval_df = genre_df.groupby('year_interval')['avg_embedding'].apply(
-        lambda x: np.mean(np.vstack(x), axis=0)
-    ).reset_index(name='avg_embedding')
-
-    # Calculate drift vectors
-    interval_df['next_avg_embedding'] = interval_df['avg_embedding'].shift(-1)
-    interval_df['drift_vector'] = interval_df.apply(calculate_drift_vector, axis=1)
-    final_drift_df = interval_df.dropna(subset=['drift_vector']).copy()
-
-    drift_matrix = np.vstack(final_drift_df['drift_vector'].values)
-    interval_labels = final_drift_df['year_interval'].map(lambda y: f'{y} -> {y + bin_size}')
-
-    heatmap_df = pd.DataFrame(
-        drift_matrix,
-        index=interval_labels,
-        columns=[f'Dim_{i}' for i in range(drift_matrix.shape[1])]
-    )
-    return heatmap_df, bin_size
-
-
 def calculate_binned_inter_genre_distance(group_df, bin_size):
     """
     Calculates the cosine distance between the average embeddings of all
@@ -574,45 +545,86 @@ def unpivot_distance_for_plotting(convergence_df):
     return pd.concat([df_a, df_b])
 
 
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-
 
 def plot_genre_drift(df, y_column, title, y_label, softness_window=None):
     """
-    Generates a time-series line plot for an individual genre drift metric.
-
-    softness_window: The window size (number of years) for the rolling average
-                     used to smooth the plot. If None or 1, no smoothing is applied.
+    Generates a time-series line plot for an individual genre drift metric,
+    including confidence intervals if the data is bootstrapped.
     """
 
     sns.set_theme(style="whitegrid")
     df['year_group'] = pd.to_numeric(df['year_group'])
 
-    y_column_to_plot = y_column
-    if softness_window is not None and softness_window > 1:
-        # Create a temporary column name for the smoothed data
-        smoothed_column = f'{y_column}_smoothed_{softness_window}'
+    # --- 1. BOOTSTRAP METRIC EXTRACTION ---
+    # Check if the y_column contains arrays (i.e., bootstrapping was used)
+    first_non_null = df[y_column].dropna().iloc[0]
+    is_bootstrapped = isinstance(first_non_null, np.ndarray) and first_non_null.ndim > 0
 
-        # Apply the rolling mean grouped by genre (to avoid mixing data across genres)
-        df[smoothed_column] = df.groupby('new_genre')[y_column].transform(
+    if is_bootstrapped:
+        # Extract Median for the central line
+        df[f'{y_column}_median'] = df[y_column].apply(
+            lambda arr: np.nanmedian(arr) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+        )
+        # Extract 95% Confidence Interval (2.5th and 97.5th percentiles)
+        df[f'{y_column}_lower_ci'] = df[y_column].apply(
+            lambda arr: np.nanpercentile(arr, 2.5) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+        )
+        df[f'{y_column}_upper_ci'] = df[y_column].apply(
+            lambda arr: np.nanpercentile(arr, 97.5) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+        )
+
+        y_plot_base = f'{y_column}_median'
+        ci_lower = f'{y_column}_lower_ci'
+        ci_upper = f'{y_column}_upper_ci'
+        title += ' (with 95% CI)'
+    else:
+        # If not bootstrapped, use the original column as the plot base
+        y_plot_base = y_column
+        ci_lower, ci_upper = None, None
+
+    # --- 2. SMOOTHING (Applied to the central line) ---
+    y_column_to_plot = y_plot_base
+    if softness_window is not None and softness_window > 1:
+        smoothed_column = f'{y_plot_base}_smoothed_{softness_window}'
+
+        # Apply smoothing to the median (or original) data
+        df[smoothed_column] = df.groupby('new_genre')[y_plot_base].transform(
             lambda x: x.rolling(window=softness_window, center=True, min_periods=1).mean()
         )
 
-        # Plot the new smoothed column and update the title
         y_column_to_plot = smoothed_column
         title = f'{title} (Smoothed, Window={softness_window})'
 
     plt.figure(figsize=(12, 6))
 
+    # --- 3. PLOTTING THE CONFIDENCE INTERVAL (if bootstrapped) ---
+    if is_bootstrapped:
+        genres = df['new_genre'].unique()
+        # Get colors for the shaded region to match the lines
+        palette = sns.color_palette(n_colors=len(genres))
+        genre_colors = dict(zip(genres, palette))
+
+        # Plot the 95% confidence interval as a shaded area
+        for genre in genres:
+            subset = df[df['new_genre'] == genre].dropna(subset=[ci_lower, ci_upper])
+            plt.fill_between(
+                subset['year_group'],
+                subset[ci_lower],
+                subset[ci_upper],
+                color=genre_colors[genre],
+                alpha=0.15,  # Light shading
+                linewidth=0.0
+            )
+
+    # --- 4. PLOTTING THE CENTRAL LINE (Median or original value) ---
     sns.lineplot(
         data=df,
         x='year_group',
         y=y_column_to_plot,
         hue='new_genre',
         marker='o',
-        linewidth=1.5
+        linewidth=1.5,
+        legend=True
     )
 
     plt.title(title, fontsize=16)
@@ -621,15 +633,27 @@ def plot_genre_drift(df, y_column, title, y_label, softness_window=None):
 
     plt.legend(title='Genre', bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout(rect=[0, 0, 0.8, 1])
+    # The output from a Python environment will save the figure, e.g., plt.savefig("genre_drift_plot.png")
+    # For simplicity, I'll keep plt.show() as per your original code structure, assuming it's replaced by savefig in practice.
     plt.show()
 
-def plot_standard_heatmap(heatmap_df, target_genre, bin_size):
-    """Generates and displays a standard heatmap of the drift vectors."""
-    if heatmap_df is None: return
+def prepare_heatmap_data(df: pd.DataFrame, target_genre: str):
+    data_for_genre = df.loc[df['new_genre'] == target_genre].copy()
+    data_for_genre.dropna(subset=['drift'], inplace=True)
+    drift_expanded_df = pd.DataFrame(data_for_genre['drift'].tolist())
+    drift_df_by_dims = pd.concat([data_for_genre['year_group'].reset_index(drop=True), drift_expanded_df], axis=1)
+    heatmap_matrix = drift_df_by_dims.set_index('year_group').T
+    return heatmap_matrix
+
+def plot_standard_heatmap(heatmap_matrix: pd.DataFrame, target_genre: str, bin_size: int):
+    """
+    Generates and displays a standard heatmap of the drift vectors.
+    It expects the drift vectors in the 'drift' column, groped by 'year group' column
+    """
 
     plt.figure(figsize=(16, 8))
     sns.heatmap(
-        heatmap_df.T, cmap='coolwarm', center=0,
+        heatmap_matrix, cmap='coolwarm', center=0,
         cbar_kws={'label': 'Drift value'}, yticklabels=False
     )
     plt.title(f'Drift of genre "{target_genre}" ({bin_size} Years) - Standard', fontsize=16)
@@ -639,12 +663,11 @@ def plot_standard_heatmap(heatmap_df, target_genre, bin_size):
     plt.tight_layout()
     plt.show()
 
-def plot_clustermap(heatmap_df, target_genre, bin_size):
+def plot_clustermap(heatmap_matrix: pd.DataFrame, target_genre, bin_size):
     """Generates and displays a clustered heatmap of the drift vectors."""
-    if heatmap_df is None: return
 
     sns.clustermap(
-        heatmap_df.T, cmap='coolwarm', center=0,
+        heatmap_matrix, cmap='coolwarm', center=0,
         row_cluster=True, col_cluster=False, figsize=(16, 12),
         cbar_kws={'label': 'Drift value'}, yticklabels=False
     )

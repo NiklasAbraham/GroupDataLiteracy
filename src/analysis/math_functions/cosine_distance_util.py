@@ -112,3 +112,23 @@ def find_nearest_and_furthest_medoid(embeddings: np.ndarray) -> tuple[int, int]:
     most_dissim_medoid_index = np.argmax(pairwise_distance_matrix.sum(axis=0))
 
     return int(most_sim_medoid_index), int(most_dissim_medoid_index)
+
+def get_medoid_embedding(embeddings: np.ndarray) -> np.ndarray:
+    """
+    Finds and returns the most centered embedding (medoid) vector.
+
+    :param embeddings: 2D np array containing rows of data (the embeddings)
+    :type embeddings: np.ndarray
+    :rtype: np.ndarray
+    """
+    medoid_index, _ = find_nearest_and_furthest_medoid(embeddings)
+    medoid_embedding = embeddings[medoid_index]
+
+    return medoid_embedding
+
+def get_average_embedding(embeddings: np.ndarray) -> np.ndarray:
+    """
+    I made this function because # Clean Code
+    """
+    average_embedding = np.mean(embeddings, axis=0)
+    return average_embedding
