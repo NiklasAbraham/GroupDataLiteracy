@@ -37,128 +37,69 @@ END_YEAR = 2024
 
 
 def find_n_closest_neighbours(
-    qid: str,
+    embeddings_corpus: np.ndarray,
+    anchor_embedding: np.ndarray,
+    movie_ids: np.ndarray,
+    movie_data,
     n: int = 10,
-    start_year: int = START_YEAR,
-    end_year: int = END_YEAR,
-    data_dir: str = DATA_DIR,
-    csv_path: str = CSV_PATH,
+    anchor_idx: int = None,
 ):
     """
-    Find the n closest neighbors to a given qid in the latent space.
+    Find the n closest neighbors to an anchor embedding in the latent space.
 
     Parameters:
-    - qid: The movie_id (qid) to find neighbors for
+    - embeddings_corpus: Array of embeddings to search through (shape: [n_movies, embedding_dim])
+    - anchor_embedding: The anchor embedding to find neighbors for (shape: [1, embedding_dim])
+    - movie_ids: Array of movie IDs corresponding to embeddings_corpus
+    - movie_data: DataFrame with movie metadata (must contain 'movie_id' and 'title' columns)
     - n: Number of closest neighbors to find (default: 10)
-    - start_year: First year to filter movies (default: 1930)
-    - end_year: Last year to filter movies (default: 2024)
-    - data_dir: Directory containing the final embedding files
-    - csv_path: Path to final_dataset.csv
+    - anchor_idx: Index of anchor in the corpus (if None, will try to find it). Used to exclude from results.
 
     Returns:
     - List of tuples (qid, title, distance, similarity) for the n closest neighbors
     """
-    # Load all embeddings and corresponding movie IDs
-    logger.info("Loading embeddings...")
-    all_embeddings, all_movie_ids = load_final_dense_embeddings(data_dir, verbose=False)
+    if len(movie_ids) == 0:
+        raise ValueError("No movie IDs provided")
 
-    if len(all_movie_ids) == 0:
-        raise ValueError(f"No embeddings found in {data_dir}")
-
-    logger.info(f"Total movies with embeddings: {len(all_movie_ids)}")
-    logger.info(f"Embedding shape: {all_embeddings.shape}")
-
-    # Load movie metadata to get titles and filter by year
-    logger.info("Loading movie metadata...")
-    movie_data = load_final_dataset(csv_path, verbose=False)
-
-    if movie_data.empty:
-        raise ValueError(f"No movie data found in {csv_path}")
-
-    # Filter by year range if year column exists
-    if "year" in movie_data.columns:
-        movie_data = movie_data[
-            (movie_data["year"] >= start_year) & (movie_data["year"] <= end_year)
-        ].copy()
-        logger.info(
-            f"Filtered to {len(movie_data)} movies between {start_year} and {end_year}"
-        )
-
-    # Filter embeddings to only include movies in the filtered dataset
-    valid_movie_ids = set(movie_data["movie_id"].values)
-    valid_indices = np.array(
-        [i for i, mid in enumerate(all_movie_ids) if mid in valid_movie_ids]
-    )
-
-    if len(valid_indices) == 0:
+    if embeddings_corpus.shape[0] != len(movie_ids):
         raise ValueError(
-            f"No movies found in the specified year range ({start_year}-{end_year})"
+            f"Mismatch between embeddings ({embeddings_corpus.shape[0]}) and movie_ids ({len(movie_ids)})"
         )
 
-    # Filter embeddings and movie_ids to only include valid movies
-    filtered_embeddings = all_embeddings[valid_indices]
-    filtered_movie_ids = all_movie_ids[valid_indices]
+    logger.info(f"Finding {n} closest neighbors from {len(movie_ids)} movies")
+    logger.info(f"Embedding shape: {embeddings_corpus.shape}")
 
-    logger.info(
-        f"Filtered to {len(filtered_movie_ids)} movies with embeddings in year range"
-    )
-
-    # Find the index of the query qid in the filtered data
-    query_indices = np.where(filtered_movie_ids == qid)[0]
-    if len(query_indices) == 0:
-        raise ValueError(
-            f"QID '{qid}' not found in embeddings for the specified year range"
-        )
-
-    if len(query_indices) > 1:
-        logger.warning(f"Multiple embeddings found for qid '{qid}', using first one")
-
-    query_idx = query_indices[0]
-    query_embedding = filtered_embeddings[
-        query_idx : query_idx + 1
-    ]  # Keep 2D shape for sklearn
-
-    logger.info(f"Found query movie at index {query_idx} in filtered data")
-
-    # Get query movie title
-    query_movie = movie_data[movie_data["movie_id"] == qid]
-    if not query_movie.empty:
-        query_title = query_movie.iloc[0]["title"]
-        logger.info(f"Query movie: {query_title} (QID: {qid})")
-    else:
-        query_title = "Unknown"
-        logger.warning(f"Could not find title for QID '{qid}'")
-
-    # Calculate cosine similarity between query and all other embeddings
+    # Calculate cosine similarity between anchor and all other embeddings
     logger.info("Calculating cosine similarities...")
 
     # Normalize embeddings
-    query_norm = np.linalg.norm(query_embedding, axis=1, keepdims=True)
-    if query_norm[0, 0] == 0:
-        raise ValueError("Query embedding is zero vector")
-    query_normalized = query_embedding / query_norm
+    anchor_norm = np.linalg.norm(anchor_embedding, axis=1, keepdims=True)
+    if anchor_norm[0, 0] == 0:
+        raise ValueError("Anchor embedding is zero vector")
+    anchor_normalized = anchor_embedding / anchor_norm
 
-    all_norms = np.linalg.norm(filtered_embeddings, axis=1, keepdims=True)
-    all_norms[all_norms == 0] = 1  # Avoid division by zero
-    all_normalized = filtered_embeddings / all_norms
+    corpus_norms = np.linalg.norm(embeddings_corpus, axis=1, keepdims=True)
+    corpus_norms[corpus_norms == 0] = 1  # Avoid division by zero
+    corpus_normalized = embeddings_corpus / corpus_norms
 
     # Calculate cosine similarities
-    similarities = cosine_similarity(query_normalized, all_normalized)[0]
+    similarities = cosine_similarity(anchor_normalized, corpus_normalized)[0]
 
     # Convert to distances (1 - similarity)
     distances = 1 - similarities
 
-    # Exclude the query movie itself
-    distances[query_idx] = np.inf
+    # Exclude the anchor movie itself if anchor_idx is provided
+    if anchor_idx is not None:
+        distances[anchor_idx] = np.inf
 
     # Find n closest neighbors
-    n_neighbors = min(n, len(filtered_movie_ids) - 1)  # -1 to exclude query itself
+    n_neighbors = min(n, len(movie_ids) - (1 if anchor_idx is not None else 0))
     closest_indices = np.argsort(distances)[:n_neighbors]
 
     # Get results
     results = []
     for idx in closest_indices:
-        neighbor_qid = filtered_movie_ids[idx]
+        neighbor_qid = movie_ids[idx]
         distance = distances[idx]
         similarity = similarities[idx]
 
@@ -198,13 +139,89 @@ def main(
     logger.info(f"{'=' * 60}")
 
     try:
+        # Load all embeddings and corresponding movie IDs
+        logger.info("Loading embeddings...")
+        all_embeddings, all_movie_ids = load_final_dense_embeddings(
+            data_dir, verbose=False
+        )
+
+        if len(all_movie_ids) == 0:
+            raise ValueError(f"No embeddings found in {data_dir}")
+
+        logger.info(f"Total movies with embeddings: {len(all_movie_ids)}")
+        logger.info(f"Embedding shape: {all_embeddings.shape}")
+
+        # Load movie metadata to get titles and filter by year
+        logger.info("Loading movie metadata...")
+        movie_data = load_final_dataset(csv_path, verbose=False)
+
+        if movie_data.empty:
+            raise ValueError(f"No movie data found in {csv_path}")
+
+        # Filter by year range if year column exists
+        if "year" in movie_data.columns:
+            movie_data = movie_data[
+                (movie_data["year"] >= start_year) & (movie_data["year"] <= end_year)
+            ].copy()
+            logger.info(
+                f"Filtered to {len(movie_data)} movies between {start_year} and {end_year}"
+            )
+
+        # Filter embeddings to only include movies in the filtered dataset
+        valid_movie_ids = set(movie_data["movie_id"].values)
+        valid_indices = np.array(
+            [i for i, mid in enumerate(all_movie_ids) if mid in valid_movie_ids]
+        )
+
+        if len(valid_indices) == 0:
+            raise ValueError(
+                f"No movies found in the specified year range ({start_year}-{end_year})"
+            )
+
+        # Filter embeddings and movie_ids to only include valid movies
+        filtered_embeddings = all_embeddings[valid_indices]
+        filtered_movie_ids = all_movie_ids[valid_indices]
+
+        logger.info(
+            f"Filtered to {len(filtered_movie_ids)} movies with embeddings in year range"
+        )
+
+        # Find the index of the query qid in the filtered data
+        query_indices = np.where(filtered_movie_ids == qid)[0]
+        if len(query_indices) == 0:
+            raise ValueError(
+                f"QID '{qid}' not found in embeddings for the specified year range"
+            )
+
+        if len(query_indices) > 1:
+            logger.warning(
+                f"Multiple embeddings found for qid '{qid}', using first one"
+            )
+
+        query_idx = query_indices[0]
+        query_embedding = filtered_embeddings[
+            query_idx : query_idx + 1
+        ]  # Keep 2D shape for sklearn
+
+        logger.info(f"Found query movie at index {query_idx} in filtered data")
+
+        # Get query movie title
+        query_movie = movie_data[movie_data["movie_id"] == qid]
+        if not query_movie.empty:
+            query_title = query_movie.iloc[0]["title"]
+            logger.info(f"Query movie: {query_title} (QID: {qid})")
+        else:
+            query_title = "Unknown"
+            logger.warning(f"Could not find title for QID '{qid}'")
+
+        # Call the function with loaded data
         results = find_n_closest_neighbours(
-            qid=qid,
+            embeddings_corpus=filtered_embeddings,
+            anchor_embedding=query_embedding,
+            movie_ids=filtered_movie_ids,
+            movie_data=movie_data,
             n=n,
-            start_year=start_year,
-            end_year=end_year,
-            data_dir=data_dir,
-            csv_path=csv_path,
+            anchor_idx=query_idx,
         )
 
         # Print results
@@ -229,6 +246,6 @@ def main(
 if __name__ == "__main__":
     # Example usage - modify these parameters as needed
     main(
-        qid="Q104123",  # Change this to your desired qid
+        qid="Q13417189",  # Change this to your desired qid
         n=30,  # Change this to desired number of neighbors
     )
