@@ -161,3 +161,90 @@ math_functions/
 - Analyzing diversity in movie collections
 - Finding contrasting examples for analysis
 - Comparing items to a mean or centroid embedding
+
+---
+
+## `math_functions/whitening.py`
+
+### `mean_center_embeddings(embeddings)`
+
+**Purpose**: Mean-center embeddings by subtracting the global mean.
+
+**Mathematical Formulation**:
+```
+μ = (1/n) Σ_{i=1}^n x_i
+x_centered = x - μ
+```
+
+**Parameters**:
+- `embeddings`: Array of embeddings (shape: [n_samples, embedding_dim])
+
+**Returns**:
+- Mean-centered embeddings (shape: [n_samples, embedding_dim])
+
+**Use Cases**:
+- Preprocessing step before whitening or debiasing
+- Removing global bias from embeddings
+- Preparing data for PCA-based transformations
+
+---
+
+### `whiten_embeddings(embeddings, n_components=None, normalize=True)`
+
+**Purpose**: Whiten embeddings using PCA to restore isotropy.
+
+**Mathematical Formulation**:
+1. Mean-center: `x ← x - μ`
+2. Compute PCA: `X_centered = UΣV^T`
+3. Whiten: `x_whitened = U / √(eigenvalues)`
+4. Optionally normalize: `x' = x_whitened / ||x_whitened||`
+
+Whitening removes correlations and scales variance to 1 in all directions, making the covariance matrix identity.
+
+**Parameters**:
+- `embeddings`: Array of embeddings (shape: [n_samples, embedding_dim])
+- `n_components`: Number of PCA components to keep. If None, keeps all.
+- `normalize`: If True, re-normalize embeddings to unit length after whitening
+
+**Returns**:
+- Whitened embeddings (shape: [n_samples, n_components or embedding_dim])
+
+**Use Cases**:
+- Restoring isotropy in embedding spaces
+- Removing anisotropic structure for clustering
+- Preparing embeddings for geometric analysis
+
+---
+
+### `debias_embeddings(embeddings, k=3, normalize=False)`
+
+**Purpose**: De-bias embeddings using the "All-but-the-top" approach.
+
+**Mathematical Formulation**:
+```
+x' = x - μ - Σ_{i=1}^k ⟨x - μ, u_i⟩ u_i
+```
+
+Where:
+- `μ` is the global mean
+- `u_1, ..., u_k` are the top k principal components
+- `⟨x - μ, u_i⟩` is the projection onto PC i
+
+This removes global anisotropy/cone by projecting out the top k principal components, while preserving relative covariance and mean differences that might encode real temporal or semantic structure.
+
+**Parameters**:
+- `embeddings`: Array of embeddings (shape: [n_samples, embedding_dim])
+- `k`: Number of top principal components to remove (default: 3, typically 1-5)
+- `normalize`: If True, re-normalize embeddings to unit length after debiasing
+
+**Returns**:
+- De-biased embeddings (shape: [n_samples, embedding_dim])
+
+**Use Cases**:
+- Removing directional bias in embeddings (e.g., semantic cone collapse)
+- Improving cosine similarity-based analysis
+- Demonstrating anisotropy → isotropy transition
+- Analyzing embedding geometry before and after debiasing
+
+**References**:
+- Mu et al. (ICLR 2017) "All-but-the-Top: Simple and Effective Postprocessing for Word Representations"

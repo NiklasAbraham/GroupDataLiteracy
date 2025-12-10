@@ -14,6 +14,11 @@ from .gaussian_analysis import (
     create_gaussianity_plots,
     gaussian_analysis_with_embeddings,
 )
+from .whitening import (
+    debias_embeddings,
+    mean_center_embeddings,
+    whiten_embeddings,
+)
 
 __all__ = [
     "calculate_average_cosine_distance",
@@ -24,4 +29,7 @@ __all__ = [
     "compute_mahalanobis_distances",
     "create_gaussianity_plots",
     "gaussian_analysis_with_embeddings",
+    "debias_embeddings",
+    "mean_center_embeddings",
+    "whiten_embeddings",
 ]
