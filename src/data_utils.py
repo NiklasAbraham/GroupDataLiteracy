@@ -423,3 +423,17 @@ def keep_top_n_genres(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
 def drop_nan_in_column(df: pd.DataFrame, column_name: str) -> pd.DataFrame:
     """Drops rows with NaN values in the specified column."""
     return df.dropna(subset=[column_name])
+
+def filter_movies_with_given_genre(
+    df: pd.DataFrame,
+    genre_id: str,
+    genre_id_column: str = "genre_cluster_ids"
+) -> pd.DataFrame:
+    def movie_has_given_genre(genre_ids_str: str) -> bool:
+        if pd.isna(genre_ids_str):
+            return False
+        genres = genre_ids_str.split(',')
+        return genre_id in genres
+
+    filtered_df = df[df[genre_id_column].apply(movie_has_given_genre)]
+    return filtered_df
