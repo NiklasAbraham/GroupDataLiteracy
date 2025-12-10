@@ -9,8 +9,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 sys.path.insert(0, BASE_DIR)
 
 import numpy as np  # noqa: E402
-from sklearn.metrics.pairwise import cosine_similarity  # noqa: E402
 
+from src.analysis.math_functions import (  # noqa: E402
+    find_most_dissimilar_movies,
+)
 from src.data_utils import (  # noqa: E402
     load_final_dataset,
     load_final_dense_embeddings,
@@ -22,110 +24,95 @@ START_YEAR = 1930
 END_YEAR = 2024
 
 
-def find_most_dissimilar_movies(
-    reference: str | np.ndarray,
-    embeddings: np.ndarray,
-    movie_ids: np.ndarray,
-    movie_data,
+def main(
+    reference=None,
     n: int = 10,
+    start_year: int = START_YEAR,
+    end_year: int = END_YEAR,
+    data_dir: str = DATA_DIR,
+    csv_path: str = CSV_PATH,
 ):
     """
-    Find the n most dissimilar movies based on distance from a reference embedding.
+    Main function to find and print n most dissimilar movies.
 
     Parameters:
     - reference: Reference for comparison. Can be:
         - str: Movie ID (qid) to use as reference
         - np.ndarray: Embedding vector to use as reference
-    - embeddings: Filtered embeddings array (n_movies, embedding_dim)
-    - movie_ids: Filtered movie IDs array (n_movies,)
-    - movie_data: Filtered movie metadata DataFrame
-    - n: Number of most dissimilar movies to find (default: 10)
-
-    Returns:
-    - List of tuples (qid, title, distance, similarity, year) for the n most dissimilar movies
+        - None: Use mean embedding as reference (default)
+    - n: Number of most dissimilar movies to find
+    - start_year: First year to filter movies
+    - end_year: Last year to filter movies
+    - data_dir: Directory containing the final embedding files
+    - csv_path: Path to final_dataset.csv
     """
-    if isinstance(reference, str):
-        reference_idx = np.where(movie_ids == reference)[0]
-        reference_embedding = embeddings[reference_idx[0]]
-    elif isinstance(reference, np.ndarray):
-        reference_embedding = reference
-    else:
-        raise ValueError("reference must be a movie ID string or a numpy array")
+    # Load all embeddings and corresponding movie IDs
+    all_embeddings, all_movie_ids = load_final_dense_embeddings(data_dir, verbose=False)
 
-    reference_norm = np.linalg.norm(reference_embedding)
-    reference_normalized = (
-        reference_embedding / reference_norm
-        if reference_norm > 0
-        else reference_embedding
+    if len(all_movie_ids) == 0:
+        raise ValueError(f"No embeddings found in {data_dir}")
+
+    # Load movie metadata to get titles and filter by year
+    movie_data = load_final_dataset(csv_path, verbose=False)
+
+    if movie_data.empty:
+        raise ValueError(f"No movie data found in {csv_path}")
+
+    # Filter by year range if year column exists
+    if "year" in movie_data.columns:
+        movie_data = movie_data[
+            (movie_data["year"] >= start_year) & (movie_data["year"] <= end_year)
+        ].copy()
+
+    # Filter embeddings to only include movies in the filtered dataset
+    valid_movie_ids = set(movie_data["movie_id"].values)
+    valid_indices = np.array(
+        [i for i, mid in enumerate(all_movie_ids) if mid in valid_movie_ids]
     )
 
-    all_norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    all_norms[all_norms == 0] = 1
-    all_normalized = embeddings / all_norms
+    if len(valid_indices) == 0:
+        raise ValueError(
+            f"No movies found in the specified year range ({start_year}-{end_year})"
+        )
 
-    reference_reshaped = reference_normalized.reshape(1, -1)
-    similarities = cosine_similarity(reference_reshaped, all_normalized)[0]
-    distances = 1 - similarities
+    # Filter embeddings and movie_ids to only include valid movies
+    filtered_embeddings = all_embeddings[valid_indices]
+    filtered_movie_ids = all_movie_ids[valid_indices]
 
-    if isinstance(reference, str):
-        ref_idx = np.where(movie_ids == reference)[0]
-        if len(ref_idx) > 0:
-            distances[ref_idx[0]] = np.inf
+    # Determine reference embedding
+    if reference is None:
+        # Use mean embedding as reference
+        reference = np.mean(filtered_embeddings, axis=0)
+        print("Using mean embedding as reference")
+    elif isinstance(reference, str):
+        print(f"Using movie ID '{reference}' as reference")
 
-    n_movies = min(n, len(movie_ids))
-    most_dissimilar_indices = np.argsort(distances)[-n_movies:][::-1]
+    # Call the function with loaded data
+    results = find_most_dissimilar_movies(
+        reference=reference,
+        embeddings=filtered_embeddings,
+        movie_ids=filtered_movie_ids,
+        movie_data=movie_data,
+        n=n,
+    )
 
-    results = []
-    for idx in most_dissimilar_indices:
-        movie_id = movie_ids[idx]
-        distance = distances[idx]
-        similarity = similarities[idx]
-
-        movie_row = movie_data[movie_data["movie_id"] == movie_id]
-        title = movie_row.iloc[0]["title"]
-        year = movie_row.iloc[0]["year"]
-
-        results.append((movie_id, title, distance, similarity, year))
+    # Print results
+    print(f"\nTop {len(results)} most dissimilar movies:")
+    print("=" * 60)
+    for i, (movie_id, title, distance, similarity, year) in enumerate(results, 1):
+        print(f"{i}. {title} ({movie_id}, {year})")
+        print(f"   Distance: {distance:.6f}, Similarity: {similarity:.6f}")
 
     return results
 
 
 if __name__ == "__main__":
-    all_embeddings, all_movie_ids = load_final_dense_embeddings(DATA_DIR, verbose=False)
-    movie_data = load_final_dataset(CSV_PATH, verbose=False)
-    movie_data = movie_data[
-        (movie_data["year"] >= START_YEAR) & (movie_data["year"] <= END_YEAR)
-    ].copy()
-    valid_movie_ids = set(movie_data["movie_id"].values)
-    valid_indices = np.array(
-        [i for i, mid in enumerate(all_movie_ids) if mid in valid_movie_ids]
-    )
-    filtered_embeddings = all_embeddings[valid_indices]
-    filtered_movie_ids = all_movie_ids[valid_indices]
-
     # Example 1: Find movies most dissimilar to the mean
-    mean_embedding = np.mean(filtered_embeddings, axis=0)
-    results = find_most_dissimilar_movies(
-        reference=mean_embedding,
-        embeddings=filtered_embeddings,
-        movie_ids=filtered_movie_ids,
-        movie_data=movie_data,
-        n=20,
-    )
-    print("Most dissimilar to mean:")
-    for i, (movie_id, title, distance, similarity, year) in enumerate(results, 1):
-        print(f"{i}. {title} ({movie_id}, {year})")
-        print(f"   Distance: {distance:.6f}, Similarity: {similarity:.6f}")
+    print("Example 1: Most dissimilar to mean embedding")
+    print("=" * 60)
+    main(reference=None, n=20)
 
     # Example 2: Find movies most dissimilar to a specific movie
-    print("\n\nMost dissimilar to specific movie:")
-    results = find_most_dissimilar_movies(
-        reference="Q1931001",
-        embeddings=filtered_embeddings,
-        movie_ids=filtered_movie_ids,
-        movie_data=movie_data,
-        n=10,
-    )
-    for i, (movie_id, title, distance, similarity, year) in enumerate(results, 1):
-        print(f"{i}. {title} ({movie_id}, {year})")
-        print(f"   Distance: {distance:.6f}, Similarity: {similarity:.6f}")
+    print("\n\nExample 2: Most dissimilar to specific movie")
+    print("=" * 60)
+    main(reference="Q1931001", n=10)

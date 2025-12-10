@@ -1,18 +1,21 @@
 # Math Module Documentation
 
-This document provides a brief overview of the functions in the `src/analysis/math/` module.
+This document provides a brief overview of the functions in the `src/analysis/math_functions/` module.
 
 ## Module Structure
 
 ```
-math/
-├── __init__.py              # Module initialization and exports
-└── cosine_distance.py        # Cosine distance calculation functions
+math_functions/
+├── __init__.py                    # Module initialization and exports
+├── cosine_distance_util.py        # Cosine distance calculation functions
+├── find_closest_neighbors.py      # Nearest neighbor search functions
+├── find_most_dissimilar.py        # Most dissimilar item search functions
+└── boostrapping_embeddings.py     # Bootstrap sampling functions
 ```
 
 ---
 
-## `math/cosine_distance.py`
+## `math_functions/cosine_distance_util.py`
 
 ### `calculate_average_cosine_distance(embeddings)`
 
@@ -62,3 +65,99 @@ math/
 **Use Cases**:
 - Identifying the most and least representative movies
 - Analyzing centrality in movie groups
+
+---
+
+## `math_functions/find_closest_neighbors.py`
+
+### `find_n_closest_neighbours(embeddings_corpus, anchor_embedding, movie_ids, movie_data, n=10, anchor_idx=None)`
+
+**Purpose**: Finds the n closest neighbors to an anchor embedding in a corpus of embeddings using cosine similarity.
+
+**Mathematical Formulation**:
+- **Cosine Similarity**: 
+  ```
+  sim(a, b) = (a · b) / (||a|| ||b||)
+  ```
+  where `a · b` is the dot product and `||a||` is the L2 norm.
+
+- **Cosine Distance**: 
+  ```
+  dist(a, b) = 1 - sim(a, b)
+  ```
+  Distance ranges from 0 (identical vectors) to 2 (opposite directions).
+
+- **Normalization**: 
+  ```
+  a_norm = a / ||a||
+  ```
+  Normalizing embeddings ensures cosine similarity is computed correctly.
+
+**Parameters**:
+- `embeddings_corpus`: numpy array of shape `(n_movies, embedding_dim)` - The corpus of embeddings to search through
+- `anchor_embedding`: numpy array of shape `(1, embedding_dim)` - The anchor embedding to find neighbors for
+- `movie_ids`: numpy array - Array of movie IDs corresponding to embeddings_corpus
+- `movie_data`: pandas DataFrame - Movie metadata (must contain 'movie_id' and 'title' columns)
+- `n`: int (default: 10) - Number of closest neighbors to find
+- `anchor_idx`: int (optional) - Index of anchor in the corpus, used to exclude it from results
+
+**Returns**:
+- `list`: List of tuples `(qid, title, distance, similarity)` for the n closest neighbors, sorted by distance (ascending)
+
+**Raises**:
+- `ValueError`: If inputs are invalid, mismatched dimensions, or anchor embedding is a zero vector
+
+**Use Cases**:
+- Finding similar movies to a given movie in the embedding space
+- Recommender system applications
+- Analyzing semantic similarity between items
+- Identifying nearest neighbors for clustering or classification tasks
+
+---
+
+## `math_functions/find_most_dissimilar.py`
+
+### `find_most_dissimilar_movies(reference, embeddings, movie_ids, movie_data, n=10)`
+
+**Purpose**: Finds the n most dissimilar items to a reference embedding in a corpus of embeddings using cosine distance.
+
+**Mathematical Formulation**:
+- **Cosine Similarity**: 
+  ```
+  sim(a, b) = (a · b) / (||a|| ||b||)
+  ```
+  where `a · b` is the dot product and `||a||` is the L2 norm.
+
+- **Cosine Distance**: 
+  ```
+  dist(a, b) = 1 - sim(a, b)
+  ```
+  Distance ranges from 0 (identical vectors) to 2 (opposite directions).
+
+- **Normalization**: 
+  ```
+  a_norm = a / ||a||
+  ```
+  Normalizing embeddings ensures cosine similarity is computed correctly.
+
+**Parameters**:
+- `reference`: str or numpy array - Reference for comparison
+  - If `str`: Movie ID (qid) that must exist in `movie_ids`
+  - If `numpy.ndarray`: Embedding vector of shape `(embedding_dim,)`
+- `embeddings`: numpy array of shape `(n_movies, embedding_dim)` - The corpus of embeddings to search through
+- `movie_ids`: numpy array of shape `(n_movies,)` - Array of movie IDs corresponding to embeddings
+- `movie_data`: pandas DataFrame - Movie metadata (must contain 'movie_id', 'title', and 'year' columns)
+- `n`: int (default: 10) - Number of most dissimilar movies to find
+
+**Returns**:
+- `list`: List of tuples `(qid, title, distance, similarity, year)` for the n most dissimilar movies, sorted by distance (descending)
+
+**Raises**:
+- `ValueError`: If inputs are invalid, mismatched dimensions, reference movie ID not found, or reference embedding is a zero vector
+
+**Use Cases**:
+- Finding movies most dissimilar to a reference movie or embedding
+- Identifying outliers in the embedding space
+- Analyzing diversity in movie collections
+- Finding contrasting examples for analysis
+- Comparing items to a mean or centroid embedding
