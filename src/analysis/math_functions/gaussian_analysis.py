@@ -230,12 +230,14 @@ def create_gaussianity_plots(
     analysis_results: Dict,
     output_dir: Optional[str] = None,
     prefix: str = "gaussian_analysis",
+    embeddings: Optional[np.ndarray] = None,
+    qq_test_types: list = None,
 ) -> Dict[str, str]:
     """
     Create visualization plots for Gaussianity analysis.
 
-    Creates three key plots:
-    1. Q-Q plot of Mahalanobis distances (Gaussianity check)
+    Creates multiple plots:
+    1. Q-Q plots (Mahalanobis distances, dimensions, PCA components)
     2. PCA scatter plot with outlier highlighting
     3. Histogram of distances (mean representativeness)
 
@@ -243,6 +245,11 @@ def create_gaussianity_plots(
     - analysis_results: Dictionary returned by analyze_gaussianity()
     - output_dir: Directory to save plots. If None, plots are not saved.
     - prefix: Prefix for output filenames
+    - embeddings: Optional array of embeddings for additional QQ plots
+    - qq_test_types: List of QQ plot types to create. Options:
+        - 'distances': QQ plot for Mahalanobis distances (default, always created)
+        - 'dimensions': QQ plots for individual embedding dimensions
+        - 'pca_components': QQ plots for first few PCA components
 
     Returns:
     - Dictionary mapping plot names to file paths (if saved) or empty dict
@@ -255,51 +262,209 @@ def create_gaussianity_plots(
 
     saved_files = {}
 
+    if qq_test_types is None:
+        qq_test_types = ["distances"]
+
     # 1. Q-Q plot: Compare observed distances to expected chi-square distribution
-    fig, ax = plt.subplots(figsize=(10, 8))
+    if "distances" in qq_test_types:
+        fig, ax = plt.subplots(figsize=(10, 8))
 
-    # Theoretical quantiles from chi-square distribution
-    theoretical_quantiles = stats.chi2.ppf(
-        np.linspace(0.01, 0.99, len(distances_squared)), n_dims
-    )
-    observed_quantiles = np.sort(distances_squared)
+        # Theoretical quantiles from chi-square distribution
+        theoretical_quantiles = stats.chi2.ppf(
+            np.linspace(0.01, 0.99, len(distances_squared)), n_dims
+        )
+        observed_quantiles = np.sort(distances_squared)
 
-    ax.scatter(
-        theoretical_quantiles,
-        observed_quantiles,
-        alpha=0.6,
-        s=20,
-        label="Observed vs Expected",
-    )
+        ax.scatter(
+            theoretical_quantiles,
+            observed_quantiles,
+            alpha=0.6,
+            s=20,
+            label="Observed vs Expected",
+        )
 
-    # Perfect Gaussian line (y = x)
-    min_val = min(theoretical_quantiles.min(), observed_quantiles.min())
-    max_val = max(theoretical_quantiles.max(), observed_quantiles.max())
-    ax.plot(
-        [min_val, max_val],
-        [min_val, max_val],
-        "r--",
-        linewidth=2,
-        label="Perfect Gaussian (y=x)",
-    )
+        # Perfect Gaussian line (y = x)
+        min_val = min(theoretical_quantiles.min(), observed_quantiles.min())
+        max_val = max(theoretical_quantiles.max(), observed_quantiles.max())
+        ax.plot(
+            [min_val, max_val],
+            [min_val, max_val],
+            "r--",
+            linewidth=2,
+            label="Perfect Gaussian (y=x)",
+        )
 
-    ax.set_xlabel("Theoretical Quantiles (Chi-square)", fontsize=12)
-    ax.set_ylabel("Observed Quantiles (Mahalanobis Distance²)", fontsize=12)
-    ax.set_title(
-        f"Q-Q Plot: Gaussianity Check (d={n_dims})\n"
-        f"Points on line → Gaussian; Deviations → Non-Gaussian",
-        fontsize=14,
-    )
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+        ax.set_xlabel("Theoretical Quantiles (Chi-square)", fontsize=12)
+        ax.set_ylabel("Observed Quantiles (Mahalanobis Distance²)", fontsize=12)
+        ax.set_title(
+            f"Q-Q Plot: Gaussianity Check (d={n_dims})\n"
+            f"Points on line → Gaussian; Deviations → Non-Gaussian",
+            fontsize=14,
+        )
+        ax.legend()
+        ax.grid(True, alpha=0.3)
 
-    if output_dir:
-        import os
+        if output_dir:
+            import os
 
-        qq_path = os.path.join(output_dir, f"{prefix}_qq_plot.png")
-        plt.savefig(qq_path, dpi=300, bbox_inches="tight")
-        saved_files["qq_plot"] = qq_path
-    plt.close(fig)
+            qq_path = os.path.join(output_dir, f"{prefix}_qq_plot_distances.png")
+            plt.savefig(qq_path, dpi=300, bbox_inches="tight")
+            saved_files["qq_plot_distances"] = qq_path
+        plt.close(fig)
+
+    # QQ plots for individual dimensions
+    if "dimensions" in qq_test_types and embeddings is not None:
+        n_samples = embeddings.shape[0]
+        n_dims_to_test = min(10, n_dims)  # Test first 10 dimensions
+
+        # Create subplot grid
+        n_cols = 3
+        n_rows = (n_dims_to_test + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows))
+        if n_rows == 1:
+            axes = axes.reshape(1, -1)
+
+        axes = axes.flatten()
+
+        for dim_idx in range(n_dims_to_test):
+            ax = axes[dim_idx]
+            dim_data = embeddings[:, dim_idx]
+
+            # Standardize the dimension
+            mean_dim = np.mean(dim_data)
+            std_dim = np.std(dim_data)
+            if std_dim > 1e-10:
+                standardized = (dim_data - mean_dim) / std_dim
+            else:
+                standardized = dim_data - mean_dim
+
+            # Theoretical quantiles from standard normal
+            theoretical_quantiles = stats.norm.ppf(
+                np.linspace(0.01, 0.99, len(standardized))
+            )
+            observed_quantiles = np.sort(standardized)
+
+            ax.scatter(
+                theoretical_quantiles,
+                observed_quantiles,
+                alpha=0.5,
+                s=10,
+            )
+
+            # Perfect Gaussian line
+            min_val = min(theoretical_quantiles.min(), observed_quantiles.min())
+            max_val = max(theoretical_quantiles.max(), observed_quantiles.max())
+            ax.plot(
+                [min_val, max_val],
+                [min_val, max_val],
+                "r--",
+                linewidth=1.5,
+            )
+
+            ax.set_xlabel("Theoretical Quantiles (Normal)", fontsize=9)
+            ax.set_ylabel("Observed Quantiles", fontsize=9)
+            ax.set_title(f"Dimension {dim_idx + 1}", fontsize=10)
+            ax.grid(True, alpha=0.3)
+
+        # Hide unused subplots
+        for idx in range(n_dims_to_test, len(axes)):
+            axes[idx].axis("off")
+
+        plt.suptitle(
+            f"Q-Q Plots: Individual Dimensions (First {n_dims_to_test})\n"
+            f"Testing Gaussianity of each embedding dimension",
+            fontsize=14,
+            fontweight="bold",
+        )
+        plt.tight_layout()
+
+        if output_dir:
+            import os
+
+            qq_path = os.path.join(output_dir, f"{prefix}_qq_plot_dimensions.png")
+            plt.savefig(qq_path, dpi=300, bbox_inches="tight")
+            saved_files["qq_plot_dimensions"] = qq_path
+        plt.close(fig)
+
+    # QQ plots for PCA components
+    if "pca_components" in qq_test_types and embeddings is not None:
+        from sklearn.decomposition import PCA
+
+        # Fit PCA
+        pca = PCA()
+        pca_components = pca.fit_transform(embeddings)
+
+        n_components_to_test = min(10, pca_components.shape[1])
+
+        # Create subplot grid
+        n_cols = 3
+        n_rows = (n_components_to_test + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows))
+        if n_rows == 1:
+            axes = axes.reshape(1, -1)
+
+        axes = axes.flatten()
+
+        for comp_idx in range(n_components_to_test):
+            ax = axes[comp_idx]
+            comp_data = pca_components[:, comp_idx]
+
+            # Standardize the component
+            mean_comp = np.mean(comp_data)
+            std_comp = np.std(comp_data)
+            if std_comp > 1e-10:
+                standardized = (comp_data - mean_comp) / std_comp
+            else:
+                standardized = comp_data - mean_comp
+
+            # Theoretical quantiles from standard normal
+            theoretical_quantiles = stats.norm.ppf(
+                np.linspace(0.01, 0.99, len(standardized))
+            )
+            observed_quantiles = np.sort(standardized)
+
+            ax.scatter(
+                theoretical_quantiles,
+                observed_quantiles,
+                alpha=0.5,
+                s=10,
+            )
+
+            # Perfect Gaussian line
+            min_val = min(theoretical_quantiles.min(), observed_quantiles.min())
+            max_val = max(theoretical_quantiles.max(), observed_quantiles.max())
+            ax.plot(
+                [min_val, max_val],
+                [min_val, max_val],
+                "r--",
+                linewidth=1.5,
+            )
+
+            explained_var = pca.explained_variance_ratio_[comp_idx] * 100
+            ax.set_xlabel("Theoretical Quantiles (Normal)", fontsize=9)
+            ax.set_ylabel("Observed Quantiles", fontsize=9)
+            ax.set_title(f"PC{comp_idx + 1} ({explained_var:.2f}% var)", fontsize=10)
+            ax.grid(True, alpha=0.3)
+
+        # Hide unused subplots
+        for idx in range(n_components_to_test, len(axes)):
+            axes[idx].axis("off")
+
+        plt.suptitle(
+            f"Q-Q Plots: PCA Components (First {n_components_to_test})\n"
+            f"Testing Gaussianity of principal components",
+            fontsize=14,
+            fontweight="bold",
+        )
+        plt.tight_layout()
+
+        if output_dir:
+            import os
+
+            qq_path = os.path.join(output_dir, f"{prefix}_qq_plot_pca_components.png")
+            plt.savefig(qq_path, dpi=300, bbox_inches="tight")
+            saved_files["qq_plot_pca_components"] = qq_path
+        plt.close(fig)
 
     # 2. PCA scatter plot with outlier highlighting
     # Note: This requires embeddings, which we don't have in results
@@ -430,7 +595,12 @@ def gaussian_analysis_with_embeddings(
     results = analyze_gaussianity(embeddings, robust=robust, alpha=alpha)
 
     # Create standard plots
-    plot_files = create_gaussianity_plots(results, output_dir=output_dir, prefix=prefix)
+    plot_files = create_gaussianity_plots(
+        results,
+        output_dir=output_dir,
+        prefix=prefix,
+        embeddings=embeddings,
+    )
 
     # Create PCA scatter plot with outlier highlighting
     if embeddings.shape[0] > 1:

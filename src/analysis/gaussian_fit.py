@@ -108,6 +108,9 @@ def _generate_cache_key(
     debias: bool = False,
     debias_k: int = 3,
     debias_normalize: bool = False,
+    whiten: bool = False,
+    whiten_n_components: int = None,
+    whiten_normalize: bool = True,
 ) -> str:
     """
     Generate a cache key based on parameters that affect expensive computations.
@@ -121,6 +124,9 @@ def _generate_cache_key(
     - debias: Whether de-biasing is applied
     - debias_k: Number of top PCs to remove in de-biasing
     - debias_normalize: Whether to normalize after de-biasing
+    - whiten: Whether whitening is applied
+    - whiten_n_components: Number of PCA components for whitening
+    - whiten_normalize: Whether to normalize after whitening
 
     Returns:
     - Cache key string
@@ -134,7 +140,15 @@ def _generate_cache_key(
     robust_str = "robust" if robust else "standard"
 
     # Determine transformation type
-    if debias:
+    if whiten:
+        norm_str = "norm" if whiten_normalize else "nonorm"
+        comp_str = (
+            f"ncomp{whiten_n_components}"
+            if whiten_n_components is not None
+            else "allcomp"
+        )
+        transform_str = f"whiten_{comp_str}_{norm_str}"
+    elif debias:
         norm_str = "norm" if debias_normalize else "nonorm"
         transform_str = f"debias_k{debias_k}_{norm_str}"
     else:
@@ -204,6 +218,10 @@ def main(
     debias: bool = False,
     debias_k: int = 3,
     debias_normalize: bool = False,
+    whiten: bool = False,
+    whiten_n_components: int = None,
+    whiten_normalize: bool = True,
+    qq_test_types: list = None,
 ):
     """
     Main function to perform Gaussianity analysis on movie embeddings.
@@ -226,6 +244,12 @@ def main(
     - debias: If True, de-bias embeddings using "All-but-the-top" approach before analysis
     - debias_k: Number of top principal components to remove (default: 3, typically 1-5)
     - debias_normalize: If True, re-normalize embeddings to unit length after de-biasing
+    - whiten: If True, whiten embeddings using PCA before analysis (overrides debias if both are True)
+    - whiten_n_components: Number of PCA components to keep for whitening. If None, keeps all.
+    - whiten_normalize: If True, re-normalize embeddings to unit length after whitening
+    - qq_test_types: List of QQ plot test types. Options: 'distances', 'dimensions', 'pca_components'.
+        If None, defaults to ['distances']. 'dimensions' tests individual embedding dimensions,
+        'pca_components' tests first few PCA components.
     """
     logger.info(f"{'=' * 60}")
     logger.info("Gaussianity Analysis for Movie Embeddings")
@@ -302,8 +326,20 @@ def main(
             filtered_movie_ids = filtered_movie_ids[sample_indices]
             logger.info(f"Using {len(filtered_movie_ids)} samples for analysis")
 
-        # Apply de-biasing if requested
-        if debias:
+        # Apply transformation (whitening takes precedence over debias)
+        if whiten:
+            from src.analysis.math_functions.whitening import whiten_embeddings
+
+            logger.info(
+                f"Whitening embeddings (n_components={whiten_n_components}, normalize={whiten_normalize})..."
+            )
+            filtered_embeddings = whiten_embeddings(
+                filtered_embeddings,
+                n_components=whiten_n_components,
+                normalize=whiten_normalize,
+            )
+            logger.info("Whitening completed")
+        elif debias:
             logger.info(
                 f"De-biasing embeddings (removing top {debias_k} PCs, normalize={debias_normalize})..."
             )
@@ -323,11 +359,23 @@ def main(
         # Create base prefix with number of samples and parameter settings
         actual_n_samples = len(filtered_movie_ids)
         robust_str = "robust" if robust else "standard"
-        if debias:
+        if whiten:
+            norm_str = "norm" if whiten_normalize else "nonorm"
+            comp_str = (
+                f"ncomp{whiten_n_components}"
+                if whiten_n_components is not None
+                else "allcomp"
+            )
+            transform_str = f"whiten_{comp_str}_{norm_str}"
+        elif debias:
             norm_str = "norm" if debias_normalize else "nonorm"
             transform_str = f"debias_k{debias_k}_{norm_str}"
         else:
             transform_str = "raw"
+
+        # Set default QQ test types if not provided
+        if qq_test_types is None:
+            qq_test_types = ["distances"]
 
         # Check for cached results
         cache_key = _generate_cache_key(
@@ -340,6 +388,9 @@ def main(
             debias=debias,
             debias_k=debias_k,
             debias_normalize=debias_normalize,
+            whiten=whiten,
+            whiten_n_components=whiten_n_components,
+            whiten_normalize=whiten_normalize,
         )
 
         # Try to load cached results
@@ -556,8 +607,22 @@ def main(
 
 
 if __name__ == "__main__":
-    # Example usage with multiple alpha values
+    # Example usage with recommended whitening test parameters
     # The expensive computations (distances, PCA) are done once and reused
+
+    # Recommended whitening test configurations:
+    # 1. Full whitening (all components, normalized) - Best for cosine similarity analysis
+    #    - whiten=True, whiten_n_components=None, whiten_normalize=True
+    # 2. Reduced whitening (200 components, normalized) - Removes noise in high dimensions
+    #    - whiten=True, whiten_n_components=200, whiten_normalize=True
+    # 3. Full whitening without normalization - Preserves whitened scale for Euclidean analysis
+    #    - whiten=True, whiten_n_components=None, whiten_normalize=False
+
+    # Recommended QQ test types:
+    # - ['distances']: Original Mahalanobis distance test (fastest)
+    # - ['distances', 'dimensions']: Also test individual embedding dimensions
+    # - ['distances', 'dimensions', 'pca_components']: Comprehensive Gaussianity assessment
+
     main(
         start_year=1930,
         end_year=2024,
@@ -565,13 +630,80 @@ if __name__ == "__main__":
         alphas=[0.01, 0.05, 0.10],  # Test multiple alpha values
         n_samples=5_000,
         random_seed=42,
-        debias=False,
-        debias_k=0,
+        debias=False,  # Set to False when using whitening (whitening takes precedence)
+        debias_k=3,
         debias_normalize=False,
+        # Recommended whitening settings:
+        whiten=True,  # Enable whitening
+        whiten_n_components=None,  # None = use all components (full whitening)
+        # Alternative: 200 for dimensionality reduction
+        whiten_normalize=False,  # True = normalize to unit sphere (recommended for cosine similarity)
+        # False = preserve whitened scale (for Euclidean distances)
+        # Recommended QQ test types:
+        qq_test_types=[
+            "distances",
+            "dimensions",
+            "pca_components",
+        ],  # Comprehensive testing
         cache_dir=CACHE_DIR,
         output_dir=os.path.join(BASE_DIR, "figures"),
         data_dir=os.path.join(BASE_DIR, "data", "data_final"),
         csv_path=os.path.join(BASE_DIR, "data", "data_final", "final_dataset.csv"),
     )
+
+    # Alternative configurations to test:
+    #
+    # Configuration 1: Reduced dimensionality whitening
+    # main(
+    #     start_year=1930,
+    #     end_year=2024,
+    #     robust=True,
+    #     alphas=[0.05],
+    #     n_samples=5_000,
+    #     random_seed=42,
+    #     whiten=True,
+    #     whiten_n_components=200,  # Keep only top 200 components
+    #     whiten_normalize=True,
+    #     qq_test_types=["distances", "pca_components"],
+    #     cache_dir=CACHE_DIR,
+    #     output_dir=os.path.join(BASE_DIR, "figures"),
+    #     data_dir=os.path.join(BASE_DIR, "data", "data_final"),
+    #     csv_path=os.path.join(BASE_DIR, "data", "data_final", "final_dataset.csv"),
+    # )
+    #
+    # Configuration 2: Whitening without normalization
+    # main(
+    #     start_year=1930,
+    #     end_year=2024,
+    #     robust=True,
+    #     alphas=[0.05],
+    #     n_samples=5_000,
+    #     random_seed=42,
+    #     whiten=True,
+    #     whiten_n_components=None,
+    #     whiten_normalize=False,  # Preserve whitened scale
+    #     qq_test_types=["distances"],
+    #     cache_dir=CACHE_DIR,
+    #     output_dir=os.path.join(BASE_DIR, "figures"),
+    #     data_dir=os.path.join(BASE_DIR, "data", "data_final"),
+    #     csv_path=os.path.join(BASE_DIR, "data", "data_final", "final_dataset.csv"),
+    # )
+    #
+    # Configuration 3: No transformation (baseline)
+    # main(
+    #     start_year=1930,
+    #     end_year=2024,
+    #     robust=True,
+    #     alphas=[0.05],
+    #     n_samples=5_000,
+    #     random_seed=42,
+    #     whiten=False,
+    #     debias=False,
+    #     qq_test_types=["distances", "dimensions", "pca_components"],
+    #     cache_dir=CACHE_DIR,
+    #     output_dir=os.path.join(BASE_DIR, "figures"),
+    #     data_dir=os.path.join(BASE_DIR, "data", "data_final"),
+    #     csv_path=os.path.join(BASE_DIR, "data", "data_final", "final_dataset.csv"),
+    # )
 
     # nohup python src/analysis/gaussian_fit.py > gaussian_fit.log 2>&1 &
