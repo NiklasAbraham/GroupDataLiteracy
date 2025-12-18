@@ -425,6 +425,27 @@ def keep_top_n_genres(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
 
     return df
 
+
+def keep_selected_top_genres(df: pd.DataFrame, top_indices: List[int]) -> pd.DataFrame:
+    """
+    Example:
+        # Keep the 1st and 4th most common genres
+        df = keep_selected_top_genres(df, [0, 3])
+    """
+    genre_counts = df['new_genre'].value_counts()
+    # Get genres at specified indices
+    selected_genres = [genre_counts.index[i] for i in top_indices if i < len(genre_counts)]
+    # Filter dataframe
+    df = df[df['new_genre'].isin(selected_genres)]
+
+    return df
+
+
+def keep_x_top_genres(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
+    genre_counts = df['new_genre'].value_counts()
+    top_n_genres = genre_counts.head(n).index.tolist()
+
+
 def drop_nan_in_column(df: pd.DataFrame, column_name: str) -> pd.DataFrame:
     """Drops rows with NaN values in the specified column."""
     return df.dropna(subset=[column_name])

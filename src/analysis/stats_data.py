@@ -9,6 +9,7 @@ This script analyzes all movie data files and provides:
 
 import os
 import sys
+import warnings
 from itertools import combinations
 
 import pandas as pd
@@ -545,6 +546,95 @@ def unpivot_distance_for_plotting(convergence_df):
     return pd.concat([df_a, df_b])
 
 
+def plot_genre_drift_custom_ticks(df, y_column, title, y_label, softness_window=None):
+    """
+    Generates a time-series line plot for an individual genre drift metric,
+    including confidence intervals if the data is bootstrapped.
+    With custom x-axis tick spacing (every 5 years).
+    """
+    sns.set_theme(style="whitegrid")
+    df['year_group'] = pd.to_numeric(df['year_group'])
+
+    # --- 1. BOOTSTRAP METRIC EXTRACTION ---
+    first_non_null = df[y_column].dropna().iloc[0]
+    is_bootstrapped = isinstance(first_non_null, np.ndarray) and first_non_null.ndim > 0
+
+    if is_bootstrapped:
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=RuntimeWarning, message='All-NaN slice encountered')
+            df[f'{y_column}_median'] = df[y_column].apply(
+                lambda arr: np.nanmedian(arr) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+            )
+            df[f'{y_column}_lower_ci'] = df[y_column].apply(
+                lambda arr: np.nanpercentile(arr, 2.5) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+            )
+            df[f'{y_column}_upper_ci'] = df[y_column].apply(
+                lambda arr: np.nanpercentile(arr, 97.5) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+            )
+        y_plot_base = f'{y_column}_median'
+        ci_lower = f'{y_column}_lower_ci'
+        ci_upper = f'{y_column}_upper_ci'
+        title += ' (with 95% CI)'
+    else:
+        y_plot_base = y_column
+        ci_lower, ci_upper = None, None
+
+    # --- 2. SMOOTHING ---
+    y_column_to_plot = y_plot_base
+    if softness_window is not None and softness_window > 1:
+        smoothed_column = f'{y_plot_base}_smoothed_{softness_window}'
+        df[smoothed_column] = df.groupby('new_genre')[y_plot_base].transform(
+            lambda x: x.rolling(window=softness_window, center=True, min_periods=1).mean()
+        )
+        y_column_to_plot = smoothed_column
+        title = f'{title} (Smoothed, Window={softness_window})'
+
+    plt.figure(figsize=(24, 6))
+
+    # --- 3. PLOTTING THE CONFIDENCE INTERVAL ---
+    if is_bootstrapped:
+        genres = df['new_genre'].unique()
+        palette = sns.color_palette(n_colors=len(genres))
+        genre_colors = dict(zip(genres, palette))
+
+        for genre in genres:
+            subset = df[df['new_genre'] == genre].dropna(subset=[ci_lower, ci_upper])
+            plt.fill_between(
+                subset['year_group'],
+                subset[ci_lower],
+                subset[ci_upper],
+                color=genre_colors[genre],
+                alpha=0.15,
+                linewidth=0.0
+            )
+
+    # --- 4. PLOTTING THE CENTRAL LINE ---
+    sns.lineplot(
+        data=df,
+        x='year_group',
+        y=y_column_to_plot,
+        hue='new_genre',
+        marker='o',
+        linewidth=2,
+        markersize=6,
+        legend=True
+    )
+
+    plt.title(title, fontsize=18, fontweight='bold', pad=20)
+    plt.xlabel('Year', fontsize=14, fontweight='bold')
+    plt.ylabel(y_label, fontsize=14, fontweight='bold')
+
+    # --- 5. SET X-AXIS TICKS TO EVERY 5 YEARS (MANUAL) ---
+    min_year = df['year_group'].min()
+    max_year = df['year_group'].max()
+    tick_years = range(int(min_year), int(max_year) + 1, 5)  # Every 5 years
+    plt.xticks(tick_years, rotation=45, ha='right', fontsize=11)
+    plt.yticks(fontsize=11)
+
+    plt.grid(True, alpha=0.3, linestyle='--')
+    plt.legend(title='Genre', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=12, title_fontsize=13)
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+    plt.show()
 
 def plot_genre_drift(df, y_column, title, y_label, softness_window=None):
     """
@@ -561,17 +651,20 @@ def plot_genre_drift(df, y_column, title, y_label, softness_window=None):
     is_bootstrapped = isinstance(first_non_null, np.ndarray) and first_non_null.ndim > 0
 
     if is_bootstrapped:
-        # Extract Median for the central line
-        df[f'{y_column}_median'] = df[y_column].apply(
-            lambda arr: np.nanmedian(arr) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
-        )
-        # Extract 95% Confidence Interval (2.5th and 97.5th percentiles)
-        df[f'{y_column}_lower_ci'] = df[y_column].apply(
-            lambda arr: np.nanpercentile(arr, 2.5) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
-        )
-        df[f'{y_column}_upper_ci'] = df[y_column].apply(
-            lambda arr: np.nanpercentile(arr, 97.5) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
-        )
+        # The last group will always have all none values because there is no next group to which compute the drift -> ignore watnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=RuntimeWarning, message='All-NaN slice encountered')
+            # Extract Median for the central line
+            df[f'{y_column}_median'] = df[y_column].apply(
+                lambda arr: np.nanmedian(arr) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+            )
+            # Extract 95% Confidence Interval (2.5th and 97.5th percentiles)
+            df[f'{y_column}_lower_ci'] = df[y_column].apply(
+                lambda arr: np.nanpercentile(arr, 2.5) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+            )
+            df[f'{y_column}_upper_ci'] = df[y_column].apply(
+                lambda arr: np.nanpercentile(arr, 97.5) if isinstance(arr, np.ndarray) and arr.size > 0 else np.nan
+            )
 
         y_plot_base = f'{y_column}_median'
         ci_lower = f'{y_column}_lower_ci'
@@ -595,7 +688,7 @@ def plot_genre_drift(df, y_column, title, y_label, softness_window=None):
         y_column_to_plot = smoothed_column
         title = f'{title} (Smoothed, Window={softness_window})'
 
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(24, 6))
 
     # --- 3. PLOTTING THE CONFIDENCE INTERVAL (if bootstrapped) ---
     if is_bootstrapped:
