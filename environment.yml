@@ -6,14 +6,18 @@ dependencies:
   - _libgcc_mutex=0.1=main
   - _openmp_mutex=5.1=1_gnu
   - asttokens=3.0.0=pyhd8ed1ab_1
+  - blas=2.305=openblas
+  - blas-devel=3.11.0=5_h1ea3ea9_openblas
   - bzip2=1.0.8=h5eee18b_6
-  - ca-certificates=2025.10.5=hbd8a1cb_0
+  - ca-certificates=2025.11.12=hbd8a1cb_0
   - comm=0.2.3=pyhe01879c_0
   - debugpy=1.8.16=py311hbdd6827_0
   - decorator=5.2.1=pyhd8ed1ab_0
   - exceptiongroup=1.3.0=pyhd8ed1ab_0
   - executing=2.2.1=pyhd8ed1ab_0
   - expat=2.7.1=h6a678d5_0
+  - faiss=1.9.0=py311hbed6fca_0_cpu
+  - faiss-cpu=1.9.0=h718b53a_0
   - importlib-metadata=8.7.0=pyhe01879c_1
   - ipykernel=7.1.0=pyha191276_0
   - ipython=9.6.0=pyhfa0c392_0
@@ -22,12 +26,21 @@ dependencies:
   - jupyter_client=8.6.3=pyhd8ed1ab_1
   - jupyter_core=5.9.1=pyhc90fa1f_0
   - ld_impl_linux-64=2.44=h153f514_2
+  - libblas=3.11.0=5_h4a7cf45_openblas
+  - libcblas=3.11.0=5_h0358290_openblas
+  - libfaiss=1.9.0=h72e5a87_0_cpu
   - libffi=3.4.4=h6a678d5_1
-  - libgcc=15.2.0=h767d61c_7
-  - libgcc-ng=15.2.0=h69a702a_7
-  - libgomp=15.2.0=h767d61c_7
+  - libgcc=15.2.0=h767d61c_6
+  - libgcc-ng=15.2.0=h69a702a_6
+  - libgfortran=15.2.0=h69a702a_16
+  - libgfortran5=15.2.0=h68bc16d_16
+  - libgomp=15.2.0=h767d61c_6
+  - liblapack=3.11.0=5_h47877c9_openblas
+  - liblapacke=3.11.0=5_h6ae95b6_openblas
   - libnsl=2.0.0=h5eee18b_0
+  - libopenblas=0.3.30=pthreads_h94d23a6_4
   - libsodium=1.0.20=h4ab18f5_0
+  - libstdcxx=15.2.0=h8f9b012_6
   - libstdcxx-ng=11.2.0=h1234567_1
   - libuuid=1.41.5=h5eee18b_0
   - libxcb=1.17.0=h9b100fa_0
@@ -35,7 +48,9 @@ dependencies:
   - matplotlib-inline=0.2.1=pyhd8ed1ab_0
   - ncurses=6.5=h7934f7d_0
   - nest-asyncio=1.6.0=pyhd8ed1ab_1
-  - openssl=3.5.4=h26f9b46_0
+  - numpy-base=1.26.4=py311hf387b04_1
+  - openblas=0.3.30=pthreads_h6ec200e_4
+  - openssl=3.6.0=h26f9b46_0
   - packaging=25.0=pyh29332c3_1
   - parso=0.8.5=pyhcf101f3_0
   - pexpect=4.9.0=pyhd8ed1ab_1
@@ -181,4 +196,3 @@ dependencies:
       - xxhash==3.6.0
       - yarl==1.22.0
       - zlib-state==0.1.10
-prefix: /home/niklas/miniforge3/envs/dataLiteracy
