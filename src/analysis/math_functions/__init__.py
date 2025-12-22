@@ -6,6 +6,10 @@ from .cosine_distance_util import (
     calculate_average_cosine_distance,
     calculate_average_cosine_distance_between_groups,
 )
+from .epsilon_ball import (
+    compute_anchor_embedding,
+    find_movies_in_epsilon_ball,
+)
 from .find_closest_neighbors import find_n_closest_neighbours
 from .find_most_dissimilar import find_most_dissimilar_movies
 from .gaussian_analysis import (
@@ -32,4 +36,6 @@ __all__ = [
     "debias_embeddings",
     "mean_center_embeddings",
     "whiten_embeddings",
+    "find_movies_in_epsilon_ball",
+    "compute_anchor_embedding",
 ]

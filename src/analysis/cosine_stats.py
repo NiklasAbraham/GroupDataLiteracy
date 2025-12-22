@@ -51,6 +51,133 @@ def normalize_embeddings(embeddings: np.ndarray) -> np.ndarray:
     return embeddings / norms
 
 
+def plot_cosine_distance_normal_fit(
+    cosine_similarities: np.ndarray,
+    output_path: str = None,
+    bins: int = 50,
+    n_std: int = 3,
+    n_runs: int = 1,
+    n_samples: int = None,
+) -> None:
+    """
+    Plot histogram of cosine distances with fitted normal distribution.
+
+    Parameters:
+    - cosine_similarities: Array of pairwise cosine similarities
+    - output_path: Path to save the plot. If None, displays the plot.
+    - bins: Number of bins for the histogram
+    - n_std: Number of standard deviations to mark (default: 3)
+    - n_runs: Number of runs (for title)
+    - n_samples: Number of samples per run (for title)
+    """
+    # Convert cosine similarities to cosine distances
+    # Cosine distance = 1 - cosine similarity
+    distances = 1.0 - cosine_similarities
+
+    # Fit normal distribution
+    mean = np.mean(distances)
+    std = np.std(distances)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Plot histogram
+    n, bins_edges, patches = ax.hist(
+        distances,
+        bins=bins,
+        alpha=0.7,
+        color="steelblue",
+        edgecolor="black",
+        density=True,
+        label="Cosine Distances",
+    )
+
+    # Create x values for fitted normal curve
+    x_min = distances.min()
+    x_max = distances.max()
+    x_range = x_max - x_min
+    x_curve = np.linspace(x_min - 0.1 * x_range, x_max + 0.1 * x_range, 1000)
+    y_curve = stats.norm.pdf(x_curve, mean, std)
+
+    # Plot fitted normal distribution
+    ax.plot(
+        x_curve,
+        y_curve,
+        "r-",
+        linewidth=2,
+        label=f"Fitted Normal (μ={mean:.4f}, σ={std:.4f})",
+    )
+
+    # Mark mean and standard deviations
+    colors_std = ["green", "orange", "purple", "brown"]
+
+    # Mark mean
+    ax.axvline(
+        mean,
+        color=colors_std[0],
+        linestyle="--",
+        linewidth=2,
+        label=f"Mean = {mean:.4f}",
+    )
+
+    # Mark standard deviations
+    for i in range(1, n_std + 1):
+        color = colors_std[i] if i < len(colors_std) else "gray"
+        ax.axvline(
+            mean + i * std,
+            color=color,
+            linestyle=":",
+            linewidth=1.5,
+            alpha=0.7,
+            label=f"+{i}σ = {mean + i * std:.4f}",
+        )
+        ax.axvline(
+            mean - i * std,
+            color=color,
+            linestyle=":",
+            linewidth=1.5,
+            alpha=0.7,
+            label=f"-{i}σ = {mean - i * std:.4f}",
+        )
+
+    # Set labels and title
+    ax.set_xlabel("Cosine Distance", fontsize=12)
+    ax.set_ylabel("Density", fontsize=12)
+
+    # Build title with run information
+    title_parts = [
+        "Cosine Distance Distribution with Fitted Normal",
+    ]
+    if n_runs > 1:
+        title_parts.append(f"({n_runs} runs")
+        if n_samples is not None:
+            title_parts.append(f", {n_samples} samples/run")
+        title_parts.append(")")
+    title_parts.append(
+        f"\nMean: {mean:.4f}, Std: {std:.4f}, Min: {distances.min():.4f}, "
+        f"Max: {distances.max():.4f}, Median: {np.median(distances):.4f}"
+    )
+
+    ax.set_title(
+        "".join(title_parts),
+        fontsize=14,
+        fontweight="bold",
+    )
+
+    ax.legend(loc="upper right", fontsize=10)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        logger.info(f"Saved cosine distance normal fit plot to {output_path}")
+    else:
+        plt.show()
+
+    plt.close(fig)
+
+
 def compute_mean_pairwise_cosine(
     embeddings: np.ndarray, sample_pairs: int = None, random_seed: int = None
 ) -> float:
@@ -908,6 +1035,25 @@ def main(
 
         combined_cosines = np.concatenate(all_cosines)
         combined_angles = np.concatenate(all_angles)
+
+        # Create cosine distance normal fit plot
+        logger.info(f"\n{'=' * 60}")
+        logger.info("Creating cosine distance normal fit plot...")
+        logger.info(f"{'=' * 60}")
+        cosine_distance_plot_path = os.path.join(
+            output_dir, "cosine_distance_normal_fit.png"
+        )
+        plot_cosine_distance_normal_fit(
+            combined_cosines,
+            output_path=cosine_distance_plot_path,
+            bins=50,
+            n_std=3,
+            n_runs=n_runs,
+            n_samples=n_samples,
+        )
+        logger.info(
+            f"Cosine distance normal fit plot saved to {cosine_distance_plot_path}"
+        )
 
         # Compute aggregated statistics across runs
         mean_cosine_mean = np.mean([r["mean_cosine"] for r in all_results])
