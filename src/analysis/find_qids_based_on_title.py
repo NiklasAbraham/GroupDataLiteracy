@@ -8,7 +8,7 @@ This script takes a list of movie titles and returns their corresponding QIDs
 import logging
 import os
 import sys
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -87,7 +87,7 @@ def find_qids_for_titles(
     end_year: int = END_YEAR,
     csv_path: str = CSV_PATH,
     case_sensitive: bool = False,
-) -> List[str]:
+) -> Tuple[List[str], Dict[str, List[str]]]:
     """
     Find QIDs for a list of movie titles.
 
@@ -99,7 +99,7 @@ def find_qids_for_titles(
     - case_sensitive: Whether to match case (default: False)
 
     Returns:
-    - List of QIDs (movie_id) that match the input titles (extra: only QIDs; no mapping)
+    - Tuple of (flat list of all QIDs, mapping of title -> list of QIDs)
     """
     logger.info(f"{'=' * 60}")
     logger.info("Finding QIDs for movie titles")
@@ -123,13 +123,17 @@ def find_qids_for_titles(
             f"Filtered to {len(movie_data)} movies between {start_year} and {end_year}"
         )
 
-    # Find QIDs for each title; store results in a list of QIDs (flattened)
+    # Find QIDs for each title; track both flat list and mapping
     all_qids = []
+    title_to_qids = {}
     for title in titles:
         qids = find_qid_by_title(title, movie_data, case_sensitive=case_sensitive)
+        title_to_qids[title] = qids
         all_qids.extend(qids)
         if qids:
-            logger.info(f"'{title}': Found {len(qids)} match(es) - QID(s): {qids}")
+            logger.info(
+                f"'{title}': Found {len(qids)} match(es) - QID(s): {', '.join(qids)}"
+            )
             for qid in qids:
                 movie_info = movie_data[movie_data["movie_id"] == qid]
                 if not movie_info.empty:
@@ -139,7 +143,7 @@ def find_qids_for_titles(
         else:
             logger.warning(f"'{title}': Not found in dataset")
 
-    return all_qids
+    return all_qids, title_to_qids
 
 
 def main(
@@ -172,7 +176,7 @@ def main(
         ]
         logger.info("Using default example titles")
 
-    qids = find_qids_for_titles(
+    qids, title_to_qids = find_qids_for_titles(
         titles=titles,
         start_year=start_year,
         end_year=end_year,
@@ -188,17 +192,12 @@ def main(
     logger.info("")
 
     # Print formatted results (show title: QIDs mapping as info)
-    for idx, title in enumerate(titles):
-        single_title_qids = [
-            qid
-            for qid in qids
-            if (
-                " " not in qid and qid.startswith("Q")
-            )  # crude, but avoids confusion if it's not a QID
-        ]
-        logger.info(
-            f"{title}: {', '.join(single_title_qids) if single_title_qids else 'NOT FOUND'}"
-        )
+    for title in titles:
+        title_qids = title_to_qids.get(title, [])
+        if title_qids:
+            logger.info(f"{title}: {', '.join(title_qids)}")
+        else:
+            logger.info(f"{title}: NOT FOUND")
 
     return qids
 
@@ -207,8 +206,26 @@ if __name__ == "__main__":
     # Example usage
     qids = main(
         titles=[
-            "The Truman Show",
-            "Enemy of the State",
+            "Iron Man",
+            "The Incredible Hulk",
+            "Iron Man 2",
+            "Thor",
+            "Captain America: The First Avenger",
+            "The Avengers",
+            "Iron Man 3",
+            "Thor: The Dark World",
+            "Captain America: The Winter Soldier",
+            "Avengers: Age of Ultron",
+            "Captain America: Civil War",
+            "Doctor Strange",
+            "Guardians of the Galaxy",
+            "Guardians of the Galaxy Vol. 2",
+            "Spider-Man: Homecoming",
+            "Thor: Ragnarok",
+            "Black Panther",
+            "Avengers: Infinity War",
+            "Avengers: Endgame",
+            "Spider-Man: Far From Home",
         ],
     )
     # qids is a flat list of QID strings
