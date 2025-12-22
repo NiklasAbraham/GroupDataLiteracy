@@ -18,6 +18,11 @@ from .gaussian_analysis import (
     create_gaussianity_plots,
     gaussian_analysis_with_embeddings,
 )
+from .statistical_tests import (
+    interpret_ks_test,
+    kolmogorov_smirnov_test,
+    kolmogorov_smirnov_test_temporal,
+)
 from .whitening import (
     debias_embeddings,
     mean_center_embeddings,
@@ -38,4 +43,7 @@ __all__ = [
     "whiten_embeddings",
     "find_movies_in_epsilon_ball",
     "compute_anchor_embedding",
+    "kolmogorov_smirnov_test",
+    "kolmogorov_smirnov_test_temporal",
+    "interpret_ks_test",
 ]
