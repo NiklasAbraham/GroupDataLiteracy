@@ -7,8 +7,10 @@ multiple movies. Results include distances, rankings, and temporal analysis.
 """
 
 import hashlib
+import json
 import logging
 import os
+import pickle
 import re
 import sys
 
@@ -43,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(BASE_DIR, "data", "data_final")
 CSV_PATH = os.path.join(BASE_DIR, "data", "data_final", "final_dataset.csv")
+CACHE_DIR = os.path.join(BASE_DIR, "data", "cache", "mean_embeddings")
 START_YEAR = 1930
 END_YEAR = 2024
 
@@ -180,7 +183,7 @@ def plot_movies_over_time(
     - output_path: Path to save the plot (if None, displays plot)
     - title: Plot title (will have total count appended)
     - figsize: Figure size tuple
-    - random_results_df: Optional DataFrame from random movies analysis for comparison
+    - random_results_df: Optional DataFrame from control group (mean embedding) analysis for comparison
     """
     if results_df.empty:
         logger.warning("No data to plot")
@@ -311,7 +314,7 @@ def plot_movies_over_time(
             alpha=0.5,
             edgecolor="black",
             color="coral",
-            label="Random Movies (normalized)",
+            label="Control Group (normalized)",
         )
         ax2.plot(
             random_sma_3_normalized.index,
@@ -320,7 +323,7 @@ def plot_movies_over_time(
             linewidth=1.5,
             linestyle="--",
             alpha=0.6,
-            label="Random SMA (3)",
+            label="Control Group SMA (3)",
         )
         ax2.plot(
             random_sma_10_normalized.index,
@@ -329,14 +332,16 @@ def plot_movies_over_time(
             linewidth=1.5,
             linestyle="--",
             alpha=0.6,
-            label="Random SMA (10)",
+            label="Control Group SMA (10)",
         )
-        ax2.set_ylabel("Normalized Count (Random Movies)", fontsize=12, color="coral")
+        ax2.set_ylabel("Normalized Count (Control Group)", fontsize=12, color="coral")
         ax2.tick_params(axis="y", labelcolor="coral")
 
         # Combine legends
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
+        # Replace "Random" labels with "Control Group"
+        labels2 = [label.replace("Random", "Control Group") for label in labels2]
         ax1.legend(lines1 + lines2, labels1 + labels2, loc="best")
 
         plt.title(
@@ -437,7 +442,7 @@ def plot_ks_test_cdf(
 
     Parameters:
     - anchor_distances: Array of cosine distances from anchor epsilon ball
-    - random_distances: Array of cosine distances from random epsilon ball
+    - random_distances: Array of cosine distances from control group epsilon ball
     - ks_statistic: K-S test statistic
     - p_value: p-value from K-S test
     - output_path: Path to save the plot (if None, displays plot)
@@ -473,7 +478,7 @@ def plot_ks_test_cdf(
     ax1.plot(
         random_sorted,
         random_cdf,
-        label="Random Movies",
+        label="Control Group",
         linewidth=2,
         color="red",
         linestyle="--",
@@ -517,7 +522,7 @@ def plot_ks_test_cdf(
         random_distances,
         bins=bins,
         alpha=0.6,
-        label="Random Movies",
+        label="Control Group",
         color="red",
         density=True,
     )
@@ -570,7 +575,7 @@ def plot_ks_test_temporal_cdf(
 
     Parameters:
     - anchor_year_counts: Series of movie counts per year for anchor
-    - random_year_counts: Series of movie counts per year for random
+    - random_year_counts: Series of movie counts per year for control group
     - ks_statistic: K-S test statistic
     - p_value: p-value from K-S test
     - output_path: Path to save the plot (if None, displays plot)
@@ -614,7 +619,7 @@ def plot_ks_test_temporal_cdf(
     ax1.plot(
         random_sorted,
         random_cdf,
-        label="Random Movies",
+        label="Control Group",
         linewidth=2,
         color="red",
         linestyle="--",
@@ -704,7 +709,7 @@ def plot_ks_test_temporal_cdf(
         alpha=0.7,
         color="red",
     )
-    ax2_twin.set_ylabel("Normalized Count (Random Movies)", fontsize=12, color="red")
+    ax2_twin.set_ylabel("Normalized Count (Control Group)", fontsize=12, color="red")
     ax2_twin.tick_params(axis="y", labelcolor="red")
 
     # Combine legends
@@ -830,7 +835,7 @@ def main(
     - exclude_anchors: Whether to exclude anchor movies from results
     - plot_over_time: Whether to create plot of movies over time
     - plot_distance_dist: Whether to create distance distribution plot
-    - compare_with_random: Whether to compare with 5 random movies (default: False)
+    - compare_with_random: Whether to compare with control group (mean of entire ensemble) (default: False)
     - output_dir: Directory to save plots (if None, uses current directory)
     """
     if anchor_qids is None:
@@ -894,44 +899,65 @@ def main(
         exclude_anchors=exclude_anchors,
     )
 
-    # Run analysis for random movies if comparison is enabled
+    # Run analysis for control group (mean of entire ensemble) if comparison is enabled
     random_results_df = None
     random_distances_list = []
     if compare_with_random:
-        logger.info("Selecting 5 random movies for comparison...")
-        # Select random movies from the filtered dataset
-        available_movie_ids = list(set(filtered_movie_ids) - set(anchor_qids))
+        logger.info("Computing mean embedding of entire ensemble as control group...")
 
-        if len(available_movie_ids) < 5:
-            logger.warning(
-                f"Only {len(available_movie_ids)} movies available for random selection, "
-                f"cannot select 5 random movies"
+        # Compute mean embedding of all movies in the filtered dataset
+        mean_embedding = np.mean(filtered_embeddings, axis=0, keepdims=True)
+        logger.info(f"Mean embedding computed from {len(filtered_embeddings)} movies")
+
+        # Find movies within epsilon ball around the mean embedding
+        logger.info(
+            f"Finding movies within epsilon ball (epsilon={epsilon}) around mean embedding..."
+        )
+        indices, distances, similarities = find_movies_in_epsilon_ball(
+            embeddings_corpus=filtered_embeddings,
+            anchor_embedding=mean_embedding,
+            movie_ids=filtered_movie_ids,
+            epsilon=epsilon,
+            exclude_anchor_ids=None,  # Don't exclude anything for mean embedding
+        )
+
+        logger.info(
+            f"Found {len(indices)} movies within epsilon ball of mean embedding"
+        )
+
+        # Create results dataframe
+        results = []
+        for rank, (idx, dist, sim) in enumerate(
+            zip(indices, distances, similarities), 1
+        ):
+            movie_id = filtered_movie_ids[idx]
+            movie_info = movie_data[movie_data["movie_id"] == movie_id]
+
+            if not movie_info.empty:
+                title = movie_info.iloc[0]["title"]
+                year = movie_info.iloc[0].get("year", None)
+            else:
+                title = "Unknown"
+                year = None
+
+            results.append(
+                {
+                    "movie_id": movie_id,
+                    "title": title,
+                    "year": year,
+                    "distance": dist,
+                    "similarity": sim,
+                    "rank": rank,
+                }
             )
-            compare_with_random = False
-        else:
-            # Set random seed for reproducibility
-            np.random.seed(42)
-            # Select 5 random movies
-            random_qids = np.random.choice(
-                available_movie_ids, size=500, replace=False
-            ).tolist()
-            logger.info(f"Random movie QIDs: {random_qids}")
 
-            random_results_df = analyze_epsilon_ball(
-                anchor_qids=random_qids,
-                epsilon=epsilon,
-                filtered_embeddings=filtered_embeddings,
-                filtered_movie_ids=filtered_movie_ids,
-                movie_data=movie_data,
-                anchor_method=anchor_method,
-                exclude_anchors=exclude_anchors,
-            )
+        random_results_df = pd.DataFrame(results)
 
-            # Extract distances for K-S test
-            if not random_results_df.empty and "distance" in random_results_df.columns:
-                random_distances_list.append(random_results_df["distance"].values)
+        # Extract distances for K-S test
+        if not random_results_df.empty and "distance" in random_results_df.columns:
+            random_distances_list.append(random_results_df["distance"].values)
 
-    # Perform Kolmogorov-Smirnov tests if random comparison is enabled
+    # Perform Kolmogorov-Smirnov tests if control group comparison is enabled
     if (
         compare_with_random
         and random_results_df is not None
@@ -944,7 +970,7 @@ def main(
 
         # Test 1: Distance distribution comparison
         if random_distances_list and "distance" in results_df.columns:
-            # Combine all random distances from all iterations
+            # Get control group distances
             all_random_distances = np.concatenate(random_distances_list)
             anchor_distances = results_df["distance"].values
 
@@ -990,7 +1016,7 @@ def main(
             anchor_df_with_year["year"] = anchor_df_with_year["year"].astype(int)
             anchor_year_counts = anchor_df_with_year["year"].value_counts().sort_index()
 
-            # Prepare random year counts
+            # Prepare control group year counts
             random_df_with_year = random_results_df[
                 random_results_df["year"].notna()
             ].copy()
@@ -1095,31 +1121,37 @@ def main(
 
 if __name__ == "__main__":
     # ["Q18602670", "Q212145", "Q207916", "Q151904", "Q591272", "Q19089", "Q181540", "Q107914", "Q320423", "Q332368", "Q21534241", "Q30931", "Q106440"] # James Bond movies
+
     # ['Q1187607', 'Q488655', 'Q174992', 'Q785406', 'Q22350712'] # Edge of Tomorrow, Groundhog Day, 12:01, The Time Traveler's Wife, Before I Fall
+
     # ['Q507994', 'Q1140085', 'Q62730', 'Q244929', 'Q662342', 'Q1320705', 'Q1263897', 'Q1124501', 'Q1469774', 'Q747395', 'Q27888483'] # The Hunt for Red October, Crimson Tide, Das Boot, The Bedford Incident, K-19: The Widowmaker, Ice Station Zebra, The Enemy Below, By Dawn's Early Light, On the Beach, Hunter Killer
+
     # ['Q1366386', 'Q25136484', 'Q2171744', 'Q2364210', 'Q1490812', 'Q2746506', 'Q7617650', 'Q50650165'] # It, It Chapter Two, Killer Klowns from Outer Space, Clownhouse, Gacy, House of 1000 Corpses, Drive-Thru, Stitches, Terrifier
 
     # ['Q220735', 'Q261209', 'Q657079', 'Q7763422', 'Q110206', 'Q633171', 'Q4186834', 'Q1709419', 'Q760926', 'Q613485'] # The French Connection, Bullitt, Serpico, The Seven-Ups, Dirty Harry, The Taking of Pelham One Two Three, Prince of the City, Fort Apache, The Bronx, Cruising, To Live and Die in L.A.
 
-    # ['Q1758603', 'Q3820040', 'Q192724', 'Q466611', 'Q205028', 'Q217020', 'Q275120', 'Q3985737', 'Q494985', 'Q182218', 'Q209538', 'Q1201853', 'Q1765358', 'Q14171368', 'Q18407657', 'Q18406872', 'Q5887360', 'Q20001199', 'Q23010088', 'Q22665878', 'Q23780734', 'Q23780914', 'Q23781155', 'Q27985819'] # Iron Man, Iron Man 2, Iron Man 3, The Incredible Hulk, Thor, Captain America: The First Avenger, The Avengers, Iron Man 3, Thor: The Dark World, Captain America: The Winter Soldier, Avengers: Age of Ultron, Captain America: Civil War, Doctor Strange, Guardians of the Galaxy, Guardians of the Galaxy Vol. 2, Spider-Man: Homecoming, Thor: Ragnarok, Black Panther, Avengers: Infinity War, Avengers: Endgame, Spider-Man: Far From Home
+    # ['Q192724', 'Q3820040', 'Q192724', 'Q466611', 'Q205028', 'Q217020', 'Q275120', 'Q3985737', 'Q494985', 'Q182218', 'Q209538', 'Q1201853', 'Q1765358', 'Q14171368', 'Q18407657', 'Q18406872', 'Q5887360', 'Q20001199', 'Q23010088', 'Q22665878', 'Q23780734', 'Q23780914', 'Q23781155', 'Q27985819'] # Iron Man, Iron Man 2, Iron Man 3, The Incredible Hulk, Thor, Captain America: The First Avenger, The Avengers, Iron Man 3, Thor: The Dark World, Captain America: The Winter Soldier, Avengers: Age of Ultron, Captain America: Civil War, Doctor Strange, Guardians of the Galaxy, Guardians of the Galaxy Vol. 2, Spider-Man: Homecoming, Thor: Ragnarok, Black Panther, Avengers: Infinity War, Avengers: Endgame, Spider-Man: Far From Home
+
+    # ['Q221384', 'Q183066', 'Q152531', 'Q16970789', 'Q3258993', 'Q19865453', 'Q632328', 'Q848785', 'Q578312', 'Q1394447', 'Q17093105', 'Q20751325', 'Q63927168', 'Q21463782'] # Black Hawk Down, The Hurt Locker, Zero Dark Thirty, American Sniper, Lone Survivor, 13 Hours: The Secret Soldiers of Benghazi, Green Zone, Jarhead, Body of Lies, Restrepo, Korengal, Hyena Road, Kajaki (also released as Kilo Two Bravo), The Outpost, War Machine
 
     results = main(
         anchor_qids=[
-            "Q18602670",
-            "Q212145",
-            "Q207916",
-            "Q151904",
-            "Q591272",
-            "Q19089",
-            "Q181540",
-            "Q107914",
-            "Q320423",
-            "Q332368",
-            "Q21534241",
-            "Q30931",
-            "Q106440",
+            "Q221384",
+            "Q183066",
+            "Q152531",
+            "Q16970789",
+            "Q3258993",
+            "Q19865453",
+            "Q632328",
+            "Q848785",
+            "Q578312",
+            "Q1394447",
+            "Q17093105",
+            "Q20751325",
+            "Q63927168",
+            "Q21463782",
         ],
-        epsilon=0.33,
+        epsilon=0.28,
         start_year=1930,
         end_year=2024,
         anchor_method="average",  # or "medoid"

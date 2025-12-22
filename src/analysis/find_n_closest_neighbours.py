@@ -170,6 +170,6 @@ if __name__ == "__main__":
     # Example usage - modify these parameters as needed
     # Skyfall (QID: Q4941)
     main(
-        qid="Q1187607",  # Change this to your desired qid
+        qid="Q192724",  # Change this to your desired qid
         n=200,  # Change this to desired number of neighbors
     )
