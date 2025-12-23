@@ -413,6 +413,11 @@ def map_genre_ids_to_strings(df: pd.DataFrame, genre_strings_json) -> pd.DataFra
         return df
 
 def keep_top_n_genres(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
+    if n == 0:
+        df["old_genre"] = df["new_genre"]
+        df["new_genre"] = "all_genres"
+        return df
+
     genre_counts = df['new_genre'].value_counts()
     top_n_genres = genre_counts.head(n).index.tolist()
     df['top_genre'] = df['new_genre'].isin(top_n_genres)
