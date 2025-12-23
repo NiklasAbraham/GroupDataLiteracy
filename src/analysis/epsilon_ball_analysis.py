@@ -10,9 +10,9 @@ import hashlib
 import json
 import logging
 import os
-import pickle
 import re
 import sys
+from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -436,6 +436,7 @@ def plot_ks_test_cdf(
     output_path: str = None,
     title: str = "Kolmogorov-Smirnov Test: Distance Distributions",
     figsize: tuple = (12, 8),
+    interpretation: dict = None,
 ):
     """
     Plot cumulative distribution functions (CDFs) for K-S test visualization.
@@ -540,12 +541,8 @@ def plot_ks_test_cdf(
     ax2.grid(True, alpha=0.3)
 
     # Add test results as text
-    if p_value < 0.05:
-        significance_text = "Distributions are DIFFERENT"
-    else:
-        significance_text = "Distributions are the SAME"
     fig.suptitle(
-        f"{title}\nK-S Statistic: {ks_statistic:.6f}, p-value: {p_value:.6f} ({significance_text})",
+        f"{title}\nK-S Statistic: {ks_statistic:.6f}",
         fontsize=14,
         fontweight="bold",
     )
@@ -569,6 +566,7 @@ def plot_ks_test_temporal_cdf(
     output_path: str = None,
     title: str = "Kolmogorov-Smirnov Test: Temporal Distributions",
     figsize: tuple = (14, 6),
+    interpretation: dict = None,
 ):
     """
     Plot cumulative distribution functions for temporal K-S test.
@@ -718,12 +716,8 @@ def plot_ks_test_temporal_cdf(
     ax2.legend(lines1 + lines2, labels1 + labels2, loc="best")
 
     # Add test results as text
-    if p_value < 0.05:
-        significance_text = "Distributions are DIFFERENT"
-    else:
-        significance_text = "Distributions are the SAME"
     fig.suptitle(
-        f"{title}\nK-S Statistic: {ks_statistic:.6f}, p-value: {p_value:.6f} ({significance_text})",
+        f"{title}\nK-S Statistic: {ks_statistic:.6f}",
         fontsize=14,
         fontweight="bold",
     )
@@ -784,6 +778,151 @@ def get_anchor_names_string(anchor_qids: list, movie_data: pd.DataFrame) -> str:
             anchor_names.append(qid)
 
     return "__".join(anchor_names)
+
+
+def compute_embeddings_hash(
+    filtered_embeddings: np.ndarray,
+    start_year: int,
+    end_year: int,
+) -> str:
+    """
+    Compute a hash of the filtered embeddings and parameters to verify cache validity.
+
+    Parameters:
+    - filtered_embeddings: Array of embeddings (shape: [n_movies, embedding_dim])
+    - start_year: Start year used for filtering
+    - end_year: End year used for filtering
+
+    Returns:
+    - Hash string that uniquely identifies this set of embeddings and parameters
+    """
+    # Create a hash from:
+    # 1. Shape of embeddings
+    # 2. Sample of the data (first, middle, last rows and a few random ones)
+    # 3. Sum of all values (quick integrity check)
+    # 4. Year range
+    hash_data = {
+        "shape": filtered_embeddings.shape,
+        "dtype": str(filtered_embeddings.dtype),
+        "start_year": start_year,
+        "end_year": end_year,
+    }
+
+    # Add sample data for verification
+    n_samples = min(100, len(filtered_embeddings))
+    if len(filtered_embeddings) > 0:
+        # Sample indices: first, last, middle, and some random ones
+        sample_indices = [0]
+        if len(filtered_embeddings) > 1:
+            sample_indices.append(len(filtered_embeddings) - 1)
+        if len(filtered_embeddings) > 2:
+            sample_indices.append(len(filtered_embeddings) // 2)
+        # Add random samples
+        if len(filtered_embeddings) > n_samples:
+            np.random.seed(42)  # Fixed seed for reproducibility
+            random_indices = np.random.choice(
+                len(filtered_embeddings),
+                size=n_samples - len(sample_indices),
+                replace=False,
+            )
+            sample_indices.extend(random_indices.tolist())
+
+        # Hash the sampled rows
+        sample_data = filtered_embeddings[sample_indices].tobytes()
+        hash_data["sample_hash"] = hashlib.md5(sample_data).hexdigest()
+
+        # Add sum as a quick integrity check
+        hash_data["sum"] = float(np.sum(filtered_embeddings))
+
+    # Create hash from the hash data
+    hash_string = json.dumps(hash_data, sort_keys=True)
+    return hashlib.sha256(hash_string.encode()).hexdigest()
+
+
+def load_cached_mean_embedding(
+    cache_dir: str,
+    embeddings_hash: str,
+) -> Tuple[Optional[np.ndarray], bool]:
+    """
+    Load cached mean embedding if it exists and hash matches.
+
+    Parameters:
+    - cache_dir: Directory to store/load cache files
+    - embeddings_hash: Hash of the embeddings to verify cache validity
+
+    Returns:
+    - Tuple of (mean_embedding, found) where:
+      - mean_embedding: The cached mean embedding if found, None otherwise
+      - found: Boolean indicating if valid cache was found
+    """
+    os.makedirs(cache_dir, exist_ok=True)
+
+    cache_file = os.path.join(cache_dir, f"mean_embedding_{embeddings_hash}.npy")
+    metadata_file = os.path.join(cache_dir, f"mean_embedding_{embeddings_hash}.json")
+
+    if not os.path.exists(cache_file) or not os.path.exists(metadata_file):
+        return None, False
+
+    try:
+        # Load metadata to verify hash
+        with open(metadata_file, "r") as f:
+            metadata = json.load(f)
+
+        if metadata.get("hash") != embeddings_hash:
+            logger.warning("Cache hash mismatch, will recompute mean embedding")
+            return None, False
+
+        # Load the cached mean embedding
+        mean_embedding = np.load(cache_file)
+        logger.info(
+            f"Loaded cached mean embedding from {cache_file} "
+            f"(computed from {metadata.get('n_movies', 'unknown')} movies)"
+        )
+        return mean_embedding, True
+
+    except Exception as e:
+        logger.warning(f"Error loading cached mean embedding: {e}, will recompute")
+        return None, False
+
+
+def save_cached_mean_embedding(
+    mean_embedding: np.ndarray,
+    cache_dir: str,
+    embeddings_hash: str,
+    n_movies: int,
+) -> None:
+    """
+    Save mean embedding to cache with metadata.
+
+    Parameters:
+    - mean_embedding: The computed mean embedding to cache
+    - cache_dir: Directory to store cache files
+    - embeddings_hash: Hash of the embeddings used for this computation
+    - n_movies: Number of movies used to compute the mean
+    """
+    os.makedirs(cache_dir, exist_ok=True)
+
+    cache_file = os.path.join(cache_dir, f"mean_embedding_{embeddings_hash}.npy")
+    metadata_file = os.path.join(cache_dir, f"mean_embedding_{embeddings_hash}.json")
+
+    try:
+        # Save the mean embedding
+        np.save(cache_file, mean_embedding)
+
+        # Save metadata
+        metadata = {
+            "hash": embeddings_hash,
+            "n_movies": n_movies,
+            "shape": list(mean_embedding.shape),
+            "dtype": str(mean_embedding.dtype),
+        }
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        logger.info(f"Cached mean embedding to {cache_file}")
+
+    except Exception as e:
+        logger.warning(f"Error saving cached mean embedding: {e}")
 
 
 def truncate_filename_component(component: str, max_length: int = 120) -> str:
@@ -905,9 +1044,38 @@ def main(
     if compare_with_random:
         logger.info("Computing mean embedding of entire ensemble as control group...")
 
-        # Compute mean embedding of all movies in the filtered dataset
-        mean_embedding = np.mean(filtered_embeddings, axis=0, keepdims=True)
-        logger.info(f"Mean embedding computed from {len(filtered_embeddings)} movies")
+        # Compute hash of filtered embeddings to check cache
+        embeddings_hash = compute_embeddings_hash(
+            filtered_embeddings=filtered_embeddings,
+            start_year=start_year,
+            end_year=end_year,
+        )
+
+        # Try to load cached mean embedding
+        mean_embedding, cache_found = load_cached_mean_embedding(
+            cache_dir=CACHE_DIR,
+            embeddings_hash=embeddings_hash,
+        )
+
+        if not cache_found:
+            # Compute mean embedding of all movies in the filtered dataset
+            logger.info("Computing mean embedding (this may take a while)...")
+            mean_embedding = np.mean(filtered_embeddings, axis=0, keepdims=True)
+            logger.info(
+                f"Mean embedding computed from {len(filtered_embeddings)} movies"
+            )
+
+            # Save to cache
+            save_cached_mean_embedding(
+                mean_embedding=mean_embedding,
+                cache_dir=CACHE_DIR,
+                embeddings_hash=embeddings_hash,
+                n_movies=len(filtered_embeddings),
+            )
+        else:
+            logger.info(
+                f"Using cached mean embedding (computed from {len(filtered_embeddings)} movies)"
+            )
 
         # Find movies within epsilon ball around the mean embedding
         logger.info(
@@ -978,16 +1146,15 @@ def main(
                 ks_stat_dist, p_value_dist = kolmogorov_smirnov_test(
                     anchor_distances, all_random_distances
                 )
-                interpretation_dist = interpret_ks_test(ks_stat_dist, p_value_dist)
+                interpretation_dist = interpret_ks_test(
+                    ks_stat_dist,
+                    p_value_dist,
+                    sample_size_1=len(anchor_distances),
+                    sample_size_2=len(all_random_distances),
+                )
 
                 logger.info("\n1. Distance Distribution Comparison:")
                 logger.info(f"   K-S Statistic: {ks_stat_dist:.6f}")
-                logger.info(f"   P-value: {p_value_dist:.6f}")
-                logger.info(f"   Significant: {interpretation_dist['significant']}")
-                logger.info(f"   Effect Size: {interpretation_dist['effect_size']}")
-                logger.info(
-                    f"   Interpretation: {interpretation_dist['interpretation']}"
-                )
 
                 # Create K-S test plot for distances
                 if output_dir:
@@ -1005,6 +1172,7 @@ def main(
                         p_value_dist,
                         output_path=ks_plot_path,
                         title=f"K-S Test: Distance Distributions (ε={epsilon})",
+                        interpretation=interpretation_dist,
                     )
             except Exception as e:
                 logger.warning(f"Could not perform distance K-S test: {e}")
@@ -1038,16 +1206,19 @@ def main(
                     random_aligned.values,
                     all_years,
                 )
-                interpretation_temp = interpret_ks_test(ks_stat_temp, p_value_temp)
+                # Calculate total sample sizes for temporal test
+                anchor_temporal_size = int(anchor_aligned.sum())
+                random_temporal_size = int(random_aligned.sum())
+
+                interpretation_temp = interpret_ks_test(
+                    ks_stat_temp,
+                    p_value_temp,
+                    sample_size_1=anchor_temporal_size,
+                    sample_size_2=random_temporal_size,
+                )
 
                 logger.info("\n2. Temporal Distribution Comparison:")
                 logger.info(f"   K-S Statistic: {ks_stat_temp:.6f}")
-                logger.info(f"   P-value: {p_value_temp:.6f}")
-                logger.info(f"   Significant: {interpretation_temp['significant']}")
-                logger.info(f"   Effect Size: {interpretation_temp['effect_size']}")
-                logger.info(
-                    f"   Interpretation: {interpretation_temp['interpretation']}"
-                )
 
                 # Create K-S test plot for temporal distribution
                 if output_dir:
@@ -1065,6 +1236,7 @@ def main(
                         p_value_temp,
                         output_path=ks_plot_path,
                         title=f"K-S Test: Temporal Distributions (ε={epsilon})",
+                        interpretation=interpretation_temp,
                     )
             except Exception as e:
                 logger.warning(f"Could not perform temporal K-S test: {e}")
@@ -1134,24 +1306,38 @@ if __name__ == "__main__":
 
     # ['Q221384', 'Q183066', 'Q152531', 'Q16970789', 'Q3258993', 'Q19865453', 'Q632328', 'Q848785', 'Q578312', 'Q1394447', 'Q17093105', 'Q20751325', 'Q63927168', 'Q21463782'] # Black Hawk Down, The Hurt Locker, Zero Dark Thirty, American Sniper, Lone Survivor, 13 Hours: The Secret Soldiers of Benghazi, Green Zone, Jarhead, Body of Lies, Restrepo, Korengal, Hyena Road, Kajaki (also released as Kilo Two Bravo), The Outpost, War Machine
 
+    # most average movies # ['Q26683632', 'Q5932706', 'Q12671094', 'Q444057', 'Q17071466', 'Q554539', 'Q2549142', 'Q6872502', 'Q105441001', 'Q23755528']
+
+    # ['Q41483', 'Q168154', 'Q245208', 'Q20092609', 'Q276769', 'Q1008351', 'Q50714', 'Q3208286', 'Q7596837', 'Q104137', 'Q8061777', 'Q47352417', 'Q994481', 'Q603263', 'Q326114', 'Q232000', 'Q153677', 'Q76479', 'Q241811', 'Q19069', 'Q19983487', 'Q247130', 'Q746029'] # The Good, the Bad and the Ugly, Once Upon a Time in the West, High Noon, The Searchers, Rio Bravo, Stagecoach, Unforgiven, The Wild Bunch, True Grit, Butch Cassidy and the Sundance Kid, For a Few Dollars More, A Fistful of Dollars, Django, The Magnificent Seven, 3:10 to Yuma
+
+    # ["Q103474", "Q184843", "Q21500755", "Q162255", "Q170564", "Q16635326", "Q788822", "Q131191955", "Q221113", "Q83495", "Q189600", "Q207536", "Q200572", "Q504697", "Q626483", "Q18954", "Q244604", "Q1066948", "Q22575835", "Q10384115", "Q3549863", "Q30611788", "Q26751"] # AI Movies
+
+    # ["Q103569", "Q104814", "Q20430699", "Q200804", "Q720357", "Q210756", "Q909749", "Q11621", "Q320588", "Q20382729", "Q1657967", "Q105387", "Q202028", "Q201819", "Q425992", "Q187154", "Q45386", "Q598818", "Q22432", "Q3205861", "Q336517", "Q25136228", "Q5164779", "Q270215", "Q15803822"] # Alien Movies
+
     results = main(
         anchor_qids=[
-            "Q221384",
-            "Q183066",
-            "Q152531",
-            "Q16970789",
-            "Q3258993",
-            "Q19865453",
-            "Q632328",
-            "Q848785",
-            "Q578312",
-            "Q1394447",
-            "Q17093105",
-            "Q20751325",
-            "Q63927168",
-            "Q21463782",
+            "Q182692",
+            "Q190643",
+            "Q243439",
+            "Q201674",
+            "Q585203",
+            "Q623502",
+            "Q471159",
+            "Q1126637",
+            "Q180706",
+            "Q478333",
+            "Q1423020",
+            "Q244876",
+            "Q1114683",
+            "Q15733016",
+            "Q85842235",
+            "Q1645944",
+            "Q639864",
+            "Q3520085",
+            "Q112226601",
+            "Q62277203",
         ],
-        epsilon=0.28,
+        epsilon=0.24,
         start_year=1930,
         end_year=2024,
         anchor_method="average",  # or "medoid"

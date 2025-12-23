@@ -344,6 +344,163 @@ def plot_neighbors_vs_epsilon(
     plt.close()
 
 
+def find_most_average_movies(
+    mean_distances: np.ndarray,
+    movie_ids: np.ndarray,
+    movie_data: pd.DataFrame,
+    n: int = 10,
+):
+    """
+    Find the n movies closest to the mean embedding (most average movies).
+
+    Parameters:
+    - mean_distances: Array of cosine distances from mean vector to all movies
+    - movie_ids: Array of movie IDs corresponding to distances
+    - movie_data: DataFrame with movie metadata
+    - n: Number of most average movies to return (default: 10)
+
+    Returns:
+    - List of dictionaries with movie information and distances
+    """
+    # Get indices of n smallest distances
+    top_n_indices = np.argsort(mean_distances)[:n]
+
+    most_average = []
+    for idx in top_n_indices:
+        movie_id = movie_ids[idx]
+        distance = mean_distances[idx]
+        movie_info = movie_data[movie_data["movie_id"] == movie_id]
+
+        if not movie_info.empty:
+            title = movie_info.iloc[0]["title"]
+            year = movie_info.iloc[0].get("year", None)
+        else:
+            title = "Unknown"
+            year = None
+
+        most_average.append(
+            {
+                "movie_id": movie_id,
+                "title": title,
+                "year": year,
+                "distance": distance,
+                "rank": len(most_average) + 1,
+            }
+        )
+
+    return most_average
+
+
+def plot_most_average_movies(
+    most_average_movies: list,
+    output_path: str = None,
+    title: str = "10 Most Average Movies (Closest to Mean Vector)",
+    figsize: tuple = (12, 8),
+):
+    """
+    Plot the most average movies with their distances to the mean vector.
+
+    Parameters:
+    - most_average_movies: List of dictionaries with movie information
+    - output_path: Path to save the plot (if None, displays plot)
+    - title: Plot title
+    - figsize: Figure size tuple
+    """
+    if not most_average_movies:
+        logger.warning("No average movies to plot")
+        return
+
+    # Extract data for plotting
+    titles = [m["title"] for m in most_average_movies]
+    distances = [m["distance"] for m in most_average_movies]
+    ranks = [m["rank"] for m in most_average_movies]
+
+    # Create figure with subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+
+    # Plot 1: Bar chart of distances
+    colors = plt.cm.viridis(np.linspace(0, 1, len(most_average_movies)))
+    bars = ax1.barh(
+        range(len(most_average_movies)),
+        distances,
+        color=colors,
+        alpha=0.7,
+        edgecolor="black",
+    )
+    ax1.set_yticks(range(len(most_average_movies)))
+    ax1.set_yticklabels(
+        [
+            f"{r}. {t[:40]}..." if len(t) > 40 else f"{r}. {t}"
+            for r, t in zip(ranks, titles)
+        ]
+    )
+    ax1.set_xlabel("Cosine Distance to Mean Vector", fontsize=12)
+    ax1.set_title("Distance to Mean Vector", fontsize=12, fontweight="bold")
+    ax1.grid(True, alpha=0.3, axis="x")
+    ax1.invert_yaxis()  # Show rank 1 at top
+
+    # Add distance values on bars
+    for i, (bar, dist) in enumerate(zip(bars, distances)):
+        width = bar.get_width()
+        ax1.text(
+            width,
+            bar.get_y() + bar.get_height() / 2,
+            f" {dist:.4f}",
+            ha="left",
+            va="center",
+            fontsize=9,
+        )
+
+    # Plot 2: Table with movie details
+    ax2.axis("off")
+    table_data = []
+    for m in most_average_movies:
+        table_data.append(
+            [
+                m["rank"],
+                m["title"][:50] + "..." if len(m["title"]) > 50 else m["title"],
+                m.get("year", "N/A"),
+                f"{m['distance']:.6f}",
+            ]
+        )
+
+    table = ax2.table(
+        cellText=table_data,
+        colLabels=["Rank", "Title", "Year", "Distance"],
+        cellLoc="left",
+        loc="center",
+        colWidths=[0.1, 0.5, 0.15, 0.25],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1, 2)
+    table.auto_set_column_width(col=list(range(4)))
+
+    # Style the header
+    for i in range(4):
+        table[(0, i)].set_facecolor("#4CAF50")
+        table[(0, i)].set_text_props(weight="bold", color="white")
+
+    # Style alternating rows
+    for i in range(1, len(table_data) + 1):
+        for j in range(4):
+            if i % 2 == 0:
+                table[(i, j)].set_facecolor("#f0f0f0")
+
+    ax2.set_title("Most Average Movies Details", fontsize=12, fontweight="bold", pad=20)
+
+    fig.suptitle(title, fontsize=14, fontweight="bold")
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        logger.info(f"Plot saved to {output_path}")
+    else:
+        plt.show()
+
+    plt.close()
+
+
 def main(
     anchor_qids: list = None,
     start_year: int = START_YEAR,
@@ -466,6 +623,25 @@ def main(
         f"Mean distance range: {np.min(mean_distances):.6f} - {np.max(mean_distances):.6f}"
     )
 
+    # Find most average movies
+    logger.info("Finding most average movies (closest to mean vector)...")
+    most_average_movies = find_most_average_movies(
+        mean_distances=mean_distances,
+        movie_ids=filtered_movie_ids,
+        movie_data=movie_data,
+        n=10,
+    )
+
+    logger.info("\n" + "=" * 60)
+    logger.info("10 Most Average Movies (Closest to Mean Vector):")
+    logger.info("=" * 60)
+    for movie in most_average_movies:
+        logger.info(
+            f"Rank {movie['rank']}: {movie['title']} ({movie['movie_id']}) - "
+            f"Distance: {movie['distance']:.6f}, Year: {movie.get('year', 'N/A')}"
+        )
+    logger.info("=" * 60 + "\n")
+
     # Create epsilon range
     epsilon_range = np.linspace(0, epsilon_max, epsilon_steps)
 
@@ -497,6 +673,16 @@ def main(
             output_path=neighbors_plot_path,
             title="Number of Neighbors vs Epsilon",
         )
+
+        # Plot 3: Most average movies
+        average_plot_path = os.path.join(
+            output_dir, f"most_average_movies_{anchor_names_str}.png"
+        )
+        plot_most_average_movies(
+            most_average_movies,
+            output_path=average_plot_path,
+            title="10 Most Average Movies (Closest to Mean Vector)",
+        )
     else:
         plot_neighbor_distribution(
             anchor_distances[anchor_distances != np.inf],
@@ -510,16 +696,36 @@ def main(
             title="Number of Neighbors vs Epsilon",
         )
 
+        plot_most_average_movies(
+            most_average_movies,
+            title="10 Most Average Movies (Closest to Mean Vector)",
+        )
+
     return {
         "anchor_distances": anchor_distances[anchor_distances != np.inf],
         "mean_distances": mean_distances,
         "epsilon_range": epsilon_range,
+        "most_average_movies": most_average_movies,
     }
 
 
 if __name__ == "__main__":
     results = main(
-        anchor_qids=["Q4941"],  # Dr. No (first James Bond film)
+        anchor_qids=[
+            "Q18602670",
+            "Q212145",
+            "Q207916",
+            "Q151904",
+            "Q591272",
+            "Q19089",
+            "Q181540",
+            "Q107914",
+            "Q320423",
+            "Q332368",
+            "Q21534241",
+            "Q30931",
+            "Q106440",
+        ],
         start_year=1930,
         end_year=2024,
         anchor_method="average",

@@ -8,6 +8,7 @@ in the latent embedding space using cosine similarity.
 import logging
 import os
 import sys
+from typing import Union
 
 import numpy as np
 
@@ -39,26 +40,44 @@ END_YEAR = 2024
 
 
 def main(
-    qid: str = "Q1931001",
+    qid: Union[str, list[str]] = "Q1931001",
     n: int = 10,
     start_year: int = START_YEAR,
     end_year: int = END_YEAR,
     data_dir: str = DATA_DIR,
     csv_path: str = CSV_PATH,
+    aggregation: str = "mean",
 ):
     """
     Main function to find and print n closest neighbors.
 
     Parameters:
-    - qid: The movie_id (qid) to find neighbors for
+    - qid: The movie_id (qid) or list of qids to find neighbors for.
+           If a list is provided, the mean or median embedding will be used.
     - n: Number of closest neighbors to find
     - start_year: First year to filter movies
     - end_year: Last year to filter movies
     - data_dir: Directory containing the final embedding files
     - csv_path: Path to final_dataset.csv
+    - aggregation: Method to aggregate multiple QID embeddings ("mean" or "median")
     """
+    # Normalize qid to always be a list for easier processing
+    if isinstance(qid, str):
+        qid_list = [qid]
+        is_single = True
+    else:
+        qid_list = qid
+        is_single = False
+
+    if aggregation not in ["mean", "median"]:
+        raise ValueError(f"aggregation must be 'mean' or 'median', got '{aggregation}'")
+
     logger.info(f"{'=' * 60}")
-    logger.info(f"Finding {n} closest neighbors for QID: {qid}")
+    if is_single:
+        logger.info(f"Finding {n} closest neighbors for QID: {qid_list[0]}")
+    else:
+        logger.info(f"Finding {n} closest neighbors for QIDs: {qid_list}")
+        logger.info(f"Using {aggregation} aggregation for multiple QIDs")
     logger.info(f"{'=' * 60}")
 
     try:
@@ -109,43 +128,91 @@ def main(
             f"Filtered to {len(filtered_movie_ids)} movies with embeddings in year range"
         )
 
-        # Find the index of the query qid in the filtered data
-        query_indices = np.where(filtered_movie_ids == qid)[0]
-        if len(query_indices) == 0:
+        # Find indices for all query qids in the filtered data
+        query_indices_list = []
+        query_embeddings_list = []
+        found_qids = []
+
+        for current_qid in qid_list:
+            query_indices = np.where(filtered_movie_ids == current_qid)[0]
+            if len(query_indices) == 0:
+                logger.warning(
+                    f"QID '{current_qid}' not found in embeddings for the specified year range"
+                )
+                continue
+
+            if len(query_indices) > 1:
+                logger.warning(
+                    f"Multiple embeddings found for qid '{current_qid}', using first one"
+                )
+
+            query_idx = query_indices[0]
+            query_indices_list.append(query_idx)
+            query_embeddings_list.append(filtered_embeddings[query_idx])
+            found_qids.append(current_qid)
+
+        if len(query_embeddings_list) == 0:
             raise ValueError(
-                f"QID '{qid}' not found in embeddings for the specified year range"
+                f"None of the QIDs {qid_list} found in embeddings for the specified year range"
             )
 
-        if len(query_indices) > 1:
-            logger.warning(
-                f"Multiple embeddings found for qid '{qid}', using first one"
+        # Aggregate embeddings if multiple QIDs provided
+        if len(query_embeddings_list) == 1:
+            query_embedding = query_embeddings_list[0].reshape(1, -1)  # Keep 2D shape
+            logger.info(
+                f"Found query movie at index {query_indices_list[0]} in filtered data"
             )
-
-        query_idx = query_indices[0]
-        query_embedding = filtered_embeddings[
-            query_idx : query_idx + 1
-        ]  # Keep 2D shape for sklearn
-
-        logger.info(f"Found query movie at index {query_idx} in filtered data")
-
-        # Get query movie title
-        query_movie = movie_data[movie_data["movie_id"] == qid]
-        if not query_movie.empty:
-            query_title = query_movie.iloc[0]["title"]
-            logger.info(f"Query movie: {query_title} (QID: {qid})")
         else:
-            query_title = "Unknown"
-            logger.warning(f"Could not find title for QID '{qid}'")
+            # Stack embeddings and compute mean or median
+            stacked_embeddings = np.stack(query_embeddings_list, axis=0)
+            if aggregation == "mean":
+                aggregated_embedding = np.mean(stacked_embeddings, axis=0)
+            else:  # median
+                aggregated_embedding = np.median(stacked_embeddings, axis=0)
+            query_embedding = aggregated_embedding.reshape(1, -1)  # Keep 2D shape
+            logger.info(
+                f"Found {len(query_embeddings_list)} query movies at indices {query_indices_list} in filtered data"
+            )
+            logger.info(
+                f"Computed {aggregation} embedding from {len(query_embeddings_list)} movies"
+            )
+
+        # Get query movie title(s)
+        if is_single:
+            query_movie = movie_data[movie_data["movie_id"] == found_qids[0]]
+            if not query_movie.empty:
+                query_title = query_movie.iloc[0]["title"]
+                logger.info(f"Query movie: {query_title} (QID: {found_qids[0]})")
+            else:
+                query_title = "Unknown"
+                logger.warning(f"Could not find title for QID '{found_qids[0]}'")
+        else:
+            query_titles = []
+            for qid in found_qids:
+                query_movie = movie_data[movie_data["movie_id"] == qid]
+                if not query_movie.empty:
+                    query_titles.append(f"{query_movie.iloc[0]['title']} ({qid})")
+                else:
+                    query_titles.append(f"Unknown ({qid})")
+            logger.info(f"Query movies: {', '.join(query_titles)}")
 
         # Call the function with loaded data
+        # For single QID, exclude it from results. For multiple QIDs, we'll filter after
+        anchor_idx_for_call = query_indices_list[0] if is_single else None
         results = find_n_closest_neighbours(
             embeddings_corpus=filtered_embeddings,
             anchor_embedding=query_embedding,
             movie_ids=filtered_movie_ids,
             movie_data=movie_data,
-            n=n,
-            anchor_idx=query_idx,
+            n=n + len(found_qids),  # Get extra results in case we need to filter
+            anchor_idx=anchor_idx_for_call,
         )
+
+        # Filter out any query QIDs from results if we have multiple QIDs
+        if not is_single:
+            results = [r for r in results if r[0] not in found_qids][
+                :n
+            ]  # Take top n after filtering
 
         # Print results
         logger.info(f"\n{'=' * 60}")
@@ -170,6 +237,30 @@ if __name__ == "__main__":
     # Example usage - modify these parameters as needed
     # Skyfall (QID: Q4941)
     main(
-        qid="Q192724",  # Change this to your desired qid
+        qid=[
+            "Q103474",
+            "Q184843",
+            "Q21500755",
+            "Q162255",
+            "Q170564",
+            "Q16635326",
+            "Q788822",
+            "Q131191955",
+            "Q221113",
+            "Q83495",
+            "Q189600",
+            "Q207536",
+            "Q200572",
+            "Q504697",
+            "Q626483",
+            "Q18954",
+            "Q244604",
+            "Q1066948",
+            "Q22575835",
+            "Q10384115",
+            "Q3549863",
+            "Q30611788",
+            "Q26751",
+        ],  # Change this to your desired qid
         n=200,  # Change this to desired number of neighbors
     )
