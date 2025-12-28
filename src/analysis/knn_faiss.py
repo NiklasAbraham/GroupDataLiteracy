@@ -76,7 +76,7 @@ if __name__ == "__main__":
     df = load_final_data_with_embeddings(CSV_PATH, DATA_DIR)
     print(df.info())
 
-    knn_results = find_temporal_nearest_neighbors(df, k=5000)
+    knn_results = find_temporal_nearest_neighbors(df, k=1000)
 
     knn_results.to_csv(SAVE_PATH, index=False)
     print(f"Temporal k-NN results saved to {SAVE_PATH}")
