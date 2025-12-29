@@ -144,6 +144,8 @@ This work contributes to cultural analytics by demonstrating how static embeddin
 
 \section{Data and Methods}\label{sec:methods}
 
+\subsection{Data Collection}
+
 The construction of our movie corpus required a multi-stage data collection pipeline that systematically integrated information from three complementary sources: Wikidata, The Movie Database (TMDb), and Wikipedia. This approach leverages the structured metadata capabilities of knowledge bases while obtaining rich textual descriptions necessary for semantic analysis.
 
 The initial data collection phase queried Wikidata, a collaboratively edited multilingual knowledge graph maintained by the Wikimedia Foundation. Wikidata serves as an ideal entry point for systematic movie data collection due to its comprehensive coverage of cultural artifacts and its structured representation of temporal, categorical, and relational metadata. For each year in our study period, we retrieved movies satisfying specific criteria, including release year, film classification, and the availability of linked Wikipedia articles in English. This step yielded essential metadata fields including unique Wikidata identifiers, film titles, release years, and crucially, sitelinks to corresponding Wikipedia articles.
@@ -211,8 +213,26 @@ We considered four primary approaches for generating document embeddings, visual
 
 To determine the optimal chunking and pooling strategy for our specific use case, we conducted comparative tests across multiple approaches.
 
+\subsection{Methodology}
 
+Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus. Such distributions encode structural properties of the embedding space and reveal whether semantic relationships exhibit systematic patterns across temporal periods or thematic categories.
 
+To rigorously compare distance distributions across different subsets of movies, for instance films from different decades or belonging to distinct genres, we employ the Kolmogorov-Smirnov test, a non-parametric statistical method for assessing whether two empirical distributions arise from the same underlying continuous distribution \cite{massey1951}. The two-sample KS test compares the empirical cumulative distribution functions (ECDFs) of two samples by computing the maximum vertical distance between them.
+
+Formally, given two samples \( X_1, \ldots, X_n \) and \( Y_1, \ldots, Y_m \), their empirical cumulative distribution functions are defined as:
+\begin{equation}
+F_n(x) = \frac{1}{n} \sum_{i=1}^{n} 1_{X_i \leq x}, \quad G_m(y) = \frac{1}{m} \sum_{j=1}^{m} 1_{Y_j \leq y}
+\end{equation}
+where \( 1 \) denotes the indicator function. The KS test statistic is defined as the supremum of absolute differences between these ECDFs:
+\begin{equation}
+D_{n,m} = \sup_{x} |F_n(x) - G_m(x)|
+\end{equation}
+
+Under the null hypothesis that both samples are drawn from the same continuous distribution, the distribution of \( D_{n,m} \) is known and can be used to compute p-values for hypothesis testing. The test is particularly suited for our application because it makes no assumptions about the underlying distributional form, is sensitive to differences in both location and shape, and operates directly on the distance measurements without requiring binning or parametric modeling.
+
+A key design choice in applying this framework is the selection of a reference point from which distances are computed. One natural approach is to use the mean vector of a baseline subset of movies as a reference embedding, then compute the distribution of distances from this reference point to all movies in the corpus. This baseline distribution can then serve as a comparison standard against which distance distributions from other subsets are evaluated. For instance, the mean embedding of movies from a particular decade or genre can be computed, and the resulting distance distribution compared against the baseline using the KS test to assess whether the subset exhibits systematically different spatial organization relative to the reference.
+
+In the context of temporal semantic analysis, this framework enables systematic comparison of distance distributions across decades. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. Conversely, significant differences in these distributions, as detected by the KS test, would indicate structural reorganization of the semantic space, suggesting periods where narrative conventions undergo fundamental shifts. By applying this analysis to distances measured from fixed reference points in the embedding space, we can quantify how the density and dispersion of semantic representations evolve temporally, providing a complementary perspective to trajectory-based analyses of genre evolution.
 
 
 
