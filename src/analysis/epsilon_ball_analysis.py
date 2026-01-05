@@ -43,8 +43,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DATA_DIR = os.path.join(BASE_DIR, "data", "data_final")
-CSV_PATH = os.path.join(BASE_DIR, "data", "data_final", "final_dataset.csv")
+DATA_DIR = os.path.join(BASE_DIR, "data")
+CSV_PATH = os.path.join(BASE_DIR, "data", "final_dataset.csv")
 CACHE_DIR = os.path.join(BASE_DIR, "data", "cache", "mean_embeddings")
 START_YEAR = 1930
 END_YEAR = 2024
@@ -982,9 +982,39 @@ def main(
         anchor_qids = ["Q4941"]  # Dr. No (first James Bond film)
         logger.info("Using default anchor: James Bond (Q4941)")
 
-    # Load all embeddings and corresponding movie IDs
-    logger.info("Loading embeddings...")
     all_embeddings, all_movie_ids = load_final_dense_embeddings(data_dir, verbose=False)
+    movie_data = load_final_dataset(csv_path, verbose=False)
+
+    anchor_qids = [
+        "Q182692", "Q190643", "Q243439", "Q201674", "Q585203", "Q623502", "Q471159",
+        "Q1126637", "Q180706", "Q478333", "Q1423020", "Q244876", "Q1114683",
+        "Q15733016", "Q85842235", "Q1645944", "Q639864", "Q3520085",
+        "Q112226601", "Q62277203",
+    ]
+
+    N = 750  # max movies per year
+
+    # --- 1) Split anchors from non-anchors ---
+    anchors_df = movie_data[movie_data["movie_id"].isin(anchor_qids)]
+    non_anchors_df = movie_data[~movie_data["movie_id"].isin(anchor_qids)]
+
+    # --- 2) Apply per-year cap ONLY to non-anchors ---
+    non_anchors_df = (
+        non_anchors_df
+        .sort_values("movie_id")
+        .groupby("year", group_keys=False)
+        .head(N)
+    )
+
+    # --- 3) Recombine (anchors always included) ---
+    movie_data = pd.concat([anchors_df, non_anchors_df], ignore_index=True)
+
+    # --- 4) Slice embeddings directly (no mask) ---
+    id_to_idx = {mid: i for i, mid in enumerate(all_movie_ids)}
+    indices = [id_to_idx[mid] for mid in movie_data["movie_id"] if mid in id_to_idx]
+
+    all_embeddings = all_embeddings[indices]
+    all_movie_ids = all_movie_ids[indices]
 
     if len(all_movie_ids) == 0:
         raise ValueError(f"No embeddings found in {data_dir}")
