@@ -6,15 +6,10 @@ specified anchor movies. The anchor can be a single movie or the average of
 multiple movies. Results include distances, rankings, and temporal analysis.
 """
 
-import hashlib
-import json
 import logging
 import os
-import re
 import sys
-from typing import Optional, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -24,14 +19,26 @@ SRC_DIR = os.path.join(BASE_DIR, "src")
 # Add BASE_DIR to Python path so imports work
 sys.path.insert(0, BASE_DIR)
 
-# Import functions from data_utils
-# Path setup must occur before this import
+# Import functions from math_functions and data_utils
 from src.analysis.math_functions import (  # type: ignore  # noqa: E402
     compute_anchor_embedding,
     find_movies_in_epsilon_ball,
     interpret_ks_test,
     kolmogorov_smirnov_test,
     kolmogorov_smirnov_test_temporal,
+)
+from src.analysis.utils.epsilon_ball_utils import (  # type: ignore  # noqa: E402
+    compute_embeddings_hash,
+    get_anchor_names_string,
+    load_cached_mean_embedding,
+    save_cached_mean_embedding,
+    truncate_filename_component,
+)
+from src.analysis.visualizations.epsilon_ball_visualization import (  # type: ignore  # noqa: E402
+    plot_distance_distribution,
+    plot_ks_test_cdf,
+    plot_ks_test_temporal_cdf,
+    plot_movies_over_time,
 )
 from src.data_utils import (  # type: ignore  # noqa: E402
     load_final_dataset,
@@ -43,8 +50,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DATA_DIR = os.path.join(BASE_DIR, "data")
-CSV_PATH = os.path.join(BASE_DIR, "data", "final_dataset.csv")
+DATA_DIR = os.path.join(BASE_DIR, "data", "data_final")
+CSV_PATH = os.path.join(BASE_DIR, "data", "data_final", "final_dataset.csv")
 CACHE_DIR = os.path.join(BASE_DIR, "data", "cache", "mean_embeddings")
 START_YEAR = 1930
 END_YEAR = 2024
@@ -82,7 +89,6 @@ def analyze_epsilon_ball(
     logger.info(f"{'=' * 60}")
 
     try:
-        # Compute anchor embedding
         logger.info("Computing anchor embedding...")
         anchor_embedding = compute_anchor_embedding(
             anchor_qids=anchor_qids,
@@ -91,7 +97,6 @@ def analyze_epsilon_ball(
             method=anchor_method,
         )
 
-        # Get anchor movie titles for logging
         anchor_titles = []
         for qid in anchor_qids:
             anchor_movie = movie_data[movie_data["movie_id"] == qid]
@@ -102,7 +107,6 @@ def analyze_epsilon_ball(
 
         logger.info(f"Anchor movies: {list(zip(anchor_qids, anchor_titles))}")
 
-        # Find movies within epsilon ball
         logger.info(f"Finding movies within epsilon ball (epsilon={epsilon})...")
         exclude_anchor_ids = anchor_qids if exclude_anchors else None
         indices, distances, similarities = find_movies_in_epsilon_ball(
@@ -121,7 +125,6 @@ def analyze_epsilon_ball(
                 columns=["movie_id", "title", "year", "distance", "similarity", "rank"]
             )
 
-        # Create results dataframe
         results = []
         for rank, (idx, dist, sim) in enumerate(
             zip(indices, distances, similarities), 1
@@ -168,784 +171,6 @@ def analyze_epsilon_ball(
         raise
 
 
-def plot_movies_over_time(
-    results_df: pd.DataFrame,
-    output_path: str = None,
-    title: str = "Movies in Epsilon Ball Over Time",
-    figsize: tuple = (12, 6),
-    random_results_df: pd.DataFrame = None,
-):
-    """
-    Plot the number of movies in the epsilon ball over time.
-
-    Parameters:
-    - results_df: DataFrame from analyze_epsilon_ball
-    - output_path: Path to save the plot (if None, displays plot)
-    - title: Plot title (will have total count appended)
-    - figsize: Figure size tuple
-    - random_results_df: Optional DataFrame from control group (mean embedding) analysis for comparison
-    """
-    if results_df.empty:
-        logger.warning("No data to plot")
-        return
-
-    if "year" not in results_df.columns or results_df["year"].isna().all():
-        logger.warning("No year data available for plotting")
-        return
-
-    # Filter out movies without year
-    df_with_year = results_df[results_df["year"].notna()].copy()
-    df_with_year["year"] = df_with_year["year"].astype(int)
-
-    if df_with_year.empty:
-        logger.warning("No movies with valid year data")
-        return
-
-    # Count movies per year
-    year_counts = df_with_year["year"].value_counts().sort_index()
-    total_movies = len(results_df)
-
-    # Calculate SMA of 3 and SMA of 10
-    year_counts_series = pd.Series(year_counts.values, index=year_counts.index)
-    sma_3 = year_counts_series.rolling(window=3, center=False, min_periods=1).mean()
-    sma_10 = year_counts_series.rolling(window=10, center=False, min_periods=1).mean()
-
-    # Check if random results are provided for comparison
-    has_random_comparison = (
-        random_results_df is not None
-        and not random_results_df.empty
-        and "year" in random_results_df.columns
-        and random_results_df["year"].notna().any()
-    )
-
-    if has_random_comparison:
-        # Get random year counts
-        if "count" in random_results_df.columns:
-            # Use the pre-calculated averaged counts
-            random_year_counts_series = pd.Series(
-                random_results_df["count"].values,
-                index=random_results_df["year"].values,
-            ).sort_index()
-        else:
-            # Fallback to original method
-            random_df_with_year = random_results_df[
-                random_results_df["year"].notna()
-            ].copy()
-            random_df_with_year["year"] = random_df_with_year["year"].astype(int)
-            random_year_counts = random_df_with_year["year"].value_counts().sort_index()
-            random_year_counts_series = pd.Series(
-                random_year_counts.values, index=random_year_counts.index
-            )
-
-        # Normalize both datasets so their highest peak is 1
-        anchor_max = year_counts_series.max()
-        random_max = random_year_counts_series.max()
-
-        anchor_normalized = (
-            year_counts_series / anchor_max if anchor_max > 0 else year_counts_series
-        )
-        random_normalized = (
-            random_year_counts_series / random_max
-            if random_max > 0
-            else random_year_counts_series
-        )
-
-        # Normalize SMAs as well
-        sma_3_normalized = sma_3 / anchor_max if anchor_max > 0 else sma_3
-        sma_10_normalized = sma_10 / anchor_max if anchor_max > 0 else sma_10
-
-        random_sma_3 = random_year_counts_series.rolling(
-            window=3, center=False, min_periods=1
-        ).mean()
-        random_sma_10 = random_year_counts_series.rolling(
-            window=10, center=False, min_periods=1
-        ).mean()
-        random_sma_3_normalized = (
-            random_sma_3 / random_max if random_max > 0 else random_sma_3
-        )
-        random_sma_10_normalized = (
-            random_sma_10 / random_max if random_max > 0 else random_sma_10
-        )
-
-        # Create plot with dual y-axes
-        fig, ax1 = plt.subplots(figsize=figsize)
-
-        # Plot anchor movies on left y-axis
-        ax1.bar(
-            anchor_normalized.index,
-            anchor_normalized.values,
-            alpha=0.7,
-            edgecolor="black",
-            color="steelblue",
-            label="Anchor Movies (normalized)",
-        )
-        ax1.plot(
-            sma_3_normalized.index,
-            sma_3_normalized.values,
-            color="red",
-            linewidth=2,
-            label="Anchor SMA (3)",
-        )
-        ax1.plot(
-            sma_10_normalized.index,
-            sma_10_normalized.values,
-            color="darkred",
-            linewidth=2,
-            label="Anchor SMA (10)",
-        )
-        ax1.set_xlabel("Year", fontsize=12)
-        ax1.set_ylabel(
-            "Normalized Count (Anchor Movies)", fontsize=12, color="steelblue"
-        )
-        ax1.tick_params(axis="y", labelcolor="steelblue")
-        ax1.grid(True, alpha=0.3, axis="y")
-
-        # Create second y-axis for random movies
-        ax2 = ax1.twinx()
-
-        # Align years for random data
-        all_years = sorted(set(anchor_normalized.index) | set(random_normalized.index))
-        random_aligned = pd.Series(0, index=all_years)
-        random_aligned.loc[random_normalized.index] = random_normalized.values
-
-        ax2.bar(
-            random_aligned.index,
-            random_aligned.values,
-            alpha=0.5,
-            edgecolor="black",
-            color="coral",
-            label="Control Group (normalized)",
-        )
-        ax2.plot(
-            random_sma_3_normalized.index,
-            random_sma_3_normalized.values,
-            color="lightcoral",
-            linewidth=1.5,
-            linestyle="--",
-            alpha=0.6,
-            label="Control Group SMA (3)",
-        )
-        ax2.plot(
-            random_sma_10_normalized.index,
-            random_sma_10_normalized.values,
-            color="lightpink",
-            linewidth=1.5,
-            linestyle="--",
-            alpha=0.6,
-            label="Control Group SMA (10)",
-        )
-        ax2.set_ylabel("Normalized Count (Control Group)", fontsize=12, color="coral")
-        ax2.tick_params(axis="y", labelcolor="coral")
-
-        # Combine legends
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        # Replace "Random" labels with "Control Group"
-        labels2 = [label.replace("Random", "Control Group") for label in labels2]
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc="best")
-
-        plt.title(
-            f"{title} (Total: {total_movies} movies, Normalized)",
-            fontsize=14,
-            fontweight="bold",
-        )
-        plt.tight_layout()
-    else:
-        # Create plot without dual axes (original behavior)
-        plt.figure(figsize=figsize)
-        plt.bar(year_counts.index, year_counts.values, alpha=0.7, edgecolor="black")
-        plt.plot(sma_3.index, sma_3.values, color="red", linewidth=2, label="SMA (3)")
-        plt.plot(
-            sma_10.index, sma_10.values, color="darkred", linewidth=2, label="SMA (10)"
-        )
-        plt.xlabel("Year", fontsize=12)
-        plt.ylabel("Number of Movies", fontsize=12)
-        plt.title(
-            f"{title} (Total: {total_movies} movies)", fontsize=14, fontweight="bold"
-        )
-        plt.legend()
-        plt.grid(True, alpha=0.3, axis="y")
-        plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        logger.info(f"Plot saved to {output_path}")
-    else:
-        plt.show()
-
-    plt.close()
-
-
-def plot_distance_distribution(
-    results_df: pd.DataFrame,
-    output_path: str = None,
-    title: str = "Distance Distribution in Epsilon Ball",
-    figsize: tuple = (10, 6),
-):
-    """
-    Plot the distribution of distances in the epsilon ball.
-
-    Parameters:
-    - results_df: DataFrame from analyze_epsilon_ball
-    - output_path: Path to save the plot (if None, displays plot)
-    - title: Plot title (will have total count appended)
-    - figsize: Figure size tuple
-    """
-    if results_df.empty:
-        logger.warning("No data to plot")
-        return
-
-    total_movies = len(results_df)
-
-    plt.figure(figsize=figsize)
-    plt.hist(
-        results_df["distance"],
-        bins=50,
-        alpha=0.7,
-        edgecolor="black",
-        color="steelblue",
-    )
-    plt.xlabel("Cosine Distance", fontsize=12)
-    plt.ylabel("Number of Movies", fontsize=12)
-    plt.title(f"{title} (Total: {total_movies} movies)", fontsize=14, fontweight="bold")
-    plt.grid(True, alpha=0.3, axis="y")
-    plt.axvline(
-        results_df["distance"].mean(),
-        color="red",
-        linestyle="--",
-        linewidth=2,
-        label=f"Mean: {results_df['distance'].mean():.4f}",
-    )
-    plt.legend()
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        logger.info(f"Plot saved to {output_path}")
-    else:
-        plt.show()
-
-    plt.close()
-
-
-def plot_ks_test_cdf(
-    anchor_distances: np.ndarray,
-    random_distances: np.ndarray,
-    ks_statistic: float,
-    p_value: float,
-    output_path: str = None,
-    title: str = "Kolmogorov-Smirnov Test: Distance Distributions",
-    figsize: tuple = (12, 8),
-    interpretation: dict = None,
-):
-    """
-    Plot cumulative distribution functions (CDFs) for K-S test visualization.
-
-    Parameters:
-    - anchor_distances: Array of cosine distances from anchor epsilon ball
-    - random_distances: Array of cosine distances from control group epsilon ball
-    - ks_statistic: K-S test statistic
-    - p_value: p-value from K-S test
-    - output_path: Path to save the plot (if None, displays plot)
-    - title: Plot title
-    - figsize: Figure size tuple
-    """
-    # Sort distances for CDF calculation
-    anchor_sorted = np.sort(anchor_distances)
-    random_sorted = np.sort(random_distances)
-
-    # Calculate CDFs
-    anchor_cdf = np.arange(1, len(anchor_sorted) + 1) / len(anchor_sorted)
-    random_cdf = np.arange(1, len(random_sorted) + 1) / len(random_sorted)
-
-    # Find the point of maximum difference
-    # Interpolate to find where max difference occurs
-    all_distances = np.sort(np.unique(np.concatenate([anchor_sorted, random_sorted])))
-    anchor_cdf_interp = np.interp(all_distances, anchor_sorted, anchor_cdf)
-    random_cdf_interp = np.interp(all_distances, random_sorted, random_cdf)
-    diff = np.abs(anchor_cdf_interp - random_cdf_interp)
-    max_diff_idx = np.argmax(diff)
-    max_diff_dist = all_distances[max_diff_idx]
-    max_diff_anchor_cdf = anchor_cdf_interp[max_diff_idx]
-    max_diff_random_cdf = random_cdf_interp[max_diff_idx]
-
-    # Create plot
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-
-    # Plot 1: CDF comparison
-    ax1.plot(
-        anchor_sorted, anchor_cdf, label="Anchor Movies", linewidth=2, color="blue"
-    )
-    ax1.plot(
-        random_sorted,
-        random_cdf,
-        label="Control Group",
-        linewidth=2,
-        color="red",
-        linestyle="--",
-    )
-
-    # Highlight maximum difference
-    ax1.plot(
-        [max_diff_dist, max_diff_dist],
-        [max_diff_anchor_cdf, max_diff_random_cdf],
-        "k-",
-        linewidth=2,
-        label=f"K-S Statistic = {ks_statistic:.4f}",
-    )
-    ax1.plot(max_diff_dist, max_diff_anchor_cdf, "ko", markersize=8)
-    ax1.plot(max_diff_dist, max_diff_random_cdf, "ko", markersize=8)
-
-    ax1.set_xlabel("Cosine Distance", fontsize=12)
-    ax1.set_ylabel("Cumulative Probability", fontsize=12)
-    ax1.set_title("Cumulative Distribution Functions", fontsize=12, fontweight="bold")
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    ax1.set_ylim([0, 1.05])
-
-    # Plot 2: Histogram comparison
-    # Use shared bin edges for proper normalization and comparison
-    all_distances_combined = np.concatenate([anchor_distances, random_distances])
-    bins = np.linspace(
-        all_distances_combined.min(),
-        all_distances_combined.max(),
-        50,
-    )
-    ax2.hist(
-        anchor_distances,
-        bins=bins,
-        alpha=0.6,
-        label="Anchor Movies",
-        color="blue",
-        density=True,
-    )
-    ax2.hist(
-        random_distances,
-        bins=bins,
-        alpha=0.6,
-        label="Control Group",
-        color="red",
-        density=True,
-    )
-    ax2.axvline(
-        max_diff_dist,
-        color="black",
-        linestyle="--",
-        linewidth=2,
-        label=f"Max Diff Point (D={ks_statistic:.4f})",
-    )
-    ax2.set_xlabel("Cosine Distance", fontsize=12)
-    ax2.set_ylabel("Density", fontsize=12)
-    ax2.set_title("Distance Distribution Histograms", fontsize=12, fontweight="bold")
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-
-    # Add test results as text
-    fig.suptitle(
-        f"{title}\nK-S Statistic: {ks_statistic:.6f}",
-        fontsize=14,
-        fontweight="bold",
-    )
-
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        logger.info(f"K-S test plot saved to {output_path}")
-    else:
-        plt.show()
-
-    plt.close()
-
-
-def plot_ks_test_temporal_cdf(
-    anchor_year_counts: pd.Series,
-    random_year_counts: pd.Series,
-    ks_statistic: float,
-    p_value: float,
-    output_path: str = None,
-    title: str = "Kolmogorov-Smirnov Test: Temporal Distributions",
-    figsize: tuple = (14, 6),
-    interpretation: dict = None,
-):
-    """
-    Plot cumulative distribution functions for temporal K-S test.
-
-    Parameters:
-    - anchor_year_counts: Series of movie counts per year for anchor
-    - random_year_counts: Series of movie counts per year for control group
-    - ks_statistic: K-S test statistic
-    - p_value: p-value from K-S test
-    - output_path: Path to save the plot (if None, displays plot)
-    - title: Plot title
-    - figsize: Figure size tuple
-    """
-    # Create sample arrays from counts
-    anchor_samples = []
-    for year, count in anchor_year_counts.items():
-        anchor_samples.extend([year] * int(count))
-
-    random_samples = []
-    for year, count in random_year_counts.items():
-        random_samples.extend([year] * int(count))
-
-    # Sort for CDF calculation
-    anchor_sorted = np.sort(anchor_samples)
-    random_sorted = np.sort(random_samples)
-
-    # Calculate CDFs
-    anchor_cdf = np.arange(1, len(anchor_sorted) + 1) / len(anchor_sorted)
-    random_cdf = np.arange(1, len(random_sorted) + 1) / len(random_sorted)
-
-    # Find maximum difference point
-    all_years = np.sort(np.unique(np.concatenate([anchor_sorted, random_sorted])))
-    anchor_cdf_interp = np.interp(all_years, anchor_sorted, anchor_cdf)
-    random_cdf_interp = np.interp(all_years, random_sorted, random_cdf)
-    diff = np.abs(anchor_cdf_interp - random_cdf_interp)
-    max_diff_idx = np.argmax(diff)
-    max_diff_year = all_years[max_diff_idx]
-    max_diff_anchor_cdf = anchor_cdf_interp[max_diff_idx]
-    max_diff_random_cdf = random_cdf_interp[max_diff_idx]
-
-    # Create plot
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-
-    # Plot 1: CDF comparison
-    ax1.plot(
-        anchor_sorted, anchor_cdf, label="Anchor Movies", linewidth=2, color="blue"
-    )
-    ax1.plot(
-        random_sorted,
-        random_cdf,
-        label="Control Group",
-        linewidth=2,
-        color="red",
-        linestyle="--",
-    )
-
-    # Highlight maximum difference
-    ax1.plot(
-        [max_diff_year, max_diff_year],
-        [max_diff_anchor_cdf, max_diff_random_cdf],
-        "k-",
-        linewidth=2,
-        label=f"K-S Statistic = {ks_statistic:.4f}",
-    )
-    ax1.plot(max_diff_year, max_diff_anchor_cdf, "ko", markersize=8)
-    ax1.plot(max_diff_year, max_diff_random_cdf, "ko", markersize=8)
-
-    ax1.set_xlabel("Year", fontsize=12)
-    ax1.set_ylabel("Cumulative Probability", fontsize=12)
-    ax1.set_title(
-        "Cumulative Distribution Functions (by Year)", fontsize=12, fontweight="bold"
-    )
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    ax1.set_ylim([0, 1.05])
-
-    # Plot 2: Year count comparison with dual y-axes and normalization
-    all_years_aligned = sorted(
-        set(anchor_year_counts.index) | set(random_year_counts.index)
-    )
-    anchor_aligned = pd.Series(0, index=all_years_aligned)
-    random_aligned = pd.Series(0, index=all_years_aligned)
-    anchor_aligned.loc[anchor_year_counts.index] = anchor_year_counts.values
-    random_aligned.loc[random_year_counts.index] = random_year_counts.values
-
-    # Normalize both datasets so their highest peak is 1
-    anchor_max = anchor_aligned.max()
-    random_max = random_aligned.max()
-
-    anchor_normalized = (
-        anchor_aligned / anchor_max if anchor_max > 0 else anchor_aligned
-    )
-    random_normalized = (
-        random_aligned / random_max if random_max > 0 else random_aligned
-    )
-
-    x = np.arange(len(all_years_aligned))
-    width = 0.35
-
-    # Plot anchor movies on left y-axis
-    ax2.bar(
-        x - width / 2,
-        anchor_normalized.values,
-        width,
-        label="Anchor Movies (normalized)",
-        alpha=0.7,
-        color="blue",
-    )
-    ax2.axvline(
-        np.where(all_years_aligned == max_diff_year)[0][0],
-        color="black",
-        linestyle="--",
-        linewidth=2,
-        label=f"Max Diff Year ({int(max_diff_year)})",
-    )
-    ax2.set_xlabel("Year", fontsize=12)
-    ax2.set_ylabel("Normalized Count (Anchor Movies)", fontsize=12, color="blue")
-    ax2.tick_params(axis="y", labelcolor="blue")
-    ax2.set_title("Movie Counts per Year (Normalized)", fontsize=12, fontweight="bold")
-    ax2.set_xticks(x[:: max(1, len(x) // 10)])
-    ax2.set_xticklabels(
-        [
-            all_years_aligned[i]
-            for i in range(0, len(all_years_aligned), max(1, len(x) // 10))
-        ],
-        rotation=45,
-        ha="right",
-    )
-    ax2.grid(True, alpha=0.3, axis="y")
-
-    # Create second y-axis for random movies
-    ax2_twin = ax2.twinx()
-    ax2_twin.bar(
-        x + width / 2,
-        random_normalized.values,
-        width,
-        label="Random Movies (normalized)",
-        alpha=0.7,
-        color="red",
-    )
-    ax2_twin.set_ylabel("Normalized Count (Control Group)", fontsize=12, color="red")
-    ax2_twin.tick_params(axis="y", labelcolor="red")
-
-    # Combine legends
-    lines1, labels1 = ax2.get_legend_handles_labels()
-    lines2, labels2 = ax2_twin.get_legend_handles_labels()
-    ax2.legend(lines1 + lines2, labels1 + labels2, loc="best")
-
-    # Add test results as text
-    fig.suptitle(
-        f"{title}\nK-S Statistic: {ks_statistic:.6f}",
-        fontsize=14,
-        fontweight="bold",
-    )
-
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        logger.info(f"K-S test temporal plot saved to {output_path}")
-    else:
-        plt.show()
-
-    plt.close()
-
-
-def format_movie_name_for_filename(title: str) -> str:
-    """
-    Format a movie title for use in filenames.
-
-    Parameters:
-    - title: Movie title string
-
-    Returns:
-    - Formatted string safe for filenames (spaces replaced with underscores,
-      special characters removed, etc.)
-    """
-    # Replace spaces with underscores
-    formatted = title.replace(" ", "_")
-    # Remove or replace special characters that might cause issues in filenames
-    formatted = re.sub(r'[<>:"/\\|?*]', "", formatted)
-    # Remove multiple consecutive underscores
-    formatted = re.sub(r"_+", "_", formatted)
-    # Remove leading/trailing underscores
-    formatted = formatted.strip("_")
-    return formatted
-
-
-def get_anchor_names_string(anchor_qids: list, movie_data: pd.DataFrame) -> str:
-    """
-    Get a formatted string of anchor movie names for use in filenames.
-
-    Parameters:
-    - anchor_qids: List of movie QIDs
-    - movie_data: DataFrame with movie metadata
-
-    Returns:
-    - String with formatted movie names separated by '__'
-    """
-    anchor_names = []
-    for qid in anchor_qids:
-        anchor_movie = movie_data[movie_data["movie_id"] == qid]
-        if not anchor_movie.empty:
-            title = anchor_movie.iloc[0]["title"]
-            formatted_name = format_movie_name_for_filename(title)
-            anchor_names.append(formatted_name)
-        else:
-            # Fallback to QID if title not found
-            anchor_names.append(qid)
-
-    return "__".join(anchor_names)
-
-
-def compute_embeddings_hash(
-    filtered_embeddings: np.ndarray,
-    start_year: int,
-    end_year: int,
-) -> str:
-    """
-    Compute a hash of the filtered embeddings and parameters to verify cache validity.
-
-    Parameters:
-    - filtered_embeddings: Array of embeddings (shape: [n_movies, embedding_dim])
-    - start_year: Start year used for filtering
-    - end_year: End year used for filtering
-
-    Returns:
-    - Hash string that uniquely identifies this set of embeddings and parameters
-    """
-    # Create a hash from:
-    # 1. Shape of embeddings
-    # 2. Sample of the data (first, middle, last rows and a few random ones)
-    # 3. Sum of all values (quick integrity check)
-    # 4. Year range
-    hash_data = {
-        "shape": filtered_embeddings.shape,
-        "dtype": str(filtered_embeddings.dtype),
-        "start_year": start_year,
-        "end_year": end_year,
-    }
-
-    # Add sample data for verification
-    n_samples = min(100, len(filtered_embeddings))
-    if len(filtered_embeddings) > 0:
-        # Sample indices: first, last, middle, and some random ones
-        sample_indices = [0]
-        if len(filtered_embeddings) > 1:
-            sample_indices.append(len(filtered_embeddings) - 1)
-        if len(filtered_embeddings) > 2:
-            sample_indices.append(len(filtered_embeddings) // 2)
-        # Add random samples
-        if len(filtered_embeddings) > n_samples:
-            np.random.seed(42)  # Fixed seed for reproducibility
-            random_indices = np.random.choice(
-                len(filtered_embeddings),
-                size=n_samples - len(sample_indices),
-                replace=False,
-            )
-            sample_indices.extend(random_indices.tolist())
-
-        # Hash the sampled rows
-        sample_data = filtered_embeddings[sample_indices].tobytes()
-        hash_data["sample_hash"] = hashlib.md5(sample_data).hexdigest()
-
-        # Add sum as a quick integrity check
-        hash_data["sum"] = float(np.sum(filtered_embeddings))
-
-    # Create hash from the hash data
-    hash_string = json.dumps(hash_data, sort_keys=True)
-    return hashlib.sha256(hash_string.encode()).hexdigest()
-
-
-def load_cached_mean_embedding(
-    cache_dir: str,
-    embeddings_hash: str,
-) -> Tuple[Optional[np.ndarray], bool]:
-    """
-    Load cached mean embedding if it exists and hash matches.
-
-    Parameters:
-    - cache_dir: Directory to store/load cache files
-    - embeddings_hash: Hash of the embeddings to verify cache validity
-
-    Returns:
-    - Tuple of (mean_embedding, found) where:
-      - mean_embedding: The cached mean embedding if found, None otherwise
-      - found: Boolean indicating if valid cache was found
-    """
-    os.makedirs(cache_dir, exist_ok=True)
-
-    cache_file = os.path.join(cache_dir, f"mean_embedding_{embeddings_hash}.npy")
-    metadata_file = os.path.join(cache_dir, f"mean_embedding_{embeddings_hash}.json")
-
-    if not os.path.exists(cache_file) or not os.path.exists(metadata_file):
-        return None, False
-
-    try:
-        # Load metadata to verify hash
-        with open(metadata_file, "r") as f:
-            metadata = json.load(f)
-
-        if metadata.get("hash") != embeddings_hash:
-            logger.warning("Cache hash mismatch, will recompute mean embedding")
-            return None, False
-
-        # Load the cached mean embedding
-        mean_embedding = np.load(cache_file)
-        logger.info(
-            f"Loaded cached mean embedding from {cache_file} "
-            f"(computed from {metadata.get('n_movies', 'unknown')} movies)"
-        )
-        return mean_embedding, True
-
-    except Exception as e:
-        logger.warning(f"Error loading cached mean embedding: {e}, will recompute")
-        return None, False
-
-
-def save_cached_mean_embedding(
-    mean_embedding: np.ndarray,
-    cache_dir: str,
-    embeddings_hash: str,
-    n_movies: int,
-) -> None:
-    """
-    Save mean embedding to cache with metadata.
-
-    Parameters:
-    - mean_embedding: The computed mean embedding to cache
-    - cache_dir: Directory to store cache files
-    - embeddings_hash: Hash of the embeddings used for this computation
-    - n_movies: Number of movies used to compute the mean
-    """
-    os.makedirs(cache_dir, exist_ok=True)
-
-    cache_file = os.path.join(cache_dir, f"mean_embedding_{embeddings_hash}.npy")
-    metadata_file = os.path.join(cache_dir, f"mean_embedding_{embeddings_hash}.json")
-
-    try:
-        # Save the mean embedding
-        np.save(cache_file, mean_embedding)
-
-        # Save metadata
-        metadata = {
-            "hash": embeddings_hash,
-            "n_movies": n_movies,
-            "shape": list(mean_embedding.shape),
-            "dtype": str(mean_embedding.dtype),
-        }
-        with open(metadata_file, "w") as f:
-            json.dump(metadata, f, indent=2)
-
-        logger.info(f"Cached mean embedding to {cache_file}")
-
-    except Exception as e:
-        logger.warning(f"Error saving cached mean embedding: {e}")
-
-
-def truncate_filename_component(component: str, max_length: int = 120) -> str:
-    """
-    Truncate a filename component if it's too long, adding a hash suffix for uniqueness.
-
-    Parameters:
-    - component: The string component to truncate
-    - max_length: Maximum length for the component (default: 120)
-
-    Returns:
-    - Truncated string with hash suffix if needed
-    """
-    if len(component) <= max_length:
-        return component
-
-    # Create a hash of the full string for uniqueness
-    hash_suffix = hashlib.md5(component.encode()).hexdigest()[:8]
-    # Truncate to leave room for the hash separator
-    truncated = component[: max_length - 9]  # -9 for "__" + 8 char hash
-    return f"{truncated}__{hash_suffix}"
-
-
 def main(
     anchor_qids: list = None,
     epsilon: float = 0.3,
@@ -978,43 +203,11 @@ def main(
     - output_dir: Directory to save plots (if None, uses current directory)
     """
     if anchor_qids is None:
-        # Example: James Bond movies
-        anchor_qids = ["Q4941"]  # Dr. No (first James Bond film)
+        anchor_qids = ["Q4941"]
         logger.info("Using default anchor: James Bond (Q4941)")
 
+    logger.info("Loading embeddings...")
     all_embeddings, all_movie_ids = load_final_dense_embeddings(data_dir, verbose=False)
-    movie_data = load_final_dataset(csv_path, verbose=False)
-
-    anchor_qids = [
-        "Q182692", "Q190643", "Q243439", "Q201674", "Q585203", "Q623502", "Q471159",
-        "Q1126637", "Q180706", "Q478333", "Q1423020", "Q244876", "Q1114683",
-        "Q15733016", "Q85842235", "Q1645944", "Q639864", "Q3520085",
-        "Q112226601", "Q62277203",
-    ]
-
-    N = 750  # max movies per year
-
-    # --- 1) Split anchors from non-anchors ---
-    anchors_df = movie_data[movie_data["movie_id"].isin(anchor_qids)]
-    non_anchors_df = movie_data[~movie_data["movie_id"].isin(anchor_qids)]
-
-    # --- 2) Apply per-year cap ONLY to non-anchors ---
-    non_anchors_df = (
-        non_anchors_df
-        .sort_values("movie_id")
-        .groupby("year", group_keys=False)
-        .head(N)
-    )
-
-    # --- 3) Recombine (anchors always included) ---
-    movie_data = pd.concat([anchors_df, non_anchors_df], ignore_index=True)
-
-    # --- 4) Slice embeddings directly (no mask) ---
-    id_to_idx = {mid: i for i, mid in enumerate(all_movie_ids)}
-    indices = [id_to_idx[mid] for mid in movie_data["movie_id"] if mid in id_to_idx]
-
-    all_embeddings = all_embeddings[indices]
-    all_movie_ids = all_movie_ids[indices]
 
     if len(all_movie_ids) == 0:
         raise ValueError(f"No embeddings found in {data_dir}")
@@ -1022,14 +215,12 @@ def main(
     logger.info(f"Total movies with embeddings: {len(all_movie_ids)}")
     logger.info(f"Embedding shape: {all_embeddings.shape}")
 
-    # Load movie metadata to get titles and filter by year
     logger.info("Loading movie metadata...")
     movie_data = load_final_dataset(csv_path, verbose=False)
 
     if movie_data.empty:
         raise ValueError(f"No movie data found in {csv_path}")
 
-    # Filter by year range if year column exists
     if "year" in movie_data.columns:
         movie_data = movie_data[
             (movie_data["year"] >= start_year) & (movie_data["year"] <= end_year)
@@ -1038,7 +229,6 @@ def main(
             f"Filtered to {len(movie_data)} movies between {start_year} and {end_year}"
         )
 
-    # Filter embeddings to only include movies in the filtered dataset
     valid_movie_ids = set(movie_data["movie_id"].values)
     valid_indices = np.array(
         [i for i, mid in enumerate(all_movie_ids) if mid in valid_movie_ids]
@@ -1049,7 +239,6 @@ def main(
             f"No movies found in the specified year range ({start_year}-{end_year})"
         )
 
-    # Filter embeddings and movie_ids to only include valid movies
     filtered_embeddings = all_embeddings[valid_indices]
     filtered_movie_ids = all_movie_ids[valid_indices]
 
@@ -1057,7 +246,6 @@ def main(
         f"Filtered to {len(filtered_movie_ids)} movies with embeddings in year range"
     )
 
-    # Run analysis for anchor movies
     results_df = analyze_epsilon_ball(
         anchor_qids=anchor_qids,
         epsilon=epsilon,
@@ -1068,34 +256,29 @@ def main(
         exclude_anchors=exclude_anchors,
     )
 
-    # Run analysis for control group (mean of entire ensemble) if comparison is enabled
     random_results_df = None
     random_distances_list = []
     if compare_with_random:
         logger.info("Computing mean embedding of entire ensemble as control group...")
 
-        # Compute hash of filtered embeddings to check cache
         embeddings_hash = compute_embeddings_hash(
             filtered_embeddings=filtered_embeddings,
             start_year=start_year,
             end_year=end_year,
         )
 
-        # Try to load cached mean embedding
         mean_embedding, cache_found = load_cached_mean_embedding(
             cache_dir=CACHE_DIR,
             embeddings_hash=embeddings_hash,
         )
 
         if not cache_found:
-            # Compute mean embedding of all movies in the filtered dataset
             logger.info("Computing mean embedding (this may take a while)...")
             mean_embedding = np.mean(filtered_embeddings, axis=0, keepdims=True)
             logger.info(
                 f"Mean embedding computed from {len(filtered_embeddings)} movies"
             )
 
-            # Save to cache
             save_cached_mean_embedding(
                 mean_embedding=mean_embedding,
                 cache_dir=CACHE_DIR,
@@ -1107,7 +290,6 @@ def main(
                 f"Using cached mean embedding (computed from {len(filtered_embeddings)} movies)"
             )
 
-        # Find movies within epsilon ball around the mean embedding
         logger.info(
             f"Finding movies within epsilon ball (epsilon={epsilon}) around mean embedding..."
         )
@@ -1116,14 +298,13 @@ def main(
             anchor_embedding=mean_embedding,
             movie_ids=filtered_movie_ids,
             epsilon=epsilon,
-            exclude_anchor_ids=None,  # Don't exclude anything for mean embedding
+            exclude_anchor_ids=None,
         )
 
         logger.info(
             f"Found {len(indices)} movies within epsilon ball of mean embedding"
         )
 
-        # Create results dataframe
         results = []
         for rank, (idx, dist, sim) in enumerate(
             zip(indices, distances, similarities), 1
@@ -1151,11 +332,9 @@ def main(
 
         random_results_df = pd.DataFrame(results)
 
-        # Extract distances for K-S test
         if not random_results_df.empty and "distance" in random_results_df.columns:
             random_distances_list.append(random_results_df["distance"].values)
 
-    # Perform Kolmogorov-Smirnov tests if control group comparison is enabled
     if (
         compare_with_random
         and random_results_df is not None
@@ -1166,9 +345,7 @@ def main(
         logger.info("Kolmogorov-Smirnov Test Results")
         logger.info(f"{'=' * 60}")
 
-        # Test 1: Distance distribution comparison
         if random_distances_list and "distance" in results_df.columns:
-            # Get control group distances
             all_random_distances = np.concatenate(random_distances_list)
             anchor_distances = results_df["distance"].values
 
@@ -1186,7 +363,6 @@ def main(
                 logger.info("\n1. Distance Distribution Comparison:")
                 logger.info(f"   K-S Statistic: {ks_stat_dist:.6f}")
 
-                # Create K-S test plot for distances
                 if output_dir:
                     os.makedirs(output_dir, exist_ok=True)
                     anchor_names_str = get_anchor_names_string(anchor_qids, movie_data)
@@ -1207,21 +383,17 @@ def main(
             except Exception as e:
                 logger.warning(f"Could not perform distance K-S test: {e}")
 
-        # Test 2: Temporal distribution comparison
         if random_results_df is not None and not random_results_df.empty:
-            # Prepare anchor year counts
             anchor_df_with_year = results_df[results_df["year"].notna()].copy()
             anchor_df_with_year["year"] = anchor_df_with_year["year"].astype(int)
             anchor_year_counts = anchor_df_with_year["year"].value_counts().sort_index()
 
-            # Prepare control group year counts
             random_df_with_year = random_results_df[
                 random_results_df["year"].notna()
             ].copy()
             random_df_with_year["year"] = random_df_with_year["year"].astype(int)
             random_year_counts = random_df_with_year["year"].value_counts().sort_index()
 
-            # Align years
             all_years = sorted(
                 set(anchor_year_counts.index) | set(random_year_counts.index)
             )
@@ -1236,7 +408,6 @@ def main(
                     random_aligned.values,
                     all_years,
                 )
-                # Calculate total sample sizes for temporal test
                 anchor_temporal_size = int(anchor_aligned.sum())
                 random_temporal_size = int(random_aligned.sum())
 
@@ -1250,7 +421,6 @@ def main(
                 logger.info("\n2. Temporal Distribution Comparison:")
                 logger.info(f"   K-S Statistic: {ks_stat_temp:.6f}")
 
-                # Create K-S test plot for temporal distribution
                 if output_dir:
                     os.makedirs(output_dir, exist_ok=True)
                     anchor_names_str = get_anchor_names_string(anchor_qids, movie_data)
@@ -1273,7 +443,6 @@ def main(
 
         logger.info(f"\n{'=' * 60}")
 
-    # Print top results
     logger.info(f"\n{'=' * 60}")
     logger.info("Top 20 movies in epsilon ball:")
     logger.info(f"{'=' * 60}")
@@ -1284,7 +453,6 @@ def main(
             f"Distance: {row['distance']:.6f}, Year: {row.get('year', 'N/A')}"
         )
 
-    # Create plots
     if plot_over_time and not results_df.empty:
         output_path = None
         if output_dir:
@@ -1346,28 +514,22 @@ if __name__ == "__main__":
 
     results = main(
         anchor_qids=[
-            "Q182692",
-            "Q190643",
-            "Q243439",
-            "Q201674",
-            "Q585203",
-            "Q623502",
-            "Q471159",
-            "Q1126637",
-            "Q180706",
-            "Q478333",
-            "Q1423020",
-            "Q244876",
-            "Q1114683",
-            "Q15733016",
-            "Q85842235",
-            "Q1645944",
-            "Q639864",
-            "Q3520085",
-            "Q112226601",
-            "Q62277203",
+            "Q221384",
+            "Q183066",
+            "Q152531",
+            "Q16970789",
+            "Q3258993",
+            "Q19865453",
+            "Q632328",
+            "Q848785",
+            "Q578312",
+            "Q1394447",
+            "Q17093105",
+            "Q20751325",
+            "Q63927168",
+            "Q21463782",
         ],
-        epsilon=0.24,
+        epsilon=0.26,
         start_year=1930,
         end_year=2024,
         anchor_method="average",  # or "medoid"
