@@ -1,3 +1,5 @@
+%!TEX root = report_template.tex
+
 %%%%%%%% DATA LITERACY 2025 LATEX PROJECT TEMPLATE FILE %%%%%%%%%%%%%%%%%
 %%% Based on the 2025 ICML template, available at https://icml.cc/Conferences/2025/AuthorInstructions %%%
 
@@ -9,6 +11,8 @@
 \usepackage{subfigure}
 \usepackage{booktabs} % for professional tables
 \usepackage{makecell} % for multi-line table cells
+\usepackage{amsmath}   % For \text{}, align environments, better math spacing
+\usepackage{amssymb}   % For \mathbb, extra symbols (optional but common)
 
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, calc, fit}
@@ -89,7 +93,7 @@
 \icmlauthor{Ansel Cheung}{equal,first}
 \icmlauthor{Alessio Villa}{equal,second}
 \icmlauthor{Bartol Markovinović}{equal,third}
-\icmlauthor{Martín López de Ipi\~na Mu\~noz}{equal,fourth}
+\icmlauthor{Martín López de Ipi\~na}{equal,fourth}
 \icmlauthor{Niklas Abraham}{equal,fifth}
 \end{icmlauthorlist}
 
@@ -233,6 +237,9 @@ Under the null hypothesis that both samples are drawn from the same continuous d
 A key design choice in applying this framework is the selection of a reference point from which distances are computed. One natural approach is to use the mean vector of a baseline subset of movies as a reference embedding, then compute the distribution of distances from this reference point to all movies in the corpus. This baseline distribution can then serve as a comparison standard against which distance distributions from other subsets are evaluated. For instance, the mean embedding of movies from a particular decade or genre can be computed, and the resulting distance distribution compared against the baseline using the KS test to assess whether the subset exhibits systematically different spatial organization relative to the reference.
 
 In the context of temporal semantic analysis, this framework enables systematic comparison of distance distributions across decades. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. Conversely, significant differences in these distributions, as detected by the KS test, would indicate structural reorganization of the semantic space, suggesting periods where narrative conventions undergo fundamental shifts. By applying this analysis to distances measured from fixed reference points in the embedding space, we can quantify how the density and dispersion of semantic representations evolve temporally, providing a complementary perspective to trajectory-based analyses of genre evolution.
+
+\subsection{Genre analysis}
+\input{stuff/genre_analysis.tex}
 
 
 
