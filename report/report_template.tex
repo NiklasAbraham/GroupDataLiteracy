@@ -150,7 +150,7 @@ We address these questions by constructing a unified semantic space from a large
 
 We constructed our movie corpus using a multi stage pipeline that systematically integrated three complementary sources: Wikidata, The Movie Database (TMDb), and Wikipedia. This approach combines rich structured metadata with the detailed textual content required for semantic analysis.
 
-The first data collection phase queried Wikidata, a collaboratively edited multilingual knowledge graph maintained by the Wikimedia Foundation. Wikidata serves as an ideal entry point for systematic movie data collection due to its comprehensive coverage of cultural artifacts and its structured representation of temporal, categorical, and relational metadata. For each year in our study period, we retrieved movies satisfying specific criteria, including release year, film classification, and the availability of linked Wikipedia articles in English. This step yielded essential metadata fields including unique Wikidata identifiers, film titles, release years, and crucially, sitelinks to corresponding Wikipedia articles.
+Initial dataset was constructed by querying Wikidata for movies released from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we iterated through the years and first acquired QIDs of all Wikidata items which have a Wikidata class that is an indirect subclass of film and have a first publication date in the given year. During this step we removed QIDs of items that do not have an English Wikipedia page associated with them. We also tried to remove non-feature movies by excluding subclasses of classes "short film" and "television series episode". However, this filtering was not perfect and further filtering of Wikidata classes was performed during post-processing. After acquiring the list of identifiers, we processed them in small batches of 20 and queried Wikidata for each movie's features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. Additionally, box office, box office currency, budget and budget currency values were also queried, but they had very low coverage in the raw dataset and were not used in the final analysis.
 
 Second, we enriched the dataset using TMDb, a community driven database that offers quantitative measures of popularity and user engagement. Wikidata's external identifiers enabled direct mapping to TMDb entries, from which we programmatically retrieved vote counts, vote averages, and popularity metrics for each film. These measures served as proxies for audience engagement and cultural impact, informing downstream film filtering and weighting.
 
@@ -161,6 +161,66 @@ The last enrichment stage addressed limitations in TMDb voting statistics. Many 
 All data sources are open and appropriately licensed. Wikidata \cite{wikidata} is released under CC0 1.0 Universal (public domain). Wikipedia \cite{wikipedia} is under CC BY SA 4.0, and TMDb \cite{tmdb} under CC BY NC 4.0, allowing non commercial research with attribution. This ensures reproducibility and legal compliance.
 
 Our final dataset achieves high coverage, with plot summaries for over 80\% of films in most decades (see Table \ref{tab:decade_coverage}).
+
+\subsection{Data cleaning}
+
+After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first ensured that our dataset does not contain any duplicates with respect to Wikidata QIDs and Wikipedia links. Then we performed the following data filtration and cleaning steps:
+
+\begin{itemize}
+    \item \textbf{Filtering out movies without a Wikipedia plot.}
+    \item \textbf{Removal of non-feature movies.} We removed samples from our dataset that had a Wikidata class that is an indirect subclass of a class that does not describe a feature movie. Some examples of not feasible Wikidata classes include trailers, television series episodes, short films and radio programs. 
+    \item \textbf{Filtering out movies with excessively long plots.} We filtered out movies with plots longer than 14,000 characters from our dataset because these plots are labeled by Wikipedia as \textit{excessively long}.
+    \item \textbf{Removal of movies with low entropy plots.}
+    \item \textbf{Genre filtering.} We filtered out genres that appear only once in the dataset because these genres obviously do not describe a group of movies.
+    \item \textbf{Exclusion of explicit content.} We excluded movies with pornographic and exploitation genres. WHY???
+\end{itemize}
+
+The most critical cleaning step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5-gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and compute the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/funnel_chart_data_cleaning.png}
+    \caption{Data cleaning pipeline: number of movies retained after each filtering step.}
+    \label{fig:data_cleaning_funnel}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/entropy_cutoff.png}
+    \caption{Results of manual labeling of 150 plots in the borderline entropy region with the chosen entropy threshold}
+    \label{fig:entropy_cutoff}
+\end{figure}
+
+\subsection{Novelty analysis}
+
+This part in introduction maybe:
+Common public sentiment is that the film industry is "running out of ideas" resulting in movies that are becoming less creative and more similar to each other over time.
+
+Then later:
+To investigate the claim that movies are becoming less novel over time, we developed a metric for novelty defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
+
+\begin{equation}
+    \text{Novelty}(m_i) = \min_{j: year_j < year_i} \left( 1 - \frac{E(m_i) \cdot E(m_j)}{\|E(m_i)\| \|E(m_j)\|} \right)
+\end{equation} 
+
+where \( E(m) \) denotes the embedding vector of a movie's plot.
+Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
+To compiute these scores, we use the Faiss library \cite{douze2024faiss}.
+Movies were sorted chronologically and processed in yearly batches. For a given batch we queried the Faiss index containing all prior movies to find distances to the nearest neighbor for each movie in the current batch. After that, the current batch was added to the index for subsequent queries.
+
+Results:
+In order to assess if temporal trends of novelty scores exist, we plot the average novelty score per year alongside scattered individual movie scores in Figure \ref{fig:novelty_over_time}.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/novelty_over_time.png}
+    \caption{Novelty scores of movies over time. The blue line represents the average novelty score per year, while individual movie scores are shown as scattered points.}
+    \label{fig:novelty_over_time}
+\end{figure}
+
+The resulting plot indicates that the average yearly novelty remained relatively constant from 1950s onwards.
+TODO: Find better way to plot this, maybe novelty of all movies vs novelty of Oscar nominees?
+
 
 \begin{table}[ht]
     \centering
@@ -211,6 +271,13 @@ There were four main document embedding methods evaluated: (1) Mean Pooling: com
 
 Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus. Such distributions encode structural properties of the embedding space and reveal whether semantic relationships exhibit systematic patterns across temporal periods or thematic categories.
 
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/cosine_distance_normal_fit.png}
+    \caption{Cosine distance distribution with fitted normal distribution. The distribution shows the pairwise cosine distances between movie embeddings, with mean $\mu = 0.5195$ and standard deviation $\sigma = 0.0624$. The histogram represents cosine distances from 3 runs with 5000 samples each, demonstrating the approximately normal structure of semantic relationships in the embedding space.}
+    \label{fig:cosine_dist_normal_fit}
+\end{figure}
+
 To rigorously compare distance distributions across different subsets of movies, for instance films from different decades or belonging to distinct genres, we employ the Kolmogorov-Smirnov test, a non parametric statistical method for assessing whether two empirical distributions arise from the same underlying continuous distribution \cite{massey1951}. The two sample KS test compares the empirical cumulative distribution functions (ECDFs) of two samples by computing the maximum vertical distance between them.
 
 Formally, given two samples \( X_1, \ldots, X_n \) and \( Y_1, \ldots, Y_m \), their empirical cumulative distribution functions are defined as:
@@ -224,9 +291,9 @@ D_{n,m} = \sup_{x} |F_n(x)   G_m(x)|
 
 Under the null hypothesis that both samples are drawn from the same continuous distribution, the distribution of \( D_{n,m} \) is known and can be used to compute p values for hypothesis testing. The test is particularly suited for our application because it makes no assumptions about the underlying distributional form, is sensitive to differences in both location and shape, and operates directly on the distance measurements without requiring binning or parametric modeling.
 
-A key design choice in applying this framework is the selection of a reference point from which distances are computed. One natural approach is to use the mean vector of a baseline subset of movies as a reference embedding, then compute the distribution of distances from this reference point to all movies in the corpus. This baseline distribution can then serve as a comparison standard against which distance distributions from other subsets are evaluated. For instance, the mean embedding of movies from a particular decade or genre can be computed, and the resulting distance distribution compared against the baseline using the KS test to assess whether the subset exhibits systematically different spatial organization relative to the reference.
+A key design choice in applying this framework is the selection of a reference point from which distances are computed. One natural approach is to use the mean vector of a baseline subset of movies as a reference embedding, then compute the distribution of distances from this reference point to all movies in the corpus. This enables quantitative analysis of how semantic representations are spatially organized relative to fixed reference points in the embedding space.
 
-In the context of temporal semantic analysis, this framework enables systematic comparison of distance distributions across decades. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. Conversely, significant differences in these distributions, as detected by the KS test, would indicate structural reorganization of the semantic space, suggesting periods where narrative conventions undergo fundamental shifts. By applying this analysis to distances measured from fixed reference points in the embedding space, we can quantify how the density and dispersion of semantic representations evolve temporally, providing a complementary perspective to trajectory based analyses of genre evolution.
+In the context of temporal semantic analysis, the KS test enables systematic comparison of distance distributions across decades. By computing distances from fixed reference points (such as mean embeddings of genre clusters) to movies from different decades, we can assess whether the spatial organization of semantic representations evolves over time. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. Conversely, significant differences in these distributions, as detected by the KS test, would indicate structural reorganization of the semantic space, suggesting periods where narrative conventions undergo fundamental shifts. This analysis quantifies how the density and dispersion of semantic representations evolve temporally, providing a complementary perspective to trajectory based analyses of genre evolution.
 
 \subsection{Genre analysis}
 \input{stuff/genre_analysis.tex}
@@ -323,44 +390,40 @@ This is actually one large circular path leading back to PCA. Now we can interpr
 
 \subsection{Chunking Method Comparison}
 
-We evaluated ten distinct embedding strategies across 5,000 movie plot descriptions, comprising four fundamental approaches with various parameterizations: Mean Pooling, CLS Token extraction, Chunk First Embed with three configurations (512/256, 1024/512, 2048/1024 tokens for chunk size and stride), and Late Chunking with six configurations. The evaluation employed multiple metrics to assess embedding quality, including length bias, isotropy, genre classification performance, and class separation characteristics. Table \ref{tab:chunking_results} presents key performance metrics across all methods.
+We compared ten embedding strategies on 5,000 movie plots, based on four core approaches: Mean Pooling, CLS Token, Chunk-First Embed (three chunk/stride combinations), and Late Chunking (six configurations). Evaluation metrics included length bias, isotropy, genre classification, and class separation. Table~\ref{tab:chunking_results} summarizes the main results.
 
 \begin{table*}[ht]
     \centering
-    \caption{Comparative performance of chunking methods across key evaluation metrics. Length Norm Corr measures correlation between document length and embedding norm. Isotropy (1st PC) indicates variance concentration in the first principal component (lower is better). Genre Acc and F1 report classification performance. Silhouette measures cluster cohesion. Sep. Ratio quantifies intra class to inter class similarity ratio.}
+    \caption{Chunking method performance. Length Norm Corr: correlation of document length and embedding norm. Isotropy (1st PC): variance in first principal component. Silhouette: cluster cohesion. Sep. Ratio: intra/inter class similarity.}
     \label{tab:chunking_results}
     \small
-    \begin{tabular}{lcccccc}
+    \begin{tabular}{lcccc}
         \toprule
-        Method & \makecell{Length-Norm\\Corr} & \makecell{Isotropy\\(1st PC \%)} & \makecell{Genre\\Acc} & \makecell{Genre\\F1} & Silhouette & \makecell{Sep.\\Ratio} \\
+        Method & \makecell{Length-Norm\\Corr} & \makecell{Isotropy\\(1st PC \%)} & Silhouette & \makecell{Sep.\\Ratio} \\
         \midrule
-        Mean Pooling & 0.629 & 11.36 & 0.326 & 0.180 & -0.036 & 0.943 \\
-        CLS Token & 0.004 & 3.32 & 0.341 & 0.194 & -0.016 & 0.958 \\
+        Mean Pooling & 0.629 & 11.36 & -0.036 & 0.943 \\
+        CLS Token & 0.004 & 3.32 & -0.016 & 0.958 \\
         \midrule
-        Chunk-First 512/256 & -0.366 & 3.47 & 0.349 & 0.198 & -0.020 & 0.951 \\
-        Chunk-First 1024/512 & -0.275 & 3.37 & 0.348 & 0.197 & -0.017 & 0.959 \\
-        Chunk-First 2048/1024 & -0.031 & 3.33 & 0.341 & 0.194 & -0.016 & 0.961 \\
+        Chunk-First 512/256 & -0.366 & 3.47 & -0.020 & 0.951 \\
+        Chunk-First 1024/512 & -0.275 & 3.37 & -0.017 & 0.959 \\
+        Chunk-First 2048/1024 & -0.031 & 3.33 & -0.016 & 0.961 \\
         \midrule
-        Late Chunk 512/256 & 0.822 & 11.92 & 0.327 & 0.180 & -0.037 & 0.949 \\
-        Late Chunk 1024/512 & 0.726 & 11.53 & 0.326 & 0.181 & -0.037 & 0.948 \\
-        Late Chunk 2048/1024 & 0.656 & 11.36 & 0.326 & 0.180 & -0.036 & 0.958 \\
-        Late Chunk 2048/512 & 0.656 & 11.36 & 0.326 & 0.180 & -0.036 & 0.958 \\
-        Late Chunk 512/0 & 0.821 & 11.40 & 0.328 & 0.183 & -0.037 & 0.948 \\
+        Late Chunk 512/256 & 0.822 & 11.92 & -0.037 & 0.949 \\
+        Late Chunk 1024/512 & 0.726 & 11.53 & -0.037 & 0.948 \\
+        Late Chunk 2048/1024 & 0.656 & 11.36 & -0.036 & 0.958 \\
+        Late Chunk 2048/512 & 0.656 & 11.36 & -0.036 & 0.958 \\
+        Late Chunk 512/0 & 0.821 & 11.40 & -0.037 & 0.948 \\
         \bottomrule
     \end{tabular}
 \end{table*}
 
-\textbf{Length Bias and Correlation:} The length-normalization correlation metric reveals substantial variation across methods. MeanPooling and LateChunking variants exhibit positive correlations ranging from 0.62 to 0.82, with LateChunking\_512\_256 achieving the highest value (0.82). In contrast, CLSToken demonstrates near-zero correlation (0.0035), while ChunkFirstEmbed methods show negative correlations ranging from -0.03 to -0.37, with ChunkFirstEmbed\_512\_256 exhibiting the strongest negative correlation (-0.37).
+The evaluation reveals that no single method dominates across all metrics. Length-norm correlation varies substantially: MeanPooling and LateChunking show strong positive correlation (0.62 to 0.82), while ChunkFirstEmbed exhibits negative correlation (down to -0.37). CLS Token achieves near-zero correlation (0.004), effectively removing length bias.
 
-\textbf{Isotropy Measurements:} Isotropy, measured by the proportion of variance captured in the first principal component, shows a clear distinction between method families. MeanPooling and LateChunking variants demonstrate substantially lower isotropy (first PC: 11.27-11.92\%), indicating more uniformly distributed embeddings across dimensions. CLSToken and ChunkFirstEmbed methods exhibit significantly higher isotropy (first PC: 3.32-3.47\%), suggesting greater concentration of variance along principal axes. After removing the top two principal components, isotropy values converge to a narrower range (2.27-3.09\%) across all methods.
+Isotropy also differs across approaches. MeanPooling and LateChunking have higher first-PC variance (11.3-11.9\%), suggesting less uniform embeddings, while CLS Token and ChunkFirstEmbed achieve lower values (3.3-3.5\%), indicating better isotropy. For genre classification, accuracy varies minimally (0.326 to 0.349), with ChunkFirstEmbed\_1024\_512 performing best, though improvements are marginal. Silhouette scores remain negative across all methods, indicating substantial genre overlap in embedding space.
 
-\textbf{Genre Classification Performance:} Genre classification accuracy, evaluated using a logistic regression classifier, demonstrates modest variation across methods. Accuracy ranges from 0.326 to 0.349, with ChunkFirstEmbed\_1024\_512 achieving the highest accuracy (0.349) and LateChunking\_512\_256 the lowest (0.327). Macro-averaged F1 scores similarly cluster between 0.179 and 0.198, with ChunkFirstEmbed methods showing slight superiority (F1: 0.193-0.198) over LateChunking and pooling-based approaches (F1: 0.178-0.183). Silhouette scores, measuring cluster cohesion, remain consistently negative across all methods (ranging from -0.037 to -0.016), indicating substantial overlap in genre representations.
+Separation ratios range from 0.943 to 0.961, with CLS Token achieving 0.958, among the highest values. Cosine similarity distributions show consistent means (0.485-0.505), but CLS Token and ChunkFirstEmbed produce more concentrated distributions (std: 0.061-0.067) compared to pooling-based methods (std: 0.123-0.126).
 
-\textbf{Class Separation Metrics:} Intra-class cosine similarity (mean similarity within genre groups) exhibits narrow variation from 0.500 to 0.533 across methods. Inter-class similarity (mean similarity between different genres) similarly ranges from 0.481 to 0.509. The resulting separation ratios, computed as the ratio of intra-class to inter-class similarity, range from 0.943 to 0.962, with ChunkFirstEmbed\_2048\_1024 achieving the highest separation (0.961). Separation gaps, defined as the difference between intra- and inter-class similarity, range from 0.019 to 0.030, with MeanPooling showing the largest gap (0.030) and ChunkFirstEmbed\_2048\_1024 the smallest (0.019).
-
-\textbf{Cosine Similarity Distributions:} The distribution of pairwise cosine similarities across methods reveals consistent central tendencies with mean similarities clustering between 0.485 and 0.505. Standard deviations range from 0.061 to 0.126, with MeanPooling and LateChunking methods exhibiting higher variance (std: 0.123-0.126) compared to CLSToken and ChunkFirstEmbed approaches (std: 0.061-0.067). Minimum observed similarities span from 0.054 to 0.261, while maximum similarities range from 0.688 to 0.836, indicating that MeanPooling and LateChunking methods produce wider similarity distributions.
-
-\textbf{Parameter Sensitivity in Late Chunking:} Within the LateChunking family, window size and stride parameters demonstrate measurable effects on performance characteristics. Configurations with stride 0 (non-overlapping windows) show slightly improved silhouette scores (from -0.037 to -0.037 compared to overlapping configurations). Larger window sizes (2048 tokens) consistently yield higher separation ratios (0.958) compared to smaller windows (512 tokens: 0.943-0.948).
+Given that metrics vary without a clear winner across all dimensions, we select CLS Token as our embedding strategy. CLS Token is the most common and simple approach, requires no parameter tuning, and offers strong separability (separation ratio of 0.958) while maintaining minimal length bias and good isotropy properties.
 
 \section{Literature and Methods Review}
 
