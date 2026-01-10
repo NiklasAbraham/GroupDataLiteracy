@@ -209,6 +209,13 @@ There were four main document embedding methods evaluated: (1) Mean Pooling: com
 
 Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus. Such distributions encode structural properties of the embedding space and reveal whether semantic relationships exhibit systematic patterns across temporal periods or thematic categories.
 
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/cosine_distance_normal_fit.png}
+    \caption{Cosine distance distribution with fitted normal distribution. The distribution shows the pairwise cosine distances between movie embeddings, with mean $\mu = 0.5195$ and standard deviation $\sigma = 0.0624$. The histogram represents cosine distances from 3 runs with 5000 samples each, demonstrating the approximately normal structure of semantic relationships in the embedding space.}
+    \label{fig:cosine_dist_normal_fit}
+\end{figure}
+
 To rigorously compare distance distributions across different subsets of movies, for instance films from different decades or belonging to distinct genres, we employ the Kolmogorov-Smirnov test, a non parametric statistical method for assessing whether two empirical distributions arise from the same underlying continuous distribution \cite{massey1951}. The two sample KS test compares the empirical cumulative distribution functions (ECDFs) of two samples by computing the maximum vertical distance between them.
 
 Formally, given two samples \( X_1, \ldots, X_n \) and \( Y_1, \ldots, Y_m \), their empirical cumulative distribution functions are defined as:
