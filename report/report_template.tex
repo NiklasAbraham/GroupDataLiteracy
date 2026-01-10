@@ -222,9 +222,9 @@ D_{n,m} = \sup_{x} |F_n(x)   G_m(x)|
 
 Under the null hypothesis that both samples are drawn from the same continuous distribution, the distribution of \( D_{n,m} \) is known and can be used to compute p values for hypothesis testing. The test is particularly suited for our application because it makes no assumptions about the underlying distributional form, is sensitive to differences in both location and shape, and operates directly on the distance measurements without requiring binning or parametric modeling.
 
-A key design choice in applying this framework is the selection of a reference point from which distances are computed. One natural approach is to use the mean vector of a baseline subset of movies as a reference embedding, then compute the distribution of distances from this reference point to all movies in the corpus. This baseline distribution can then serve as a comparison standard against which distance distributions from other subsets are evaluated. For instance, the mean embedding of movies from a particular decade or genre can be computed, and the resulting distance distribution compared against the baseline using the KS test to assess whether the subset exhibits systematically different spatial organization relative to the reference.
+A key design choice in applying this framework is the selection of a reference point from which distances are computed. One natural approach is to use the mean vector of a baseline subset of movies as a reference embedding, then compute the distribution of distances from this reference point to all movies in the corpus. This enables quantitative analysis of how semantic representations are spatially organized relative to fixed reference points in the embedding space.
 
-In the context of temporal semantic analysis, this framework enables systematic comparison of distance distributions across decades. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. Conversely, significant differences in these distributions, as detected by the KS test, would indicate structural reorganization of the semantic space, suggesting periods where narrative conventions undergo fundamental shifts. By applying this analysis to distances measured from fixed reference points in the embedding space, we can quantify how the density and dispersion of semantic representations evolve temporally, providing a complementary perspective to trajectory based analyses of genre evolution.
+In the context of temporal semantic analysis, the KS test enables systematic comparison of distance distributions across decades. By computing distances from fixed reference points (such as mean embeddings of genre clusters) to movies from different decades, we can assess whether the spatial organization of semantic representations evolves over time. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. Conversely, significant differences in these distributions, as detected by the KS test, would indicate structural reorganization of the semantic space, suggesting periods where narrative conventions undergo fundamental shifts. This analysis quantifies how the density and dispersion of semantic representations evolve temporally, providing a complementary perspective to trajectory based analyses of genre evolution.
 
 \subsection{Genre analysis}
 \input{stuff/genre_analysis.tex}
@@ -235,44 +235,40 @@ In the context of temporal semantic analysis, this framework enables systematic 
 
 \subsection{Chunking Method Comparison}
 
-We evaluated ten distinct embedding strategies across 5,000 movie plot descriptions, comprising four fundamental approaches with various parameterizations: Mean Pooling, CLS Token extraction, Chunk First Embed with three configurations (512/256, 1024/512, 2048/1024 tokens for chunk size and stride), and Late Chunking with six configurations. The evaluation employed multiple metrics to assess embedding quality, including length bias, isotropy, genre classification performance, and class separation characteristics. Table \ref{tab:chunking_results} presents key performance metrics across all methods.
+We compared ten embedding strategies on 5,000 movie plots, based on four core approaches: Mean Pooling, CLS Token, Chunk-First Embed (three chunk/stride combinations), and Late Chunking (six configurations). Evaluation metrics included length bias, isotropy, genre classification, and class separation. Table~\ref{tab:chunking_results} summarizes the main results.
 
 \begin{table*}[ht]
     \centering
-    \caption{Comparative performance of chunking methods across key evaluation metrics. Length Norm Corr measures correlation between document length and embedding norm. Isotropy (1st PC) indicates variance concentration in the first principal component (lower is better). Genre Acc and F1 report classification performance. Silhouette measures cluster cohesion. Sep. Ratio quantifies intra class to inter class similarity ratio.}
+    \caption{Chunking method performance. Length Norm Corr: correlation of document length and embedding norm. Isotropy (1st PC): variance in first principal component. Silhouette: cluster cohesion. Sep. Ratio: intra/inter class similarity.}
     \label{tab:chunking_results}
     \small
-    \begin{tabular}{lcccccc}
+    \begin{tabular}{lcccc}
         \toprule
-        Method & \makecell{Length-Norm\\Corr} & \makecell{Isotropy\\(1st PC \%)} & \makecell{Genre\\Acc} & \makecell{Genre\\F1} & Silhouette & \makecell{Sep.\\Ratio} \\
+        Method & \makecell{Length-Norm\\Corr} & \makecell{Isotropy\\(1st PC \%)} & Silhouette & \makecell{Sep.\\Ratio} \\
         \midrule
-        Mean Pooling & 0.629 & 11.36 & 0.326 & 0.180 & -0.036 & 0.943 \\
-        CLS Token & 0.004 & 3.32 & 0.341 & 0.194 & -0.016 & 0.958 \\
+        Mean Pooling & 0.629 & 11.36 & -0.036 & 0.943 \\
+        CLS Token & 0.004 & 3.32 & -0.016 & 0.958 \\
         \midrule
-        Chunk-First 512/256 & -0.366 & 3.47 & 0.349 & 0.198 & -0.020 & 0.951 \\
-        Chunk-First 1024/512 & -0.275 & 3.37 & 0.348 & 0.197 & -0.017 & 0.959 \\
-        Chunk-First 2048/1024 & -0.031 & 3.33 & 0.341 & 0.194 & -0.016 & 0.961 \\
+        Chunk-First 512/256 & -0.366 & 3.47 & -0.020 & 0.951 \\
+        Chunk-First 1024/512 & -0.275 & 3.37 & -0.017 & 0.959 \\
+        Chunk-First 2048/1024 & -0.031 & 3.33 & -0.016 & 0.961 \\
         \midrule
-        Late Chunk 512/256 & 0.822 & 11.92 & 0.327 & 0.180 & -0.037 & 0.949 \\
-        Late Chunk 1024/512 & 0.726 & 11.53 & 0.326 & 0.181 & -0.037 & 0.948 \\
-        Late Chunk 2048/1024 & 0.656 & 11.36 & 0.326 & 0.180 & -0.036 & 0.958 \\
-        Late Chunk 2048/512 & 0.656 & 11.36 & 0.326 & 0.180 & -0.036 & 0.958 \\
-        Late Chunk 512/0 & 0.821 & 11.40 & 0.328 & 0.183 & -0.037 & 0.948 \\
+        Late Chunk 512/256 & 0.822 & 11.92 & -0.037 & 0.949 \\
+        Late Chunk 1024/512 & 0.726 & 11.53 & -0.037 & 0.948 \\
+        Late Chunk 2048/1024 & 0.656 & 11.36 & -0.036 & 0.958 \\
+        Late Chunk 2048/512 & 0.656 & 11.36 & -0.036 & 0.958 \\
+        Late Chunk 512/0 & 0.821 & 11.40 & -0.037 & 0.948 \\
         \bottomrule
     \end{tabular}
 \end{table*}
 
-\textbf{Length Bias and Correlation:} The length-normalization correlation metric reveals substantial variation across methods. MeanPooling and LateChunking variants exhibit positive correlations ranging from 0.62 to 0.82, with LateChunking\_512\_256 achieving the highest value (0.82). In contrast, CLSToken demonstrates near-zero correlation (0.0035), while ChunkFirstEmbed methods show negative correlations ranging from -0.03 to -0.37, with ChunkFirstEmbed\_512\_256 exhibiting the strongest negative correlation (-0.37).
+The evaluation reveals that no single method dominates across all metrics. Length-norm correlation varies substantially: MeanPooling and LateChunking show strong positive correlation (0.62 to 0.82), while ChunkFirstEmbed exhibits negative correlation (down to -0.37). CLS Token achieves near-zero correlation (0.004), effectively removing length bias.
 
-\textbf{Isotropy Measurements:} Isotropy, measured by the proportion of variance captured in the first principal component, shows a clear distinction between method families. MeanPooling and LateChunking variants demonstrate substantially lower isotropy (first PC: 11.27-11.92\%), indicating more uniformly distributed embeddings across dimensions. CLSToken and ChunkFirstEmbed methods exhibit significantly higher isotropy (first PC: 3.32-3.47\%), suggesting greater concentration of variance along principal axes. After removing the top two principal components, isotropy values converge to a narrower range (2.27-3.09\%) across all methods.
+Isotropy also differs across approaches. MeanPooling and LateChunking have higher first-PC variance (11.3-11.9\%), suggesting less uniform embeddings, while CLS Token and ChunkFirstEmbed achieve lower values (3.3-3.5\%), indicating better isotropy. For genre classification, accuracy varies minimally (0.326 to 0.349), with ChunkFirstEmbed\_1024\_512 performing best, though improvements are marginal. Silhouette scores remain negative across all methods, indicating substantial genre overlap in embedding space.
 
-\textbf{Genre Classification Performance:} Genre classification accuracy, evaluated using a logistic regression classifier, demonstrates modest variation across methods. Accuracy ranges from 0.326 to 0.349, with ChunkFirstEmbed\_1024\_512 achieving the highest accuracy (0.349) and LateChunking\_512\_256 the lowest (0.327). Macro-averaged F1 scores similarly cluster between 0.179 and 0.198, with ChunkFirstEmbed methods showing slight superiority (F1: 0.193-0.198) over LateChunking and pooling-based approaches (F1: 0.178-0.183). Silhouette scores, measuring cluster cohesion, remain consistently negative across all methods (ranging from -0.037 to -0.016), indicating substantial overlap in genre representations.
+Separation ratios range from 0.943 to 0.961, with CLS Token achieving 0.958, among the highest values. Cosine similarity distributions show consistent means (0.485-0.505), but CLS Token and ChunkFirstEmbed produce more concentrated distributions (std: 0.061-0.067) compared to pooling-based methods (std: 0.123-0.126).
 
-\textbf{Class Separation Metrics:} Intra-class cosine similarity (mean similarity within genre groups) exhibits narrow variation from 0.500 to 0.533 across methods. Inter-class similarity (mean similarity between different genres) similarly ranges from 0.481 to 0.509. The resulting separation ratios, computed as the ratio of intra-class to inter-class similarity, range from 0.943 to 0.962, with ChunkFirstEmbed\_2048\_1024 achieving the highest separation (0.961). Separation gaps, defined as the difference between intra- and inter-class similarity, range from 0.019 to 0.030, with MeanPooling showing the largest gap (0.030) and ChunkFirstEmbed\_2048\_1024 the smallest (0.019).
-
-\textbf{Cosine Similarity Distributions:} The distribution of pairwise cosine similarities across methods reveals consistent central tendencies with mean similarities clustering between 0.485 and 0.505. Standard deviations range from 0.061 to 0.126, with MeanPooling and LateChunking methods exhibiting higher variance (std: 0.123-0.126) compared to CLSToken and ChunkFirstEmbed approaches (std: 0.061-0.067). Minimum observed similarities span from 0.054 to 0.261, while maximum similarities range from 0.688 to 0.836, indicating that MeanPooling and LateChunking methods produce wider similarity distributions.
-
-\textbf{Parameter Sensitivity in Late Chunking:} Within the LateChunking family, window size and stride parameters demonstrate measurable effects on performance characteristics. Configurations with stride 0 (non-overlapping windows) show slightly improved silhouette scores (from -0.037 to -0.037 compared to overlapping configurations). Larger window sizes (2048 tokens) consistently yield higher separation ratios (0.958) compared to smaller windows (512 tokens: 0.943-0.948).
+Given that metrics vary without a clear winner across all dimensions, we select CLS Token as our embedding strategy. CLS Token is the most common and simple approach, requires no parameter tuning, and offers strong separability (separation ratio of 0.958) while maintaining minimal length bias and good isotropy properties.
 
 \section{Discussion \& Conclusion}\label{sec:conclusion}
 
