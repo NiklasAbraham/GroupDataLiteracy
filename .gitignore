@@ -21,6 +21,8 @@ data/
 *.out
 *.toc
 *.lot
+*.blg
+*.bbl
 *.lof
 *.fls
 
