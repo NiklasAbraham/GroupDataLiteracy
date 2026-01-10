@@ -160,6 +160,70 @@ All data sources are open and appropriately licensed. Wikidata \cite{wikidata} i
 
 Our final dataset achieves high coverage, with plot summaries for over 80\% of films in most decades (see Table \ref{tab:decade_coverage}).
 
+\subsection{Wikidata querying}
+
+Initial dataset was constructed by querying Wikidata for movies released from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we iterated through the years and first acquired QIDs of all Wikidata items which have a Wikidata class that is an indirect subclass of film and have a first publication date in the given year. During this step we removed QIDs of items that do not have an English Wikipedia page associated with them. We also tried to remove non-feature movies by excluding subclasses of classes "short film" and "television series episode". However, this filtering was not perfect and further filtering of Wikidata classes was performed during post-processing. After acquiring the list of identifiers, we processed them in small batches of 20 and queried Wikidata for each movie's features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. Additionally, box office, box office currency, budget and budget currency values were also queried, but they had very low coverage in the raw dataset and were not used in the final analysis.
+
+\subsection{Data cleaning}
+
+After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first ensured that our dataset does not contain any duplicates with respect to Wikidata QIDs and Wikipedia links. Then we performed the following data filtration and cleaning steps:
+
+\begin{itemize}
+    \item \textbf{Filtering out movies without a Wikipedia plot.}
+    \item \textbf{Removal of non-feature movies.} We removed samples from our dataset that had a Wikidata class that is an indirect subclass of a class that does not describe a feature movie. Some examples of not feasible Wikidata classes include trailers, television series episodes, short films and radio programs. 
+    \item \textbf{Filtering out movies with excessively long plots.} We filtered out movies with plots longer than 14,000 characters from our dataset because these plots are labeled by Wikipedia as \textit{excessively long}.
+    \item \textbf{Removal of movies with low entropy plots.}
+    \item \textbf{Genre filtering.} We filtered out genres that appear only once in the dataset because these genres obviously do not describe a group of movies.
+    \item \textbf{Exclusion of explicit content.} We excluded movies with pornographic and exploitation genres. WHY???
+\end{itemize}
+
+The most critical cleaning step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5-gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and compute the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/funnel_chart_data_cleaning.png}
+    \caption{Data cleaning pipeline: number of movies retained after each filtering step.}
+    \label{fig:data_cleaning_funnel}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/entropy_cutoff.png}
+    \caption{Results of manual labeling of 150 plots in the borderline entropy region with the chosen entropy threshold}
+    \label{fig:entropy_cutoff}
+\end{figure}
+
+\subsection{Novelty analysis}
+
+This part in introduction maybe:
+Common public sentiment is that the film industry is "running out of ideas" resulting in movies that are becoming less creative and more similar to each other over time.
+
+Then later:
+To investigate the claim that movies are becoming less novel over time, we developed a metric for novelty defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
+
+\begin{equation}
+    \text{Novelty}(m_i) = \min_{j: year_j < year_i} \left( 1 - \frac{E(m_i) \cdot E(m_j)}{\|E(m_i)\| \|E(m_j)\|} \right)
+\end{equation} 
+
+where \( E(m) \) denotes the embedding vector of a movie's plot.
+Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
+To compiute these scores, we use the Faiss library \cite{douze2024faiss}.
+Movies were sorted chronologically and processed in yearly batches. For a given batch we queried the Faiss index containing all prior movies to find distances to the nearest neighbor for each movie in the current batch. After that, the current batch was added to the index for subsequent queries.
+
+Results:
+In order to assess if temporal trends of novelty scores exist, we plot the average novelty score per year alongside scattered individual movie scores in Figure \ref{fig:novelty_over_time}.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/novelty_over_time.png}
+    \caption{Novelty scores of movies over time. The blue line represents the average novelty score per year, while individual movie scores are shown as scattered points.}
+    \label{fig:novelty_over_time}
+\end{figure}
+
+The resulting plot indicates that the average yearly novelty remained relatively constant from 1950s onwards.
+TODO: Find better way to plot this, maybe novelty of all movies vs novelty of Oscar nominees?
+
+
 \begin{table}[ht]
     \centering
     \caption{Per decade feature coverage (\%) of key metadata fields in the movie dataset.}
