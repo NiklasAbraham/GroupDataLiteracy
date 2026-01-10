@@ -267,24 +267,13 @@ A key methodological choice was to use a single, static embedding model for all 
 
 Embedding variable-length documents presents challenges for transformer-based models due to fixed context windows and representational biases. Because plot summaries in our dataset span from a few sentences to thousands of words, it is crucial to select chunking and pooling strategies that minimize length bias while retaining semantic content. Relying solely on the [CLS] token for global representation can introduce substantial bias: it is sensitive to input length, often overemphasizes the first ~128 tokens \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a}, and underperforms mean pooling on long documents \cite{raffel2023exploringlimitstransferlearning}. With over 75\% of our plots exceeding 512 tokens, a more robust aggregation method is required to avoid discarding information.
 
-There were four main document embedding methods evaluated: (1) Mean Pooling: compute the average of token embeddings to form the document vector; (2) Early Chunk-then-Embed: split the document into chunks before embedding and average their vectors, reducing length effects but limiting cross-chunk context; (3) Late Embed-then-Chunk: embed the full document, then aggregate over sliding windows to capture broader context; (4) CLS Token: use the pretrained [CLS] token as a summary. Each method offers a different tradeoff between bias, variance, and preservation of semantic details.
+We evaluated four main document embedding approaches to address these challenges. First, Mean Pooling computes the average of token embeddings to form the document vector, providing a simple aggregation method. Second, CLS Token uses the pretrained [CLS] token as a document summary, following standard transformer practice. Third, Early Chunk-then-Embed splits documents into chunks before embedding and averages their vectors, reducing length effects but limiting cross-chunk context. Fourth, Late Embed-then-Chunk embeds the full document first, then aggregates over sliding windows to capture broader context. Each method offers different tradeoffs between bias, variance, and preservation of semantic details.
 
-% We evaluated four main document embedding methods, illustrated in Figure \ref{fig:chunking_methods}:
-%\begin{figure}[ht]
-%\centering
-%    \includegraphics[width=8cm]{figures/data_preprocess/plot_different_chunking.png}
-%    \caption{Comparison of chunking methods: (a) Mean Pooling, (b) Early Chunk-then-Embed, (c) Late Embed-then-Chunk.}
-%    \label{fig:chunking_methods}
-%\end{figure}
+To systematically compare these approaches, we evaluated ten embedding strategies on 5,000 movie plots using four key metrics. Length bias was measured through correlation between document length and embedding norm. Isotropy was assessed via variance in the first principal component. Genre classification accuracy evaluated semantic preservation. Class separation was quantified through silhouette scores and separation ratios (intra-class to inter-class similarity). The evaluation revealed substantial variation across methods: length-norm correlation ranged from -0.366 (Chunk-First 512/256) to 0.822 (Late Chunk 512/256), with CLS Token achieving near-zero correlation (0.004). Isotropy varied from 3.32\% (CLS Token) to 11.92\% (Late Chunk 512/256). Genre classification accuracy showed minimal differences (0.326 to 0.349), while separation ratios ranged from 0.943 to 0.961.
+
+Given that no single method dominated across all dimensions, we selected CLS Token as our embedding strategy based on several practical considerations. CLS Token achieved the best length bias mitigation (correlation of 0.004), strong isotropy properties (3.32\% first-PC variance), and high separability (separation ratio of 0.958). Additionally, it requires no parameter tuning, represents the most standard approach in transformer-based embeddings, and maintains computational efficiency. While Mean Pooling and Late Chunking methods preserved more semantic detail, their strong length correlations (0.629--0.822) introduced systematic biases that could confound temporal analyses of semantic drift.
 
 Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus. Such distributions encode structural properties of the embedding space and reveal whether semantic relationships exhibit systematic patterns across temporal periods or thematic categories.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/cosine_distance_normal_fit.png}
-    \caption{Cosine distance distribution with fitted normal distribution. The distribution shows the pairwise cosine distances between movie embeddings, with mean $\mu = 0.5195$ and standard deviation $\sigma = 0.0624$. The histogram represents cosine distances from 3 runs with 5000 samples each, demonstrating the approximately normal structure of semantic relationships in the embedding space.}
-    \label{fig:cosine_dist_normal_fit}
-\end{figure}
 
 To rigorously compare distance distributions across different subsets of movies, for instance films from different decades or belonging to distinct genres, we employ the Kolmogorov-Smirnov test, a non parametric statistical method for assessing whether two empirical distributions arise from the same underlying continuous distribution \cite{massey1951}. The two sample KS test compares the empirical cumulative distribution functions (ECDFs) of two samples by computing the maximum vertical distance between them.
 
@@ -396,42 +385,19 @@ This is actually one large circular path leading back to PCA. Now we can interpr
 
 \section{Results}\label{sec:results}
 
-\subsection{Chunking Method Comparison}
+In this section, we present and interpret the main empirical findings of our analysis on the embedding space of movie plot summaries. Our results address the spatial structure of the embedding space, overall trends in movie similarity, and how key summary statistics illustrate broader cultural and semantic patterns.
 
-We compared ten embedding strategies on 5,000 movie plots, based on four core approaches: Mean Pooling, CLS Token, Chunk-First Embed (three chunk/stride combinations), and Late Chunking (six configurations). Evaluation metrics included length bias, isotropy, genre classification, and class separation. Table~\ref{tab:chunking_results} summarizes the main results.
+\subsection{General Spatial Analysis}
 
-\begin{table*}[ht]
+We begin with an overview of the global structure of the embedding space by examining the pairwise cosine distances between movie embeddings. Figure~\ref{fig:cosine_dist_normal_fit} displays the distribution of these cosine distances, as well as a fitted normal distribution to summarize their spread. The histogram aggregates results from three independent samples of 5000 movie pairs each, demonstrating that the relationships among movie plots in this high-dimensional space are approximately normally distributed. The mean cosine distance ($\mu = 0.5195$) and standard deviation ($\sigma = 0.0624$) characterize the typical degree of dissimilarity between movie plots. This provides a reference for understanding subsequent analyses---for example, when judging whether certain genres or time-periods are more tightly clustered or more widely dispersed than the dataset as a whole.
+
+\begin{figure}[ht]
     \centering
-    \caption{Chunking method performance. Length Norm Corr: correlation of document length and embedding norm. Isotropy (1st PC): variance in first principal component. Silhouette: cluster cohesion. Sep. Ratio: intra/inter class similarity.}
-    \label{tab:chunking_results}
-    \small
-    \begin{tabular}{lcccc}
-        \toprule
-        Method & \makecell{Length-Norm\\Corr} & \makecell{Isotropy\\(1st PC \%)} & Silhouette & \makecell{Sep.\\Ratio} \\
-        \midrule
-        Mean Pooling & 0.629 & 11.36 & -0.036 & 0.943 \\
-        CLS Token & 0.004 & 3.32 & -0.016 & 0.958 \\
-        \midrule
-        Chunk-First 512/256 & -0.366 & 3.47 & -0.020 & 0.951 \\
-        Chunk-First 1024/512 & -0.275 & 3.37 & -0.017 & 0.959 \\
-        Chunk-First 2048/1024 & -0.031 & 3.33 & -0.016 & 0.961 \\
-        \midrule
-        Late Chunk 512/256 & 0.822 & 11.92 & -0.037 & 0.949 \\
-        Late Chunk 1024/512 & 0.726 & 11.53 & -0.037 & 0.948 \\
-        Late Chunk 2048/1024 & 0.656 & 11.36 & -0.036 & 0.958 \\
-        Late Chunk 2048/512 & 0.656 & 11.36 & -0.036 & 0.958 \\
-        Late Chunk 512/0 & 0.821 & 11.40 & -0.037 & 0.948 \\
-        \bottomrule
-    \end{tabular}
-\end{table*}
+    \includegraphics[width=8cm]{figures/cosine_distance_normal_fit.png}
+    \caption{Cosine distance distribution with fitted normal distribution. The distribution shows the pairwise cosine distances between movie embeddings, with mean $\mu = 0.5195$ and standard deviation $\sigma = 0.0624$. The histogram represents cosine distances from 3 runs with 5000 samples each, demonstrating the approximately normal structure of semantic relationships in the embedding space.}
+    \label{fig:cosine_dist_normal_fit}
+\end{figure}
 
-The evaluation reveals that no single method dominates across all metrics. Length-norm correlation varies substantially: MeanPooling and LateChunking show strong positive correlation (0.62 to 0.82), while ChunkFirstEmbed exhibits negative correlation (down to -0.37). CLS Token achieves near-zero correlation (0.004), effectively removing length bias.
-
-Isotropy also differs across approaches. MeanPooling and LateChunking have higher first-PC variance (11.3-11.9\%), suggesting less uniform embeddings, while CLS Token and ChunkFirstEmbed achieve lower values (3.3-3.5\%), indicating better isotropy. For genre classification, accuracy varies minimally (0.326 to 0.349), with ChunkFirstEmbed\_1024\_512 performing best, though improvements are marginal. Silhouette scores remain negative across all methods, indicating substantial genre overlap in embedding space.
-
-Separation ratios range from 0.943 to 0.961, with CLS Token achieving 0.958, among the highest values. Cosine similarity distributions show consistent means (0.485-0.505), but CLS Token and ChunkFirstEmbed produce more concentrated distributions (std: 0.061-0.067) compared to pooling-based methods (std: 0.123-0.126).
-
-Given that metrics vary without a clear winner across all dimensions, we select CLS Token as our embedding strategy. CLS Token is the most common and simple approach, requires no parameter tuning, and offers strong separability (separation ratio of 0.958) while maintaining minimal length bias and good isotropy properties.
 
 \section{Literature and Methods Review}
 
