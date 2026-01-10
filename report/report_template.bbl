@@ -20,6 +20,13 @@ Devlin, J., Chang, M., Lee, K., and Toutanova, K.
 \newblock \emph{CoRR}, abs/1810.04805, 2018.
 \newblock URL \url{http://arxiv.org/abs/1810.04805}.
 
+\bibitem[Douze et~al.(2024)Douze, Guzhva, Deng, Johnson, Szilvasy, Mazaré,
+  Lomeli, Hosseini, and Jégou]{douze2024faiss}
+Douze, M., Guzhva, A., Deng, C., Johnson, J., Szilvasy, G., Mazaré, P.-E.,
+  Lomeli, M., Hosseini, L., and Jégou, H.
+\newblock The faiss library.
+\newblock 2024.
+
 \bibitem[Gong et~al.(2019)Gong, He, Li, Qin, Wang, and Liu]{pmlr-v97-gong19a}
 Gong, L., He, D., Li, Z., Qin, T., Wang, L., and Liu, T.
 \newblock Efficient training of {BERT} by progressively stacking.
@@ -28,13 +35,6 @@ Gong, L., He, D., Li, Z., Qin, T., Wang, L., and Liu, T.
   \emph{Proceedings of Machine Learning Research}, pp.\  2337--2346. PMLR,
   09--15 Jun 2019.
 \newblock URL \url{https://proceedings.mlr.press/v97/gong19a.html}.
-
-\bibitem[Günther et~al.(2025)Günther, Mohr, Williams, Wang, and
-  Xiao]{günther2025latechunkingcontextualchunk}
-Günther, M., Mohr, I., Williams, D.~J., Wang, B., and Xiao, H.
-\newblock Late chunking: Contextual chunk embeddings using long-context
-  embedding models, 2025.
-\newblock URL \url{https://arxiv.org/abs/2409.04701}.
 
 \bibitem[Massey(1951)]{massey1951}
 Massey, F.~J.
@@ -63,6 +63,14 @@ Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou,
 \newblock \url{https://www.themoviedb.org}, 2024.
 \newblock Licensed under CC BY-NC 4.0 for non-commercial use.
 
+\bibitem[Wenzek et~al.(2019)Wenzek, Lachaux, Conneau, Chaudhary, Guzmán,
+  Joulin, and Grave]{wenzek2019ccnetextractinghighquality}
+Wenzek, G., Lachaux, M.-A., Conneau, A., Chaudhary, V., Guzmán, F., Joulin,
+  A., and Grave, E.
+\newblock Ccnet: Extracting high quality monolingual datasets from web crawl
+  data, 2019.
+\newblock URL \url{https://arxiv.org/abs/1911.00359}.
+
 \bibitem[{Wikimedia Foundation}(2024{\natexlab{a}})]{wikidata}
 {Wikimedia Foundation}.
 \newblock Wikidata.
@@ -81,16 +89,5 @@ Xu, H., Zhang, Z., Wu, L., and Wang, C.-J.
   movies and books.
 \newblock \emph{PLOS ONE}, 15\penalty0 (e0225385), 2020.
 \newblock \doi{10.1371/journal.pone.0225385}.
-
-\bibitem[Yang et~al.(2016)Yang, Yang, Dyer, He, Smola, and
-  Hovy]{yang-etal-2016-hierarchical}
-Yang, Z., Yang, D., Dyer, C., He, X., Smola, A., and Hovy, E.
-\newblock Hierarchical attention networks for document classification.
-\newblock In \emph{Proceedings of the 2016 Conference of the North {A}merican
-  Chapter of the Association for Computational Linguistics: Human Language
-  Technologies}, pp.\  1480--1489, San Diego, California, jun 2016. Association
-  for Computational Linguistics.
-\newblock \doi{10.18653/v1/N16-1174}.
-\newblock URL \url{https://aclanthology.org/N16-1174/}.
 
 \end{thebibliography}

@@ -144,6 +144,14 @@ However, measuring semantic change in cultural narratives over extended historic
 
 We address these questions by constructing a unified semantic space from a large corpus of film plot summaries spanning multiple decades. By embedding all narratives into a single static vector space, we eliminate temporal alignment requirements while preserving fine grained semantic relationships. Within this space, we represent genres and thematic clusters as centroids and track their trajectories over time. By computing geometric properties of these trajectories including velocity, acceleration, and curvature we can distinguish periods of continuous semantic evolution from moments of structural reorganization where genres undergo fundamental conceptual shifts. This geometric analysis reveals not just that meanings change, but the dynamics of how they change, providing quantitative measures of cultural evolution.
 
+\section{Related Work}\label{sec:related_work}
+
+There have been several notable works in the area of movie plot analysis using natural language processing. (https://ceur-ws.org/Vol-3558/paper7806.pdf) makes use of SBert to create text embeddings for their movie dataset, which was also curated from Wikipedia and IMDB. They devised a "Innovation Score" which was mean cosine distance. This paper's interesting results include Awarded movies having higher IS, and that IS over time is somewhat related (28\% explained variance) to negative quadratic relationship which could be explained by how the movie space has reached saturation of ideas and any more new movie ideas would probably be similar to another movie which came out before.
+
+(https://www.nature.com/articles/srep02758) is another relevant paper which uses crowdsourced keywords from the IMDB as a window into the contents of films and prescribe novelty scores for each film based on occurrence probabilities of individual keywords and keyword-pairs. They devised a method to assign a novelty score to each film on the basis of the keywords associated with it and the keywords appearing in all films that were released prior to it. The results show that there was a surge in novel movies about the time when Hollywood went into the golden age. They also explored how novelty affected film revenue.
+
+However little to none of the papers analyzes text embeddings from LLMs in a temporal manner.
+
 \section{Data and Methods}\label{sec:methods}
 
 \subsection{Data Collection}
