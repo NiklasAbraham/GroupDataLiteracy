@@ -1,4 +1,4 @@
-\begin{thebibliography}{6}
+\begin{thebibliography}{12}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -36,6 +36,19 @@ Günther, M., Mohr, I., Williams, D.~J., Wang, B., and Xiao, H.
   embedding models, 2025.
 \newblock URL \url{https://arxiv.org/abs/2409.04701}.
 
+\bibitem[Massey(1951)]{massey1951}
+Massey, F.~J.
+\newblock The kolmogorov--smirnov test for goodness of fit.
+\newblock \emph{Journal of the American Statistical Association}, 46\penalty0
+  (253):\penalty0 68--78, 1951.
+
+\bibitem[Matthews \& Glitre(2021)Matthews and Glitre]{matthews2021genre}
+Matthews, P. and Glitre, K.
+\newblock Genre analysis of movies using a topic model of plot summaries.
+\newblock \emph{Journal of the Association for Information Science and
+  Technology}, 72\penalty0 (12):\penalty0 1511--1527, 2021.
+\newblock \doi{10.1002/asi.24525}.
+
 \bibitem[Raffel et~al.(2023)Raffel, Shazeer, Roberts, Lee, Narang, Matena,
   Zhou, Li, and Liu]{raffel2023exploringlimitstransferlearning}
 Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou,
@@ -43,6 +56,31 @@ Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou,
 \newblock Exploring the limits of transfer learning with a unified text-to-text
   transformer, 2023.
 \newblock URL \url{https://arxiv.org/abs/1910.10683}.
+
+\bibitem[{TMDb}(2024)]{tmdb}
+{TMDb}.
+\newblock The movie database (tmdb).
+\newblock \url{https://www.themoviedb.org}, 2024.
+\newblock Licensed under CC BY-NC 4.0 for non-commercial use.
+
+\bibitem[{Wikimedia Foundation}(2024{\natexlab{a}})]{wikidata}
+{Wikimedia Foundation}.
+\newblock Wikidata.
+\newblock \url{https://www.wikidata.org}, 2024{\natexlab{a}}.
+\newblock Licensed under CC0 1.0 Universal (Public Domain).
+
+\bibitem[{Wikimedia Foundation}(2024{\natexlab{b}})]{wikipedia}
+{Wikimedia Foundation}.
+\newblock Wikipedia, the free encyclopedia.
+\newblock \url{https://www.wikipedia.org}, 2024{\natexlab{b}}.
+\newblock Licensed under CC BY-SA 4.0.
+
+\bibitem[Xu et~al.(2020)Xu, Zhang, Wu, and Wang]{xu2020cinderella}
+Xu, H., Zhang, Z., Wu, L., and Wang, C.-J.
+\newblock The cinderella complex: Word embeddings reveal gender stereotypes in
+  movies and books.
+\newblock \emph{PLOS ONE}, 15\penalty0 (e0225385), 2020.
+\newblock \doi{10.1371/journal.pone.0225385}.
 
 \bibitem[Yang et~al.(2016)Yang, Yang, Dyer, He, Smola, and
   Hovy]{yang-etal-2016-hierarchical}

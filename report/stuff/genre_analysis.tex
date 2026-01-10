@@ -18,7 +18,7 @@ We computed the following metrics to analyse the drift dynamics across the group
     \mathbf{d}_g^{(\tau)} = \bar{\mathbf{e}}_g^{(\tau + \Delta t)} - \bar{\mathbf{e}}_g^{(\tau)}
     \label{eq:drift}
 \end{equation}
-\textbf{Inter-genre distance: }determines cosine distance between representatives of each pair of genres for each year, enabling pairwise comparison between specific genres.
+\textbf{Inter genre distance: }determines cosine distance between representatives of each pair of genres for each year, enabling pairwise comparison between specific genres.
 
 Due to group size differences between time periods, two alternative normalization 
 approaches have been employed: (1) downsampling, ensuring equal sampling error 
@@ -27,9 +27,9 @@ error of the difference between group means:
 \begin{equation}
    \hat{v}_g^{(\tau)} = \frac{v_g^{(\tau)}}{\sigma_{\text{pooled}} \cdot \sqrt{\frac{1}{n_g^{(\tau)}} + \frac{1}{n_g^{(\tau + \Delta t)}}}}
 \end{equation}
-where $\sigma_{\text{pooled}}$ is the pooled within-group standard deviation of cosine distances, and $n_g^{(\tau)}$ is the number of movies in genre $g$ at time $\tau$.
+where $\sigma_{\text{pooled}}$ is the pooled within group standard deviation of cosine distances, and $n_g^{(\tau)}$ is the number of movies in genre $g$ at time $\tau$.
 
-None of the genre-based analyses yielded statistically significant results, suggesting that genres may be too broad as analytical categories and any underlying patterns are likely obscured by noise. Figure \ref{fig:drift} illustrates temporal drift for the three most popular genres, computed over 5-year periods. Each period was downsampled to 145 movies, with 95\% confidence intervals estimated via bootstrapping (1,000 samples).
+None of the genre based analyses yielded statistically significant results, suggesting that genres may be too broad as analytical categories and any underlying patterns are likely obscured by noise. Figure \ref{fig:drift} illustrates temporal drift for the three most popular genres, computed over 5-year periods. Each period was downsampled to 145 movies, with 95\% confidence intervals estimated via bootstrapping (1,000 samples).
 
 \begin{figure}[htbp]
     \centering
