@@ -241,8 +241,92 @@ In the context of temporal semantic analysis, this framework enables systematic 
 \subsection{Genre analysis}
 \input{stuff/genre_analysis.tex}
 
+\textbf{Projection along temporal axis}
+This idea is to select an arbitrary vector that is in the embedding space and project the movie embeddings onto this vector. Based on the choice of this vector, we will be able to see how much of each movie embedding lies on the vector, and we can then do temporal analysis to see how this metric evolves over time. Since our embeddings are already normalized to magnitude 1, cosine distance is proportional to L2 norm, which measures euclidean distance between embeddings. Note that for this Projection Analysis, all experiments were bootstrapped for 500 times, 1000 samples.
 
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/projection_analysis_action_1930_2024.png}
+    \caption{Projection onto action vector over years}
+    \label{fig:proj_analysis_action}
+\end{figure}
 
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/projection_analysis_romance.png}
+    \caption{Projection onto Romance vector over years}
+    \label{fig:proj_analysis_romance}
+\end{figure}
+
+First vector we chose was $mean(\text{emb}_{\text{action 2024}}) - mean(\text{emb}_{\text{action 1930}})$. From Figure \ref{fig:proj_analysis_action}, we can see that movie plots are increasingly becoming similar to action movie plots. If we look at Figure \ref{fig:proj_analysis_romance} we also see the same trend for Romance. This created suspicion and we plotted the same thing but the overall centroid shift from 1930 to 2024 and also saw the same plots (Figure \ref{fig:proj_analysis_overall}). This could mean that how movie plots evolve over time outweighs the shift in genres. 
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/projection_analysis_overall.png}
+    \caption{Projection onto Mean vector over years}
+    \label{fig:proj_analysis_overall}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/action_cosine_dist.png}
+    \caption{Action cosine distance to mean (all) embedding vector}
+    \label{fig:action_cos_dist}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/romance_cosine_dist.png}
+    \caption{Romance cosine distance to mean (all) embedding vector}
+    \label{fig:romance_cos_dist}
+\end{figure}
+
+In order to then explore the shift in genres over time, we plotted the Cosine Distance evolution of mean action embedding per year from the overall centroid. From Figure \ref{fig:action_cos_dist} we observe that the action movies are getting more and more similar to the average embedding vector. The Romance cosine distance to the same mean vector shows a different story (Figure \ref{fig:romance_cos_dist}). 
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/all_cosine_dist.png}
+    \caption{All genre's cosine distance to mean (all) embedding vector}
+    \label{fig:all_cos_dist}
+\end{figure}
+
+Figure \ref{fig:all_cos_dist} We expanded this to our new genres and this revealed that many large genres were converging towards the mean embedding. There are some outliers such as "Anime" which only appeared after 1980. "Film Noir" and "Adventure and Fantasy" did not follow the trend of converging towards the mean embedding. (do I end here?)
+
+\textbf{Spread analysis}
+Another way to see if movies are converging over the years or spreading out is to measure the spread per year. (https://arxiv.org/pdf/1810.08693) Frobenius norm measures the total variance of each year's difference in movie embeddings to its yearly mean embedding. The frobenius norm (https://arxiv.org/pdf/1501.01571 page 84 ) is the sum of squared singular values in which we are only measuring noise and not the signal. In order to see the signal shift, we use the spectral norm to find the maximum singular value of the difference in movie embeddings and their respective yearly mean embeddings.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/spread_analysis_mean_l2_norm.png}
+    \caption{Mean L2 Norm vs Cosine Distance against yearly centroid}
+    \label{fig:mean_l2_norm}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/spread_analysis_frob_spec_norm.png}
+    \caption{Spectral and Frobenius Norm of yearly movies against yearly centroid}
+    \label{fig:frob_spec_norm}
+\end{figure}
+
+We observe from Figure \ref{fig:mean_l2_norm} that movies are getting getting more and dissimilar. Paired together with the mean L2 distance from each movie to the yearly mean embedding, we can see that the average distance from each movie to its yearly mean remains the same, but the spectral norm triples in size (Figure \ref{fig:frob_spec_norm}), signalling that there is some sort of shape shift or stretching of the embedding cloud. There is a sharp drop in 2020, which might be attributed to movie production during covid period reducing the number of movies being produced and hence reducing the chance for outliers.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ansel/spread_analysis_pve.png}
+    \caption{PC1 Explained Variance of yearly movies against yearly centroid}
+    \label{fig:pve_yearly}
+\end{figure}
+
+The next sensible step to take is to analyze the explained variance of the first principal component. This can simply be calculated by the squared spectral norm divided by the squared frobenius norm. From Figure \ref{fig:pve_yearly}, the explained variance increases from 3\% to 4\% and sharply rises to 4.75\% after 2020. An explained variance of 4\% is significant in a dataset with dimension of 1024. If all dimensions were random noise, each PC would explain $1/1024 \approx 0.098\%$, so 4\% is 40 times higher than random. This means that there is a direction which is polarizing the movie industry. 
+
+This is actually one large circular path leading back to PCA. Now we can interpret the evolution of movies to see which movies are the most polarized by that particular year's principal component. Hence we project every movie's embeddings onto its year's PC. From here we select an arbitrary number of years to analyze its top and bottom 5 movies.
+
+(PCA1 table here)
+
+(PCA US Movies)
+
+(PCA German Movies)
 
 
 \section{Results}\label{sec:results}
