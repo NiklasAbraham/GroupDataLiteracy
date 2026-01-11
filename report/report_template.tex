@@ -148,7 +148,7 @@ We address these questions by constructing a unified semantic space from a large
 
 There have been several notable works in the area of movie plot analysis using natural language processing. (https://ceur-ws.org/Vol-3558/paper7806.pdf) makes use of SBert to create text embeddings for their movie dataset, which was also curated from Wikipedia and IMDB. They devised a "Innovation Score" which was mean cosine distance. This paper's interesting results include Awarded movies having higher IS, and that IS over time is somewhat related (28\% explained variance) to negative quadratic relationship which could be explained by how the movie space has reached saturation of ideas and any more new movie ideas would probably be similar to another movie which came out before.
 
-(https://www.nature.com/articles/srep02758) is another relevant paper which uses crowdsourced keywords from the IMDB as a window into the contents of films and prescribe novelty scores for each film based on occurrence probabilities of individual keywords and keyword-pairs. They devised a method to assign a novelty score to each film on the basis of the keywords associated with it and the keywords appearing in all films that were released prior to it. The results show that there was a surge in novel movies about the time when Hollywood went into the golden age. They also explored how novelty affected film revenue.
+(https://www.nature.com/articles/srep02758) is another relevant paper which uses crowdsourced keywords from the IMDB as a window into the contents of films and prescribe novelty scores for each film based on occurrence probabilities of individual keywords and keyword pairs. They devised a method to assign a novelty score to each film on the basis of the keywords associated with it and the keywords appearing in all films that were released prior to it. The results show that there was a surge in novel movies about the time when Hollywood went into the golden age. They also explored how novelty affected film revenue.
 
 However little to none of the papers analyzes text embeddings from LLMs in a temporal manner.
 
@@ -158,7 +158,7 @@ However little to none of the papers analyzes text embeddings from LLMs in a tem
 
 We constructed our movie corpus using a multi stage pipeline that systematically integrated three complementary sources: Wikidata, The Movie Database (TMDb), and Wikipedia. This approach combines rich structured metadata with the detailed textual content required for semantic analysis.
 
-Initial dataset was constructed by querying Wikidata for movies released from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we iterated through the years and first acquired QIDs of all Wikidata items which have a Wikidata class that is an indirect subclass of film and have a first publication date in the given year. During this step we removed QIDs of items that do not have an English Wikipedia page associated with them. We also tried to remove non-feature movies by excluding subclasses of classes "short film" and "television series episode". However, this filtering was not perfect and further filtering of Wikidata classes was performed during post-processing. After acquiring the list of identifiers, we processed them in small batches of 20 and queried Wikidata for each movie's features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. Additionally, box office, box office currency, budget and budget currency values were also queried, but they had very low coverage in the raw dataset and were not used in the final analysis.
+Initial dataset was constructed by querying Wikidata for movies released from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we iterated through the years and first acquired QIDs of all Wikidata items which have a Wikidata class that is an indirect subclass of film and have a first publication date in the given year. During this step we removed QIDs of items that do not have an English Wikipedia page associated with them. We also tried to remove non-feature movies by excluding subclasses of classes "short film" and "television series episode". However, this filtering was not perfect and further filtering of Wikidata classes was performed during post processing. After acquiring the list of identifiers, we processed them in small batches of 20 and queried Wikidata for each movie's features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. Additionally, box office, box office currency, budget and budget currency values were also queried, but they had very low coverage in the raw dataset and were not used in the final analysis.
 
 Second, we enriched the dataset using TMDb, a community driven database that offers quantitative measures of popularity and user engagement. Wikidata's external identifiers enabled direct mapping to TMDb entries, from which we programmatically retrieved vote counts, vote averages, and popularity metrics for each film. These measures served as proxies for audience engagement and cultural impact, informing downstream film filtering and weighting.
 
@@ -168,7 +168,7 @@ The last enrichment stage addressed limitations in TMDb voting statistics. Many 
 
 All data sources are open and appropriately licensed. Wikidata \cite{wikidata} is released under CC0 1.0 Universal (public domain). Wikipedia \cite{wikipedia} is under CC BY SA 4.0, and TMDb \cite{tmdb} under CC BY NC 4.0, allowing non commercial research with attribution. This ensures reproducibility and legal compliance.
 
-Our final dataset achieves high coverage, with plot summaries for over 80\% of films in most decades (see Table \ref{tab:decade_coverage}).
+After the data was collected in a tabular format, the textual plot descriptions required transformation into vector representations via a suitable embedding model for downstream analysis. The plot descriptions extracted from Wikipedia pages exhibit substantial variability in length, ranging from 10 to 20,479 characters, corresponding to approximately 6 to 5,296 tokens in an English tokenizer. All plot descriptions in our corpus are in English, which simplifies the embedding process by eliminating cross lingual considerations. After performing the explicitly described data pipeline steps, the final dataset contained 161{,}533 data points (movies) with a average coverage of 81\% in the categories of actors, directors, genres, and year.
 
 \subsection{Data cleaning}
 
@@ -176,14 +176,14 @@ After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first 
 
 \begin{itemize}
     \item \textbf{Filtering out movies without a Wikipedia plot.}
-    \item \textbf{Removal of non-feature movies.} We removed samples from our dataset that had a Wikidata class that is an indirect subclass of a class that does not describe a feature movie. Some examples of not feasible Wikidata classes include trailers, television series episodes, short films and radio programs. 
+    \item \textbf{Removal of non feature movies.} We removed samples from our dataset that had a Wikidata class that is an indirect subclass of a class that does not describe a feature movie. Some examples of not feasible Wikidata classes include trailers, television series episodes, short films and radio programs. 
     \item \textbf{Filtering out movies with excessively long plots.} We filtered out movies with plots longer than 14,000 characters from our dataset because these plots are labeled by Wikipedia as \textit{excessively long}.
     \item \textbf{Removal of movies with low entropy plots.}
     \item \textbf{Genre filtering.} We filtered out genres that appear only once in the dataset because these genres obviously do not describe a group of movies.
-    \item \textbf{Exclusion of explicit content.} We excluded movies with pornographic and exploitation genres. WHY???
+    \item \textbf{Exclusion of explicit content.} We excluded movies whose primary genres fell within explicit or highly exploitative categories, such as Bavarian porn, Nazi exploitation, cannibal film, cartoon pornography, erotic film, sexploitation film, and related genres. These categories were removed in order to focus our analysis on mainstream cinematic narratives, to avoid the distorting effects that fringe, pornographic, or exploitation genres would have on cultural and semantic trends in the wider corpus, and because including them would not have been appropriate or useful for a university project of this scope.
 \end{itemize}
 
-The most critical cleaning step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5-gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and compute the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
+The most critical cleaning step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and compute the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
 
 \begin{figure}[ht]
     \centering
@@ -198,6 +198,38 @@ The most critical cleaning step was the removal of movies with low-entropy plots
     \caption{Results of manual labeling of 150 plots in the borderline entropy region with the chosen entropy threshold}
     \label{fig:entropy_cutoff}
 \end{figure}
+
+\subsubsection{Embedding of the movie plot summaries}
+
+The selection of an appropriate embedding model was guided by the Massive Text Embedding Benchmark (MTEB) leaderboard results\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}, which provides comprehensive evaluations of embedding models across diverse retrieval and semantic similarity tasks. Based on these benchmarks, we selected the BGE-M3 (Beijing Academy of Artificial Intelligence Multilingual, Multifunctional, Multi granularity) model \cite{chen2024bgem3embeddingmultilingualmultifunctionality}, an open-source model developed by the Beijing Academy of Artificial Intelligence. The BGE-M3 model achieved competitive performance (28th place on the MTEB leaderboard) while maintaining a relatively compact architecture with 0.5 billion parameters. Critically, the model supports a context length of 8,192 tokens, which enables embedding entire movie plot descriptions into a single vector representation without requiring chunking.
+
+%The BGE-M3 model provides three embedding modes: a dense vector (global document representation via [CLS]), a sparse vector (high-dimensional token weights for lexical matching), and a multi-vector mode (token-level semantic representations for each word in the input).
+
+A key methodological choice was to use a single, static embedding model for all time periods, rather than training separate or temporally aligned models. This ensures all film plots are represented in a unified latent space, avoiding complex post hoc alignment and minimizing artifacts. While movies from earlier decades describe very different world view with a different language and culture, the Wikipedia based plot summaries are not contemporaneous texts from those eras, instead, they are modern English descriptions collectively maintained and updated since Wikipedia's founding in 2001. Thus, any linguistic variation or semantic drift in the summaries themselves is minimal. We rely on this assumption of consistent descriptive language to enable direct, meaningful comparisons of embedding based semantics across decades, without additional alignment steps.
+
+Embedding variable length documents presents challenges for transformer based models due to fixed context windows and representational biases. Because plot summaries in our dataset span from a few sentences to thousands of words, it is crucial to select chunking and pooling strategies that minimize length bias while retaining semantic content. Relying solely on the [CLS] token for global representation can introduce substantial bias: it is sensitive to input length, often overemphasizes the first ~128 tokens \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a}, and underperforms mean pooling on long documents \cite{raffel2023exploringlimitstransferlearning}. With over 75\% of our plots exceeding 512 tokens, a more robust aggregation method is required.
+
+We evaluated four document embedding approaches: Mean Pooling (averaging token embeddings), CLS Token (using pretrained [CLS] token), Early Chunk-then-Embed (splitting documents before embedding), and Late Embed-then-Chunk (embedding full documents then aggregating). Each method offers different tradeoffs between bias, variance, and semantic preservation.
+
+We systematically compared these approaches on 5,000 movie plots using four metrics: length bias (correlation between document length and embedding norm), isotropy (variance in first principal component), genre classification accuracy, and class separation (silhouette scores and separation ratios). Results showed substantial variation: length-norm correlation ranged from 0.366 to 0.822, with CLS Token achieving near zero correlation (0.004). Isotropy varied from 3.32\% to 11.92\%, while genre classification accuracy showed minimal differences (0.326 to 0.349).
+
+Given that no single method dominated across all dimensions, we selected CLS Token based on its superior length bias mitigation (correlation of 0.004), strong isotropy properties (3.32\% first-PC variance), high separability (separation ratio of 0.958), computational efficiency, and standard usage in transformer based embeddings. While Mean Pooling and Late Chunking preserved more semantic detail, their strong length correlations (0.629 to 0.822) introduced systematic biases that could confound temporal analyses.
+
+\subsubsection{Sanity check of the embeddings}
+
+To validate that the embeddings capture meaningful semantic relationships, we performed a sanity check using well known movie franchises. We computed the mean embedding vector for movies belonging to three prominent franchises: Star Wars, Harry Potter, and James Bond. We then calculated two types of cosine distances: the inner group distance (between movies within the same franchise) and the group to random distance (between the franchise mean and a random sample of movies from the dataset). This analysis revealed that movies within the same franchise cluster together in the embedding space, with inner group distances significantly lower than distances to random movies. Specifically, for the Harry Potter franchise, the inner group distance was 0.210 and the group to random distance was 0.572; for Star Wars, these values were 0.349 and 0.560 respectively; and for James Bond movies, they were 0.260 and 0.527. In comparison, the global average cosine distance between two randomly selected movies was 0.520, confirming that the embeddings successfully capture semantic similarity and that movies within the same franchise are indeed closer together in the embedding space than to unrelated movies.
+
+\subsubsection{Genre Taxonomy Construction}
+
+The raw dataset contained 975 unique genre labels, many of which represented semantically equivalent or highly similar categories. For instance, labels such as "science fiction film" and "science fiction comedy" capture essentially the same thematic content despite their different surface forms. Additionally, the majority of movies in our corpus were associated with multiple genre labels, reflecting the hybrid nature of cinematic narratives.
+
+To address this redundancy and create a more coherent genre taxonomy, we implemented a multi stage genre organization pipeline. First, we removed all genre labels that appeared only once in the dataset, as these singleton genres do not represent meaningful groupings of movies. This filtering step reduced the number of unique genres from 975 to 463.
+
+Next, we sought to consolidate semantically similar genres by leveraging their textual descriptions. For each remaining genre, we retrieved its corresponding Wikipedia article using the Wikidata QID identifier. Of the 463 genres, 359 had associated Wikipedia articles containing genre descriptions. We then embedded these genre descriptions using the BGE-M3 model, creating vector representations that capture the semantic content of each genre's definition.
+
+To identify groups of semantically similar genres, we applied k-means clustering with the Lloyd algorithm to the embedded genre descriptions. We selected $k=20$ clusters based on the balance between granularity and interpretability, resulting in 20 distinct genre categories. Each cluster was manually labeled by examining the genres it contained and identifying the common thematic elements that unified them.
+
+The final genre taxonomy consists of 20 categories, with multi labeling allowed such that each movie can be assigned to multiple genre clusters. For example, the Biographical cluster encompasses genres such as autobiography, biographical drama film, biographical film, biography, jukebox musical, and slice of life. Similarly, the Drama cluster includes docudrama, drama, drama film, drama television series, family drama, family drama film, fantasy drama, historical drama, historical drama film, historical film, history, legal drama, medical drama, melodrama, period drama film, period film, political drama, psychological drama, psychological drama film, and war drama. This hierarchical organization enables more systematic analysis of genre evolution while preserving the nuanced multi genre nature of individual films. For all further analysis, we will use this taxonomy.
 
 \subsection{Novelty analysis}
 
@@ -230,48 +262,11 @@ The resulting plot indicates that the average yearly novelty remained relatively
 TODO: Find better way to plot this, maybe novelty of all movies vs novelty of Oscar nominees?
 
 
-\begin{table}[ht]
-    \centering
-    \caption{Per decade feature coverage (\%) of key metadata fields in the movie dataset.}
-    \begin{tabular}{lcccc}
-        \toprule
-        Decade & Actors+Director  & Genre & Plot & Vote Count \\
-        \midrule
-        1950s   & 86.56  & 63.67 & 83.03 & 90.19 \\
-        1960s   & 83.82  & 61.01 & 77.31 & 85.26 \\
-        1970s   & 86.55  & 62.47 & 79.57 & 86.58 \\
-        1980s   & 84.68  & 59.41 & 79.80 & 85.41 \\
-        1990s   & 82.22  & 58.33 & 82.00 & 84.49 \\
-        2000s   & 77.34  & 60.51 & 84.19 & 83.73 \\
-        2010s   & 70.25  & 60.55 & 84.94 & 85.60 \\
-        2020s   & 70.66  & 64.85 & 77.59 & 89.63 \\
-        \midrule
-        Average & 80.26  & 61.35 & 81.05 & 86.36 \\
-        \bottomrule
-    \end{tabular}
-    \label{tab:decade_coverage}
-\end{table}
-
-After the data was collected in a tabular format, the textual plot descriptions required transformation into vector representations via a suitable embedding model for downstream analysis. The plot descriptions extracted from Wikipedia pages exhibit substantial variability in length, ranging from 10 to 20,479 characters, corresponding to approximately 6 to 5,296 tokens in a english tokenizer. All plot descriptions in our corpus are in English, which simplifies the embedding process by eliminating cross lingual considerations.
-
-
 \subsection{Methodology}
 
 After the data was collected and cleaned, the first step was to embed the movie plot summaries into a semantic space.
 
-The selection of an appropriate embedding model was guided by the Massive Text Embedding Benchmark (MTEB) leaderboard results\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}, which provides comprehensive evaluations of embedding models across diverse retrieval and semantic similarity tasks. Based on these benchmarks, we selected the BGE-M3 (Beijing Academy of Artificial Intelligence Multilingual, Multifunctional, Multi-granularity) model \cite{chen2024bgem3embeddingmultilingualmultifunctionality}, an open-source model developed by the Beijing Academy of Artificial Intelligence. The BGE-M3 model achieved competitive performance (28th place on the MTEB leaderboard) while maintaining a relatively compact architecture with 0.5 billion parameters. Critically, the model supports a context length of 8,192 tokens, which enables embedding entire movie plot descriptions into a single vector representation without requiring chunking.
-
-The BGE-M3 model provides three embedding modes: a dense vector (global document representation via [CLS]), a sparse vector (high-dimensional token weights for lexical matching), and a multi-vector mode (token-level semantic representations for each word in the input).
-
-A key methodological choice was to use a single, static embedding model for all time periods, rather than training separate or temporally aligned models. This ensures all film plots are represented in a unified latent space, avoiding complex post-hoc alignment and minimizing artifacts. While movies from earlier decades describe very different world view with a different language and culture, the Wikipedia-based plot summaries are not contemporaneous texts from those eras, instead, they are modern English descriptions collectively maintained and updated since Wikipedia's founding in 2001. Thus, any linguistic variation or semantic drift in the summaries themselves is minimal. We rely on this assumption of consistent descriptive language to enable direct, meaningful comparisons of embedding-based semantics across decades, without additional alignment steps.
-
-Embedding variable-length documents presents challenges for transformer-based models due to fixed context windows and representational biases. Because plot summaries in our dataset span from a few sentences to thousands of words, it is crucial to select chunking and pooling strategies that minimize length bias while retaining semantic content. Relying solely on the [CLS] token for global representation can introduce substantial bias: it is sensitive to input length, often overemphasizes the first ~128 tokens \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a}, and underperforms mean pooling on long documents \cite{raffel2023exploringlimitstransferlearning}. With over 75\% of our plots exceeding 512 tokens, a more robust aggregation method is required to avoid discarding information.
-
-We evaluated four main document embedding approaches to address these challenges. First, Mean Pooling computes the average of token embeddings to form the document vector, providing a simple aggregation method. Second, CLS Token uses the pretrained [CLS] token as a document summary, following standard transformer practice. Third, Early Chunk-then-Embed splits documents into chunks before embedding and averages their vectors, reducing length effects but limiting cross-chunk context. Fourth, Late Embed-then-Chunk embeds the full document first, then aggregates over sliding windows to capture broader context. Each method offers different tradeoffs between bias, variance, and preservation of semantic details.
-
-To systematically compare these approaches, we evaluated ten embedding strategies on 5,000 movie plots using four key metrics. Length bias was measured through correlation between document length and embedding norm. Isotropy was assessed via variance in the first principal component. Genre classification accuracy evaluated semantic preservation. Class separation was quantified through silhouette scores and separation ratios (intra-class to inter-class similarity). The evaluation revealed substantial variation across methods: length-norm correlation ranged from -0.366 (Chunk-First 512/256) to 0.822 (Late Chunk 512/256), with CLS Token achieving near-zero correlation (0.004). Isotropy varied from 3.32\% (CLS Token) to 11.92\% (Late Chunk 512/256). Genre classification accuracy showed minimal differences (0.326 to 0.349), while separation ratios ranged from 0.943 to 0.961.
-
-Given that no single method dominated across all dimensions, we selected CLS Token as our embedding strategy based on several practical considerations. CLS Token achieved the best length bias mitigation (correlation of 0.004), strong isotropy properties (3.32\% first-PC variance), and high separability (separation ratio of 0.958). Additionally, it requires no parameter tuning, represents the most standard approach in transformer-based embeddings, and maintains computational efficiency. While Mean Pooling and Late Chunking methods preserved more semantic detail, their strong length correlations (0.629--0.822) introduced systematic biases that could confound temporal analyses of semantic drift.
+\subsubsection{Distance analysis}
 
 Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus. Such distributions encode structural properties of the embedding space and reveal whether semantic relationships exhibit systematic patterns across temporal periods or thematic categories.
 
@@ -405,7 +400,7 @@ We begin with an overview of the global structure of the embedding space by exam
 Our use of word embeddings to represent narrative content draws significant inspiration from the work of \textit{Xu et al. (2019)}. In their study of the "Cinderella Complex" the authors demonstrated that high-dimensional vector spaces can capture latent social biases and emotional dependencies within movie synopses. While \textit{Xu et al.} focused on the internal dynamics of characters and gender stereotypes, our research shifts the lens toward the \textbf{inter-textual relationships} between films. By embedding Wikipedia plots, we treat the narrative as a holistic semantic unit, allowing us to map the entire "cinematic universe" into a geometric space where thematic similarity is measured by vector proximity.
 
 \subsection{Quantifying Novelty and Innovation}
-To define and measure "novelty" we adopt the theoretical framework proposed by \textit{Sreenivasan (2013)}, who defines cultural innovation as the emergence of atypical combinations of elements. However, our methodology diverges from Sreenivasan’s reliance on keyword frequencies and probabilistic modeling. Instead, we utilize \textbf{Geometric Distance Analysis}. In our model, novelty is operationalized as the distance of a movie vector from its $k$-nearest neighbors in the embedding space. This allows for a more nuanced detection of innovation: a film is considered "novel" if its semantic coordinates lie in a sparse region of the vector space, indicating a narrative structure that is mathematically distant from established conventions.
+To define and measure "novelty" we adopt the theoretical framework proposed by \textit{Sreenivasan (2013)}, who defines cultural innovation as the emergence of atypical combinations of elements. However, our methodology diverges from Sreenivasan's reliance on keyword frequencies and probabilistic modeling. Instead, we utilize \textbf{Geometric Distance Analysis}. In our model, novelty is operationalized as the distance of a movie vector from its $k$-nearest neighbors in the embedding space. This allows for a more nuanced detection of innovation: a film is considered "novel" if its semantic coordinates lie in a sparse region of the vector space, indicating a narrative structure that is mathematically distant from established conventions.
 
 \subsection{Diachronic Evolution and Genre Trajectories}
 The temporal dimension of our analysis is informed by the diachronic architectures discussed by \textit{Hamilton et al. (2016)}. Their research into how word meanings shift over time provides a blueprint for our analysis of genre evolution. By calculating the \textbf{centroid} of specific genres across different decades, we track their ``semantic drift.'' This approach allows us to test hypotheses regarding cultural homogenization versus diversification, a concept explored in the musical domain by \textit{Di Marco et al. (2025)}. While \textit{Di Marco et al.} utilized network science to observe the simplification of musical structures, we apply these concepts to text, observing whether movie genres are converging toward a standard ``formula'' or expanding into new, unexplored territories of the embedding world.
@@ -417,10 +412,18 @@ The temporal dimension of our analysis is informed by the diachronic architectur
 \newpage
 
 \section*{Contribution Statement}
-% Explain here, in one sentence per person, what each group member contributed. For example, you could write: Max Mustermann collected and prepared data. Gabi Musterfrau and John Doe performed the data analysis. Jane Doe produced visualizations. All authors will jointly wrote the text of the report. Note that you, as a group, a collectively responsible for the report. Your contributions should be roughly equal in amount and difficulty.
+\textbf{Contribution Statement:}
 
-% \section*{Notes} 
-% Your entire report has a \textbf{hard page limit of 4 pages} excluding references and the contribution statement. (I.e. any pages beyond page 4 must only contain the contribution statement and references). Appendices are \emph{not} possible. But you can put additional material, like interactive visualizations or videos, on a githunb repo (use \href{https://github.com/pnkraemer/tueplots}{links} in your pdf to refer to them). Each report has to contain \textbf{at least three plots or visualizations}, and \textbf{cite at least two references}. More details about how to prepare the report, inclucing how to produce plots, cite correctly, and how to ideally structure your github repo, will be discussed in the lecture, where a rubric for the evaluation will also be provided.
+\begin{itemize}
+    \item \textbf{Ansel Cheung:} Performed genre classification analysis, classification of movie plots into genres, and conducted genre drift and PCA analysis of the movie plots.
+    \item \textbf{Alessio Villa:} Developed and maintained the IMDb and TMDb API pipelines, and contributed to the related work research and methods background sections.
+    \item \textbf{Bartol Markovinović:} Defined the data pipeline cutoff and carried out resulting data cleaning, managed the integration of Wikidata, and conducted novelty score analysis.
+    \item \textbf{Martín López de Ipiña:} Carried out genre drift statistical analysis on the general embedding space, performed general spatial analysis of embeddings, and analyzed the cosine distance distributions.
+    \item \textbf{Niklas Abraham:} Led embedding model selection and evaluation, analyzed chunking methods, and performed KS test and distance distribution analysis.
+\end{itemize}
+
+\vspace{0.5em}
+Overall, all authors contributed equally to the project. This is reflected in the various analysis sections throughout the report, where each member's work formed an integral and balanced part of the final study.
 
 
 \bibliography{bibliography}
