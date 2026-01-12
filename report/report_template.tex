@@ -390,6 +390,20 @@ This is actually one large circular path leading back to PCA. Now we can interpr
 
 In this section, we present and interpret the main empirical findings of our analysis on the embedding space of movie plot summaries. Our results address the spatial structure of the embedding space, overall trends in movie similarity, and how key summary statistics illustrate broader cultural and semantic patterns.
 
+\subsection{General Spatial Analysis}
+
+We begin with an overview of the global structure of the embedding space by examining the pairwise cosine distances between movie embeddings. Figure~\ref{fig:cosine_dist_normal_fit} displays the distribution of these cosine distances, as well as a fitted normal distribution to summarize their spread. The histogram aggregates results from three independent samples of 5000 movie pairs each, demonstrating that the relationships among movie plots in this high-dimensional space are approximately normally distributed. The mean cosine distance ($\mu = 0.5195$) and standard deviation ($\sigma = 0.0624$) characterize the typical degree of dissimilarity between movie plots. This provides a reference for understanding subsequent analyses---for example, when judging whether certain genres or time-periods are more tightly clustered or more widely dispersed than the dataset as a whole.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/cosine_distance_normal_fit.png}
+    \caption{Cosine distance distribution with fitted normal distribution. The distribution shows the pairwise cosine distances between movie embeddings, with mean $\mu = 0.5195$ and standard deviation $\sigma = 0.0624$. The histogram represents cosine distances from 3 runs with 5000 samples each, demonstrating the approximately normal structure of semantic relationships in the embedding space.}
+    \label{fig:cosine_dist_normal_fit}
+\end{figure}
+
+To assess the extent to which genre labels correspond to distinct regions in the embedding space, we analyzed separation metrics across 19 genres. The overall intra-genre distance (mean cosine distance between movies within the same genre) was 0.5042, while the overall inter-genre distance (mean cosine distance between movies from different genres) was 0.5268. This yields a separation ratio of 1.0448 and a separation gap of 0.0226. The proximity of these values, with inter-genre distances only marginally exceeding intra-genre distances, indicates substantial overlap between genre clusters in the semantic space. This interpretation is further supported by a silhouette score of $-0.0334$, where negative values indicate that genres are not well separated and exhibit significant intermingling. These findings suggest that while embeddings capture semantic similarity, genre boundaries in this high dimensional space are relatively porous, reflecting the hybrid and overlapping nature of cinematic categorization.
+
+
 \subsection{Kolmogorov-Smirnov test}
 
 We begin by examining a concrete example using James Bond films as anchor movies to assess whether their distance distributions differ from those of randomly selected movies. Figure~\ref{fig:n_neighbours_bond} displays the cumulative distribution function (left panel) and histogram (right panel) of cosine distances from the anchor movies and from the mean embedding vector to all other movies in the dataset. The initial steep rise in the anchor movie CDF corresponds to other Bond films and thematically related spy movies, which exhibit minimal distances. However, these constitute a small fraction of the corpus, resulting in a CDF that remains close to zero initially before rising more gradually. In contrast, the mean vector curve lies consistently to the left of the anchor curve, indicating that the global mean embedding is more similar to the majority of movies than the highly specific Bond anchor movies. This is expected: the mean embedding represents an average over all narrative types, whereas the Bond anchor is semantically constrained to a narrow subgenre, resulting in greater distances to most films. The histogram in the right panel confirms this pattern, showing that the anchor movies exhibit a broader and more right-skewed distribution of distances compared to the mean vector.
@@ -436,20 +450,6 @@ To further validate the methodology and explore distinct thematic categories, we
     \caption{KS test on temporal distributions for Middle East conflict films epsilon ball ($\epsilon = 0.28$) versus control group. The temporal divergence is more pronounced than in the spy film case, with the largest difference occurring before the Gulf War period, followed by rapid convergence as production of conflict-themed films increased.}
     \label{fig:ks_test_temporal_middle_east}
 \end{figure}
-
-\subsection{General Spatial Analysis}
-
-We begin with an overview of the global structure of the embedding space by examining the pairwise cosine distances between movie embeddings. Figure~\ref{fig:cosine_dist_normal_fit} displays the distribution of these cosine distances, as well as a fitted normal distribution to summarize their spread. The histogram aggregates results from three independent samples of 5000 movie pairs each, demonstrating that the relationships among movie plots in this high-dimensional space are approximately normally distributed. The mean cosine distance ($\mu = 0.5195$) and standard deviation ($\sigma = 0.0624$) characterize the typical degree of dissimilarity between movie plots. This provides a reference for understanding subsequent analyses---for example, when judging whether certain genres or time-periods are more tightly clustered or more widely dispersed than the dataset as a whole.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/cosine_distance_normal_fit.png}
-    \caption{Cosine distance distribution with fitted normal distribution. The distribution shows the pairwise cosine distances between movie embeddings, with mean $\mu = 0.5195$ and standard deviation $\sigma = 0.0624$. The histogram represents cosine distances from 3 runs with 5000 samples each, demonstrating the approximately normal structure of semantic relationships in the embedding space.}
-    \label{fig:cosine_dist_normal_fit}
-\end{figure}
-
-To assess the extent to which genre labels correspond to distinct regions in the embedding space, we analyzed separation metrics across 19 genres. The overall intra-genre distance (mean cosine distance between movies within the same genre) was 0.5042, while the overall inter-genre distance (mean cosine distance between movies from different genres) was 0.5268. This yields a separation ratio of 1.0448 and a separation gap of 0.0226. The proximity of these values, with inter-genre distances only marginally exceeding intra-genre distances, indicates substantial overlap between genre clusters in the semantic space. This interpretation is further supported by a silhouette score of $-0.0334$, where negative values indicate that genres are not well separated and exhibit significant intermingling. These findings suggest that while embeddings capture semantic similarity, genre boundaries in this high dimensional space are relatively porous, reflecting the hybrid and overlapping nature of cinematic categorization.
-
 
 \section{Literature and Methods Review}
 
