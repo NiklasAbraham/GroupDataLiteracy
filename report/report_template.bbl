@@ -1,4 +1,4 @@
-\begin{thebibliography}{13}
+\begin{thebibliography}{15}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -26,6 +26,12 @@ Douze, M., Guzhva, A., Deng, C., Johnson, J., Szilvasy, G., Mazaré, P.-E., Lome
 \newblock The faiss library.
 \newblock 2024.
 
+\bibitem[Dubourg et~al.(2023)Dubourg, Mogoutov, and Baumard]{dubourg2023cinema}
+Dubourg, E., Mogoutov, A., and Baumard, N.
+\newblock Is cinema becoming less and less innovative with time? using neural network text embedding model to measure cultural innovation.
+\newblock In Šeļa, A., Jannidis, F., and Romanowska, I. (eds.), \emph{Proceedings of the Computational Humanities Research Conference 2023}, volume 3558 of \emph{CEUR Workshop Proceedings}, pp.\  676--686, Paris, France, December 2023.
+\newblock URL \url{https://ceur-ws.org/Vol-3558/paper7806.pdf}.
+
 \bibitem[Gong et~al.(2019)Gong, He, Li, Qin, Wang, and Liu]{pmlr-v97-gong19a}
 Gong, L., He, D., Li, Z., Qin, T., Wang, L., and Liu, T.
 \newblock Efficient training of {BERT} by progressively stacking.
@@ -47,6 +53,13 @@ Matthews, P. and Glitre, K.
 Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou, Y., Li, W., and Liu, P.~J.
 \newblock Exploring the limits of transfer learning with a unified text-to-text transformer, 2023.
 \newblock URL \url{https://arxiv.org/abs/1910.10683}.
+
+\bibitem[Sreenivasan(2013)]{sreenivasan2013quantitative}
+Sreenivasan, S.
+\newblock Quantitative analysis of the evolution of novelty in cinema through crowdsourced keywords.
+\newblock \emph{Scientific Reports}, 3\penalty0 (2758), 2013.
+\newblock \doi{10.1038/srep02758}.
+\newblock URL \url{https://www.nature.com/articles/srep02758}.
 
 \bibitem[{TMDb}(2024)]{tmdb}
 {TMDb}.
