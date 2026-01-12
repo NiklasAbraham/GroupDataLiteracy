@@ -270,7 +270,9 @@ After the data was collected and cleaned, the first step was to embed the movie 
 
 Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus. Such distributions encode structural properties of the embedding space and reveal whether semantic relationships exhibit systematic patterns across temporal periods or thematic categories.
 
-To rigorously compare distance distributions across different subsets of movies, for instance films from different decades or belonging to distinct genres, we employ the Kolmogorov-Smirnov test, a non parametric statistical method for assessing whether two empirical distributions arise from the same underlying continuous distribution \cite{massey1951}. The two sample KS test compares the empirical cumulative distribution functions (ECDFs) of two samples by computing the maximum vertical distance between them.
+\subsubsection{Kolmogorov-Smirnov test}
+
+To rigorously compare distance distributions across different subsets of movies, for instance films from different decades or belonging to distinct genres or distinct epsilon balls arround anchor movies, we employ the Kolmogorov-Smirnov test, a non parametric statistical method for assessing whether two empirical distributions arise from the same underlying continuous distribution \cite{massey1951}. The two sample KS test compares the empirical cumulative distribution functions (ECDFs) of two samples by computing the maximum vertical distance between them.
 
 Formally, given two samples \( X_1, \ldots, X_n \) and \( Y_1, \ldots, Y_m \), their empirical cumulative distribution functions are defined as:
 \begin{equation}
@@ -285,7 +287,13 @@ Under the null hypothesis that both samples are drawn from the same continuous d
 
 A key design choice in applying this framework is the selection of a reference point from which distances are computed. One natural approach is to use the mean vector of a baseline subset of movies as a reference embedding, then compute the distribution of distances from this reference point to all movies in the corpus. This enables quantitative analysis of how semantic representations are spatially organized relative to fixed reference points in the embedding space.
 
-In the context of temporal semantic analysis, the KS test enables systematic comparison of distance distributions across decades. By computing distances from fixed reference points (such as mean embeddings of genre clusters) to movies from different decades, we can assess whether the spatial organization of semantic representations evolves over time. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. Conversely, significant differences in these distributions, as detected by the KS test, would indicate structural reorganization of the semantic space, suggesting periods where narrative conventions undergo fundamental shifts. This analysis quantifies how the density and dispersion of semantic representations evolve temporally, providing a complementary perspective to trajectory based analyses of genre evolution.
+In the context of temporal semantic analysis, the KS test enables systematic comparison of distance distributions across decades. By computing distances from fixed reference points (such as mean embeddings of genre clusters) to movies from different decades, we can assess whether the spatial organization of semantic representations evolves over time. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. Conversely, significant differences in these distributions, as detected by the KS test, would indicate structural reorganization of the semantic space, suggesting periods where narrative conventions undergo fundamental shifts.
+
+\subsubsection{Epsilon Ball Construction}
+
+To operationalize this framework, we construct epsilon balls around selected anchor movies by collecting all movies within a specified cosine distance threshold, typically $\epsilon \in [0.24, 0.30]$. Given a set of anchor movies representing a specific thematic category (e.g., spy films), all movies within the epsilon ball exhibit high plot similarity to the anchors, effectively defining a local semantic neighborhood. By comparing the distance distributions of movies within this epsilon ball to those from a control group (constructed using the mean embedding of all movies), we can quantify whether the local semantic structure differs from the global distributional properties of the corpus.
+
+However, distance distributions alone may not fully capture temporal evolution, particularly when anchor movies belong to a series or franchise where sequels naturally cluster together. To address this limitation and analyze the temporal dimension explicitly, we construct cumulative distribution functions (CDFs) of release years for movies within the epsilon ball and compare them to the corresponding CDFs from the control group. A temporal shift in movie plots manifests as a divergence between these CDFs, indicating that the semantic neighborhood defined by the anchor movies exhibits a different temporal distribution than expected under a null model of temporal uniformity. While this approach identifies distributional differences, it does not directly test specific causal hypotheses. Interpretation of observed temporal shifts is therefore performed by examining historical context and culturally significant events within the relevant time periods.
 
 \subsection{Genre analysis}
 \input{stuff/genre_analysis.tex}
@@ -382,6 +390,53 @@ This is actually one large circular path leading back to PCA. Now we can interpr
 
 In this section, we present and interpret the main empirical findings of our analysis on the embedding space of movie plot summaries. Our results address the spatial structure of the embedding space, overall trends in movie similarity, and how key summary statistics illustrate broader cultural and semantic patterns.
 
+\subsection{Kolmogorov-Smirnov test}
+
+We begin by examining a concrete example using James Bond films as anchor movies to assess whether their distance distributions differ from those of randomly selected movies. Figure~\ref{fig:n_neighbours_bond} displays the cumulative distribution function (left panel) and histogram (right panel) of cosine distances from the anchor movies and from the mean embedding vector to all other movies in the dataset. The initial steep rise in the anchor movie CDF corresponds to other Bond films and thematically related spy movies, which exhibit minimal distances. However, these constitute a small fraction of the corpus, resulting in a CDF that remains close to zero initially before rising more gradually. In contrast, the mean vector curve lies consistently to the left of the anchor curve, indicating that the global mean embedding is more similar to the majority of movies than the highly specific Bond anchor movies. This is expected: the mean embedding represents an average over all narrative types, whereas the Bond anchor is semantically constrained to a narrow subgenre, resulting in greater distances to most films. The histogram in the right panel confirms this pattern, showing that the anchor movies exhibit a broader and more right-skewed distribution of distances compared to the mean vector.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/n_neighbours_dist_Spectre__The_World_Is_Not_Enough__Tomorrow_Never_Dies__Casino_Royale__Casino_Royale__GoldenEye__Quantum_of_Sola__501cadb7.png}
+    \caption{Distance distribution comparison for James Bond anchor movies. Left: Cumulative distribution functions of cosine distances from anchor movies (Bond films) and mean embedding vector to all movies in the dataset. Right: Corresponding histogram showing the distribution of distances. The anchor movies show greater distances to most films due to their thematic specificity.}
+    \label{fig:n_neighbours_bond}
+\end{figure}
+
+As a control, we constructed an epsilon ball around a random selection of movies and compared their distance distributions to those from the mean embedding vector. Figure~\ref{fig:n_neighbours_random} demonstrates that, as expected, both distributions are nearly identical when the anchor lacks thematic coherence. This validates that observed distributional differences in the Bond example stem from genuine semantic structure rather than methodological artifacts.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/n_neighbours_dist_All_We_Had__Joe_the_King__Redirected__Diabolically_Yours__Manjapai__Christmas_in_Wonderland__Ladybird,_Ladybird__c93721cb.png}
+    \caption{Distance distribution comparison for random anchor movies. Both the anchor and mean vector distributions are nearly identical, confirming that thematically unrelated movies do not exhibit systematic distributional differences.}
+    \label{fig:n_neighbours_random}
+\end{figure}
+
+We now apply the KS test framework to quantify these differences. Using an epsilon ball of radius $\epsilon = 0.30$ around the Bond anchor movies yields 159 movies, while the control group constructed from the mean embedding contains 41,018 movies. Figure~\ref{fig:ks_test_distances_bond} displays the results of the KS test on distance distributions. The left panel shows a pronounced divergence in the cumulative distribution functions, driven by the high density of semantically similar movies in close proximity to the Bond anchor. The histogram in the right panel reveals that the anchor distribution exhibits a distinct peak at lower distances, reflecting the presence of numerous spy-themed films with similar narrative structures. This local density of thematically related movies distinguishes the anchor distribution from the control group. While this result confirms that James Bond films occupy a semantically distinct region of the embedding space, it does not yet address temporal evolution.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ks_test_distances_Spectre__The_World_Is_Not_Enough__Tomorrow_Never_Dies__Casino_Royale__Casino_Royale__GoldenEye__Quantum_of_Sola__501cadb7_eps0.30.png}
+    \caption{KS test on distance distributions for James Bond epsilon ball ($\epsilon = 0.30$, 159 movies) versus control group (41,018 movies). Left: Cumulative distribution functions showing pronounced divergence. Right: Histogram revealing high local density of semantically similar movies near the Bond anchor.}
+    \label{fig:ks_test_distances_bond}
+\end{figure}
+
+To examine the temporal dimension, we construct cumulative distribution functions of release years for movies within the epsilon ball and compare them to the control group. Figure~\ref{fig:ks_test_temporal_bond} shows that the temporal distributions differ markedly. The left panel reveals a divergence beginning approximately in the 1960s, suggesting that the spy movie subgenre represented by the Bond anchor exhibits a distinct temporal emergence pattern compared to the broader corpus. The right panel displays normalized histograms of movie counts per year for both groups, confirming that the temporal distribution of spy-themed films diverges from the overall temporal distribution of cinema. Both histograms are normalized by their respective maximum yearly counts to facilitate direct comparison of temporal shapes. This temporal divergence indicates that the spy film subgenre experienced a period of increased production and thematic consolidation that is not representative of general cinematic trends during the same period.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ks_test_temporal_Spectre__The_World_Is_Not_Enough__Tomorrow_Never_Dies__Casino_Royale__Casino_Royale__GoldenEye__Quantum_of_Sola__501cadb7_eps0.30.png}
+    \caption{KS test on temporal distributions for James Bond epsilon ball versus control group. Left: Cumulative distribution functions of release years showing divergence beginning in the 1960s. Right: Normalized histograms of movie counts per year, revealing distinct temporal patterns in spy film production compared to the broader corpus.}
+    \label{fig:ks_test_temporal_bond}
+\end{figure}
+
+To further validate the methodology and explore distinct thematic categories, we applied the same framework to movies with a focus on Middle East conflicts, particularly films centered on the Gulf War and American military operations in Iraq and Afghanistan. Using anchor movies such as \textit{Black Hawk Down}, \textit{The Hurt Locker}, \textit{Zero Dark Thirty}, \textit{American Sniper}, \textit{Lone Survivor}, and \textit{13 Hours: The Secret Soldier of Benghazi}, we constructed an epsilon ball with radius $\epsilon = 0.28$. Figure~\ref{fig:ks_test_temporal_middle_east} displays the temporal distribution analysis for this thematic category. The temporal shift is even more pronounced than in the spy film case, with the largest divergence occurring prior to the Gulf War period. Following this point, the frequency of movies semantically similar to the anchor movies increases rapidly, and their temporal distribution converges more quickly toward the control group distribution. This pattern suggests that Middle East conflict films represent a temporally concentrated genre that emerged in response to specific historical events, with production rates that accelerated dramatically following the onset of these conflicts.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/ks_test_temporal_Black_Hawk_Down__The_Hurt_Locker__Zero_Dark_Thirty__American_Sniper__Lone_Survivor__13_Hours_The_Secret_Soldier__26dca182_eps0.28.png}
+    \caption{KS test on temporal distributions for Middle East conflict films epsilon ball ($\epsilon = 0.28$) versus control group. The temporal divergence is more pronounced than in the spy film case, with the largest difference occurring before the Gulf War period, followed by rapid convergence as production of conflict-themed films increased.}
+    \label{fig:ks_test_temporal_middle_east}
+\end{figure}
+
 \subsection{General Spatial Analysis}
 
 We begin with an overview of the global structure of the embedding space by examining the pairwise cosine distances between movie embeddings. Figure~\ref{fig:cosine_dist_normal_fit} displays the distribution of these cosine distances, as well as a fitted normal distribution to summarize their spread. The histogram aggregates results from three independent samples of 5000 movie pairs each, demonstrating that the relationships among movie plots in this high-dimensional space are approximately normally distributed. The mean cosine distance ($\mu = 0.5195$) and standard deviation ($\sigma = 0.0624$) characterize the typical degree of dissimilarity between movie plots. This provides a reference for understanding subsequent analyses---for example, when judging whether certain genres or time-periods are more tightly clustered or more widely dispersed than the dataset as a whole.
@@ -419,7 +474,7 @@ The temporal dimension of our analysis is informed by the diachronic architectur
     \item \textbf{Alessio Villa:} Developed and maintained the IMDb and TMDb API pipelines, and contributed to the related work research and methods background sections.
     \item \textbf{Bartol Markovinović:} Defined the data pipeline cutoff and carried out resulting data cleaning, managed the integration of Wikidata, and conducted novelty score analysis.
     \item \textbf{Martín López de Ipiña:} Carried out genre drift statistical analysis on the general embedding space, performed general spatial analysis of embeddings, and analyzed the cosine distance distributions.
-    \item \textbf{Niklas Abraham:} Led embedding model selection and evaluation, analyzed chunking methods, and performed KS test and distance distribution analysis.
+    \item \textbf{Niklas Abraham:} Performed embedding model selection and evaluation, analyzed chunking methods, and performed KS test and distance distribution analysis.
 \end{itemize}
 
 \vspace{0.5em}

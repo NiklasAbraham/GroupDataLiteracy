@@ -226,10 +226,17 @@ def plot_distance_distribution(
         return
 
     total_movies = len(results_df)
+    # Verify we're using ALL movies - get all distance values
+    all_distances = results_df["distance"].values
+    logger.info(
+        f"plot_distance_distribution: Using ALL {len(all_distances)} movies "
+        f"(distance range: {all_distances.min():.6f} to {all_distances.max():.6f})"
+    )
 
     plt.figure(figsize=figsize)
+    # Use ALL movies in epsilon ball for histogram (not limited)
     plt.hist(
-        results_df["distance"],
+        all_distances,
         bins=50,
         alpha=0.7,
         edgecolor="black",
@@ -240,11 +247,11 @@ def plot_distance_distribution(
     plt.title(f"{title} (Total: {total_movies} movies)", fontsize=14, fontweight="bold")
     plt.grid(True, alpha=0.3, axis="y")
     plt.axvline(
-        results_df["distance"].mean(),
+        all_distances.mean(),
         color="red",
         linestyle="--",
         linewidth=2,
-        label=f"Mean: {results_df['distance'].mean():.4f}",
+        label=f"Mean: {all_distances.mean():.4f}",
     )
     plt.legend()
     plt.tight_layout()

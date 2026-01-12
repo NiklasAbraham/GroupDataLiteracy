@@ -347,7 +347,15 @@ def main(
 
         if random_distances_list and "distance" in results_df.columns:
             all_random_distances = np.concatenate(random_distances_list)
+            # Use ALL movies in epsilon ball for KS test (not limited)
             anchor_distances = results_df["distance"].values
+
+            logger.info(
+                f"Using {len(anchor_distances)} movies from epsilon ball for distance K-S test"
+            )
+            logger.info(
+                f"Using {len(all_random_distances)} movies from control group for distance K-S test"
+            )
 
             try:
                 ks_stat_dist, p_value_dist = kolmogorov_smirnov_test(
@@ -384,6 +392,7 @@ def main(
                 logger.warning(f"Could not perform distance K-S test: {e}")
 
         if random_results_df is not None and not random_results_df.empty:
+            # Use ALL movies in epsilon ball for temporal analysis (not limited)
             anchor_df_with_year = results_df[results_df["year"].notna()].copy()
             anchor_df_with_year["year"] = anchor_df_with_year["year"].astype(int)
             anchor_year_counts = anchor_df_with_year["year"].value_counts().sort_index()
@@ -393,6 +402,13 @@ def main(
             ].copy()
             random_df_with_year["year"] = random_df_with_year["year"].astype(int)
             random_year_counts = random_df_with_year["year"].value_counts().sort_index()
+
+            logger.info(
+                f"Using {len(anchor_df_with_year)} movies from epsilon ball for temporal K-S test"
+            )
+            logger.info(
+                f"Using {len(random_df_with_year)} movies from control group for temporal K-S test"
+            )
 
             all_years = sorted(
                 set(anchor_year_counts.index) | set(random_year_counts.index)
@@ -454,6 +470,9 @@ def main(
         )
 
     if plot_over_time and not results_df.empty:
+        logger.info(
+            f"Plotting movies over time using ALL {len(results_df)} movies from epsilon ball"
+        )
         output_path = None
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
@@ -463,6 +482,7 @@ def main(
                 output_dir,
                 f"epsilon_ball_over_time_{anchor_names_str}_eps{epsilon:.2f}.png",
             )
+        # Use ALL movies in epsilon ball (not limited)
         plot_movies_over_time(
             results_df,
             output_path=output_path,
@@ -471,6 +491,9 @@ def main(
         )
 
     if plot_distance_dist and not results_df.empty:
+        logger.info(
+            f"Plotting distance distribution using ALL {len(results_df)} movies from epsilon ball"
+        )
         output_path = None
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
@@ -480,6 +503,7 @@ def main(
                 output_dir,
                 f"epsilon_ball_distance_dist_{anchor_names_str}_eps{epsilon:.2f}.png",
             )
+        # Use ALL movies in epsilon ball (not limited)
         plot_distance_distribution(
             results_df,
             output_path=output_path,
@@ -514,22 +538,21 @@ if __name__ == "__main__":
 
     results = main(
         anchor_qids=[
-            "Q221384",
-            "Q183066",
-            "Q152531",
-            "Q16970789",
-            "Q3258993",
-            "Q19865453",
-            "Q632328",
-            "Q848785",
-            "Q578312",
-            "Q1394447",
-            "Q17093105",
-            "Q20751325",
-            "Q63927168",
-            "Q21463782",
+            "Q18602670",
+            "Q212145",
+            "Q207916",
+            "Q151904",
+            "Q591272",
+            "Q19089",
+            "Q181540",
+            "Q107914",
+            "Q320423",
+            "Q332368",
+            "Q21534241",
+            "Q30931",
+            "Q106440",
         ],
-        epsilon=0.26,
+        epsilon=0.32,
         start_year=1930,
         end_year=2024,
         anchor_method="average",  # or "medoid"
