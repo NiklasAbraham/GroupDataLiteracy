@@ -49,7 +49,26 @@ logger.info(f"Data directory: {DATA_DIR}")
 logger.info(f"Year range: {START_YEAR} to {END_YEAR}")
 
 
-def main():
+def main(
+    use_qids=False,
+    qids_list=None,
+    keywords_list=None,
+    exclude_qids=None,
+    n_random_movies=5000,
+):
+    """
+    Calculate average cosine distance for keyword groups or QID groups vs random movies.
+
+    Parameters:
+    - use_qids: If True, use QIDs directly from qids_list. If False, use keywords from keywords_list.
+    - qids_list: List of lists of QIDs to analyze (used when use_qids=True).
+                 Each inner list represents a group of QIDs.
+    - keywords_list: List of lists of keywords to analyze (used when use_qids=False).
+                     Each inner list represents a keyword group.
+    - exclude_qids: List of lists of QIDs to exclude (one list per group).
+                    Only used when use_qids=False.
+    - n_random_movies: Number of random movies to compare against. Default is 5000.
+    """
     # Load all embeddings and corresponding movie IDs
     logger.info("Loading embeddings...")
     all_embeddings, all_movie_ids = load_final_dense_embeddings(DATA_DIR, verbose=False)
@@ -93,69 +112,109 @@ def main():
     # Create mapping from movie_id to index in all_movie_ids
     movie_id_to_index = {mid: idx for idx, mid in enumerate(all_movie_ids)}
 
-    # Define keywords to analyze
-    keywords_list = [
-        ["Star Wars"],
-        ["Furious"],
-        ["Harry Potter"],
-        ["Jurassic Park"],
-        ["Iron Man"],
-    ]
+    # Set default values if not provided
+    if use_qids:
+        if qids_list is None:
+            raise ValueError("qids_list must be provided when use_qids=True")
+        groups_list = qids_list
+        exclude_qids = (
+            exclude_qids if exclude_qids is not None else [[]] * len(qids_list)
+        )
+    else:
+        if keywords_list is None:
+            # Default keywords if not provided
+            keywords_list = [
+                ["Star Wars"],
+                ["Furious"],
+                ["Harry Potter"],
+                ["Jurassic Park"],
+                ["Iron Man"],
+            ]
+        groups_list = keywords_list
+        if exclude_qids is None:
+            # Default exclude_qids if not provided
+            exclude_qids = [
+                [
+                    "Q1931001",
+                    "Q101863729",
+                    "Q7428298",
+                    "Q7601132",
+                    "Q108730566",
+                    "Q1538082",
+                ],
+                ["Q5509553", "Q1891656"],
+                [],
+                [],
+                ["Q1758603", "Qi3820040"],
+            ]
 
-    # QIDs to exclude from keyword searches (one list per keyword)
-    # Each inner list corresponds to the keyword at the same index in keywords_list
-    exclude_qids = [
-        [
-            "Q1931001",
-            "Q101863729",
-            "Q7428298",
-            "Q7601132",
-            "Q108730566",
-            "Q1538082",
-        ],  # Exclude QIDs for 'Star Wars'
-        ["Q5509553", "Q1891656"],  # Exclude QIDs for 'Furious'
-        [],  # Exclude QIDs for 'Harry Potter'
-        [],  # Exclude QIDs for 'Jurassic Park'
-        ["Q1758603", "Qi3820040"],  # Exclude QIDs for 'Iron Man'
-    ]
-
-    # Number of random movies to compare against
-    n_random_movies = 5000
+    # Ensure exclude_qids has the same length as groups_list
+    if len(exclude_qids) < len(groups_list):
+        exclude_qids.extend([[]] * (len(groups_list) - len(exclude_qids)))
 
     # Store results for plotting
     results = {"keywords": [], "within_group_distance": [], "vs_random_distance": []}
 
-    # Process each keyword group
-    for idx, keywords in enumerate(keywords_list):
-        keyword_str = " ".join(keywords)
-        logger.info(f"{'=' * 60}")
-        logger.info(f"Processing keyword: {keyword_str}")
-        logger.info(f"{'=' * 60}")
+    # Process each group
+    for idx, group in enumerate(groups_list):
+        if use_qids:
+            # When using QIDs directly
+            group_label = (
+                f"QIDs: {', '.join(group[:3])}{'...' if len(group) > 3 else ''}"
+            )
+            logger.info(f"{'=' * 60}")
+            logger.info(f"Processing QID group: {group_label}")
+            logger.info(f"{'=' * 60}")
 
-        # Search for matching movies
-        matching_qids = search_movies_by_keywords(
-            movie_data,
-            keywords=keywords,
-            search_columns=["title"],
-            case_sensitive=False,
-        )
+            # Use QIDs directly
+            matching_qids = list(group)
 
-        # Apply exclusion filter for this specific keyword
-        keyword_exclude_qids = exclude_qids[idx] if idx < len(exclude_qids) else []
-        if keyword_exclude_qids:
-            initial_count = len(matching_qids)
-            matching_qids = [
-                qid for qid in matching_qids if qid not in keyword_exclude_qids
-            ]
-            logger.info(
-                f"After excluding {len(keyword_exclude_qids)} QIDs, {len(matching_qids)} movies remain (from {initial_count})"
+            # Apply exclusion filter if any
+            keyword_exclude_qids = exclude_qids[idx] if idx < len(exclude_qids) else []
+            if keyword_exclude_qids:
+                initial_count = len(matching_qids)
+                matching_qids = [
+                    qid for qid in matching_qids if qid not in keyword_exclude_qids
+                ]
+                logger.info(
+                    f"After excluding {len(keyword_exclude_qids)} QIDs, {len(matching_qids)} movies remain (from {initial_count})"
+                )
+
+            logger.info(f"Using {len(matching_qids)} QIDs: {group}")
+        else:
+            # When using keywords
+            keyword_str = " ".join(group)
+            logger.info(f"{'=' * 60}")
+            logger.info(f"Processing keyword: {keyword_str}")
+            logger.info(f"{'=' * 60}")
+
+            # Search for matching movies
+            matching_qids = search_movies_by_keywords(
+                movie_data,
+                keywords=group,
+                search_columns=["title"],
+                case_sensitive=False,
             )
 
-        logger.info(f"Found {len(matching_qids)} movies matching keywords: {keywords}")
+            # Apply exclusion filter for this specific keyword
+            keyword_exclude_qids = exclude_qids[idx] if idx < len(exclude_qids) else []
+            if keyword_exclude_qids:
+                initial_count = len(matching_qids)
+                matching_qids = [
+                    qid for qid in matching_qids if qid not in keyword_exclude_qids
+                ]
+                logger.info(
+                    f"After excluding {len(keyword_exclude_qids)} QIDs, {len(matching_qids)} movies remain (from {initial_count})"
+                )
+
+            logger.info(f"Found {len(matching_qids)} movies matching keywords: {group}")
 
         # Print list of movie titles and QIDs
         if len(matching_qids) > 0:
-            logger.info(f"\nMovies found for '{keyword_str}':")
+            if use_qids:
+                logger.info("\nMovies for QID group:")
+            else:
+                logger.info(f"\nMovies found for '{keyword_str}':")
             matching_movies_info = movie_data[
                 movie_data["movie_id"].isin(matching_qids)
             ][["movie_id", "title"]].copy()
@@ -165,7 +224,10 @@ def main():
             logger.info("")  # Empty line for readability
 
         if len(matching_qids) == 0:
-            logger.warning(f"No movies found for keywords {keywords}, skipping...")
+            if use_qids:
+                logger.warning(f"No movies found for QIDs {group}, skipping...")
+            else:
+                logger.warning(f"No movies found for keywords {group}, skipping...")
             continue
 
         # Get embeddings for matching movies
@@ -212,7 +274,7 @@ def main():
         )
         random_embeddings = all_embeddings[random_indices]
 
-        # Calculate average distance between keyword group and random movies
+        # Calculate average distance between group and random movies
         vs_random_distance = calculate_average_cosine_distance_between_groups(
             matching_embeddings, random_embeddings
         )
@@ -221,7 +283,15 @@ def main():
         )
 
         # Store results
-        results["keywords"].append(keyword_str)
+        if use_qids:
+            # Create label from QIDs (show first few)
+            group_label = (
+                f"QIDs: {', '.join(group[:3])}{'...' if len(group) > 3 else ''}"
+            )
+            results["keywords"].append(group_label)
+        else:
+            keyword_str = " ".join(group)
+            results["keywords"].append(keyword_str)
         results["within_group_distance"].append(within_distance)
         results["vs_random_distance"].append(vs_random_distance)
 
@@ -330,10 +400,19 @@ def main():
     add_value_labels(bars2)
 
     # Customize plot
-    ax.set_xlabel("Keyword Groups", fontsize=12, fontweight="bold")
+    if use_qids:
+        xlabel = "QID Groups"
+        title = "Average Cosine Distance: Within QID Groups vs Random Movies\n(Latent Embedding Space)"
+        filename = "qid_group_vs_average_distance.png"
+    else:
+        xlabel = "Keyword Groups"
+        title = "Average Cosine Distance: Within Keyword Groups vs Random Movies\n(Latent Embedding Space)"
+        filename = "keyword_group_vs_average_distance.png"
+
+    ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
     ax.set_ylabel("Average Cosine Distance", fontsize=12, fontweight="bold")
     ax.set_title(
-        "Average Cosine Distance: Within Keyword Groups vs Random Movies\n(Latent Embedding Space)",
+        title,
         fontsize=14,
         fontweight="bold",
         pad=20,
@@ -349,7 +428,7 @@ def main():
     # Save plot
     output_dir = os.path.join(BASE_DIR, "src", "analysis")
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, "keyword_group_vs_average_distance.png")
+    output_path = os.path.join(output_dir, filename)
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     logger.info(f"Plot saved to: {output_path}")
 
@@ -375,4 +454,25 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Use QIDs directly
+    qids_list = [
+        [
+            "Q18602670",
+            "Q212145",
+            "Q207916",
+            "Q151904",
+            "Q591272",
+            "Q19089",
+            "Q181540",
+            "Q107914",
+            "Q320423",
+            "Q332368",
+            "Q21534241",
+            "Q30931",
+            "Q106440",
+        ]
+    ]
+    main(use_qids=True, qids_list=qids_list)
+
+    # To use keywords instead, comment the above and uncomment below:
+    # main()

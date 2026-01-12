@@ -33,6 +33,26 @@ def load_embeddings_as_dict(data_dir: str, start_year: int = 1930, end_year: int
     return embeddings_dict
 
 
+def load_movie_data(
+    data_dir: str,
+    verbose: bool = False
+) -> pd.DataFrame:
+    """
+    Load movie data from final_dataset.csv in the specified data directory.
+    
+    This is a convenience wrapper that loads the final dataset CSV from a data directory.
+    
+    Parameters:
+    - data_dir: directory containing final_dataset.csv
+    - verbose: whether to print statistics, default = False
+    
+    Returns:
+    - DataFrame with all movie data
+    """
+    csv_path = os.path.join(data_dir, "final_dataset.csv")
+    return load_final_dataset(csv_path, verbose=verbose)
+
+
 def load_final_dataset(
     csv_path: str = "/home/nab/Niklas/GroupDataLiteracy/data/data_final/final_dataset.csv",
     verbose: bool = False

@@ -81,10 +81,7 @@ async def filter_non_movies(df: pd.DataFrame, wrong_classes_save_path: str = WRO
         with open(wrong_classes_save_path, 'r') as f:
             wrong_classes = set(json.load(f))
     else:
-        if new_event_loop:
-            wrong_classes = asyncio.run(get_wikidata_subclasses(WRONG_WIKIDATA_CLASSES))
-        else:
-            wrong_classes = await get_wikidata_subclasses(WRONG_WIKIDATA_CLASSES)
+        wrong_classes = await get_wikidata_subclasses(WRONG_WIKIDATA_CLASSES)
 
         os.makedirs(os.path.dirname(wrong_classes_save_path), exist_ok=True)
         with open(wrong_classes_save_path, 'w') as f:
