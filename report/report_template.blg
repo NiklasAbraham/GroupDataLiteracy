@@ -4,45 +4,45 @@ The top-level auxiliary file: report_template.aux
 The style file: icml2025.bst
 Database file #1: bibliography.bib
 Warning--empty journal in douze2024faiss
-You've used 15 entries,
+You've used 16 entries,
             2773 wiz_defined-function locations,
-            694 strings with 8343 characters,
-and the built_in function-call counts, 7734 in all, are:
-= -- 658
-> -- 576
+            700 strings with 8559 characters,
+and the built_in function-call counts, 8246 in all, are:
+= -- 698
+> -- 624
 < -- 10
-+ -- 195
-- -- 179
-* -- 659
-:= -- 1222
-add.period$ -- 56
-call.type$ -- 15
-change.case$ -- 103
-chr.to.int$ -- 14
-cite$ -- 31
-duplicate$ -- 302
-empty$ -- 545
-format.name$ -- 196
-if$ -- 1594
++ -- 211
+- -- 194
+* -- 705
+:= -- 1303
+add.period$ -- 59
+call.type$ -- 16
+change.case$ -- 111
+chr.to.int$ -- 15
+cite$ -- 33
+duplicate$ -- 318
+empty$ -- 578
+format.name$ -- 212
+if$ -- 1698
 int.to.chr$ -- 2
 int.to.str$ -- 1
 missing$ -- 9
-newline$ -- 93
-num.names$ -- 64
-pop$ -- 216
+newline$ -- 98
+num.names$ -- 68
+pop$ -- 235
 preamble$ -- 1
-purify$ -- 88
+purify$ -- 95
 quote$ -- 0
-skip$ -- 266
+skip$ -- 284
 stack$ -- 0
-substring$ -- 152
-swap$ -- 43
+substring$ -- 154
+swap$ -- 44
 text.length$ -- 4
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 165
+type$ -- 176
 warning$ -- 1
-while$ -- 57
+while$ -- 60
 width$ -- 0
-write$ -- 217
+write$ -- 229
 (There was 1 warning)

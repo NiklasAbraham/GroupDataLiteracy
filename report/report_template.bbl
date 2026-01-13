@@ -1,4 +1,4 @@
-\begin{thebibliography}{15}
+\begin{thebibliography}{16}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -20,6 +20,11 @@ Devlin, J., Chang, M., Lee, K., and Toutanova, K.
 Devroye, L., Mehrabian, A., and Reddad, T.
 \newblock The total variation distance between high-dimensional {Gaussians} with the same mean.
 \newblock \emph{arXiv preprint arXiv:1810.08693}, 2018.
+
+\bibitem[Di~Marco et~al.(2025)Di~Marco, Loru, Galeazzi, Cinelli, and Quattrociocchi]{DiMarco2025}
+Di~Marco, N., Loru, E., Galeazzi, A., Cinelli, M., and Quattrociocchi, W.
+\newblock Decoding musical evolution through network science, 2025.
+\newblock URL \url{https://arxiv.org/abs/2501.07557}.
 
 \bibitem[Douze et~al.(2024)Douze, Guzhva, Deng, Johnson, Szilvasy, Mazaré, Lomeli, Hosseini, and Jégou]{douze2024faiss}
 Douze, M., Guzhva, A., Deng, C., Johnson, J., Szilvasy, G., Mazaré, P.-E., Lomeli, M., Hosseini, L., and Jégou, H.

@@ -149,9 +149,13 @@ We address these questions by constructing a unified semantic space from a large
 
 \section{Related Work}\label{sec:related_work}
 
-There have been several notable works in the area of movie plot analysis using natural language processing. \cite{sreenivasan2013quantitative} makes use of SBert to create text embeddings for their movie dataset, which was also curated from Wikipedia and IMDB. They devised a "Innovation Score" which was mean cosine distance. This paper's interesting results include Awarded movies having higher IS, and that IS over time is somewhat related (28\% explained variance) to negative quadratic relationship which could be explained by how the movie space has reached saturation of ideas and any more new movie ideas would probably be similar to another movie which came out before.
+There have been several notable works in the area of movie plot analysis using natural language processing. \cite{sreenivasan2013quantitative} makes use of SBert to create text embeddings for their movie dataset, which was also curated from Wikipedia and IMDB. They devised a "Innovation Score" which was mean cosine distance.
 
-\cite{dubourg2023cinema} is another relevant paper which uses crowdsourced keywords from the IMDB as a window into the contents of films and prescribe novelty scores for each film based on occurrence probabilities of individual keywords and keyword pairs. They devised a method to assign a novelty score to each film on the basis of the keywords associated with it and the keywords appearing in all films that were released prior to it. The results show that there was a surge in novel movies about the time when Hollywood went into the golden age. They also explored how novelty affected film revenue.
+\cite{dubourg2023cinema} is another relevant paper which uses crowdsourced keywords from the IMDB as a window into the contents of films and prescribe novelty scores for each film based on occurrence probabilities of individual keywords and keyword pairs. They devised a method to assign a novelty score to each film on the basis of the keywords associated with it and the keywords appearing in all films that were released prior to it.
+
+Our use of word embeddings to represent narrative content draws significant inspiration from the work of \cite{xu2020cinderella}. In their study of the "Cinderella Complex" the authors demonstrated that high-dimensional vector spaces can capture latent social biases and emotional dependencies within movie synopses.
+
+\cite{DiMarco2025} investigated the evolution of musical styles over time using network science techniques. Although on a different dataset and domain, their approach also focuses on observing changes to structural properties over time, such as convergence or simplification of music in the later years.
 
 However little to none of the papers analyzes text embeddings from LLMs in a temporal manner.
 
@@ -432,17 +436,6 @@ The combination of all 3 metrics gives us a holistic view of how the spread of m
 \end{table*}
 
 Table \ref{tab:film_rankings} We look at the top 5 and bottom 5 US and Germany movies aligned with the first PC, where we chose arbitrary years. In 1952, the 2 polarizing ends seems to be about action western vs drama comedy, in 2003 it changed to be about horror/documentaries vs romance and drama, and finally in 2024, it was clear that one end was heavily about horror and thriller while the other end was about documentary/biography.
-
-\section{Literature and Methods Review}
-
-\subsection{Semantic Representation and Cultural Patterns}
-Our use of word embeddings to represent narrative content draws significant inspiration from the work of \textit{Xu et al. (2019)}. In their study of the "Cinderella Complex" the authors demonstrated that high-dimensional vector spaces can capture latent social biases and emotional dependencies within movie synopses. While \textit{Xu et al.} focused on the internal dynamics of characters and gender stereotypes, our research shifts the lens toward the \textbf{inter-textual relationships} between films. By embedding Wikipedia plots, we treat the narrative as a holistic semantic unit, allowing us to map the entire "cinematic universe" into a geometric space where thematic similarity is measured by vector proximity.
-
-\subsection{Quantifying Novelty and Innovation}
-To define and measure "novelty" we adopt the theoretical framework proposed by \textit{Sreenivasan (2013)}, who defines cultural innovation as the emergence of atypical combinations of elements. However, our methodology diverges from Sreenivasan's reliance on keyword frequencies and probabilistic modeling. Instead, we utilize \textbf{Geometric Distance Analysis}. In our model, novelty is operationalized as the distance of a movie vector from its $k$-nearest neighbors in the embedding space. This allows for a more nuanced detection of innovation: a film is considered "novel" if its semantic coordinates lie in a sparse region of the vector space, indicating a narrative structure that is mathematically distant from established conventions.
-
-\subsection{Diachronic Evolution and Genre Trajectories}
-The temporal dimension of our analysis is informed by the diachronic architectures discussed by \textit{Hamilton et al. (2016)}. Their research into how word meanings shift over time provides a blueprint for our analysis of genre evolution. By calculating the \textbf{centroid} of specific genres across different decades, we track their ``semantic drift.'' This approach allows us to test hypotheses regarding cultural homogenization versus diversification, a concept explored in the musical domain by \textit{Di Marco et al. (2025)}. While \textit{Di Marco et al.} utilized network science to observe the simplification of musical structures, we apply these concepts to text, observing whether movie genres are converging toward a standard ``formula'' or expanding into new, unexplored territories of the embedding world.
 
 \section{Discussion \& Conclusion}\label{sec:conclusion}
 
