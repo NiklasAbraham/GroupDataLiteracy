@@ -1,4 +1,4 @@
-\begin{thebibliography}{16}
+\begin{thebibliography}{15}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -47,12 +47,6 @@ Gong, L., He, D., Li, Z., Qin, T., Wang, L., and Liu, T.
 Massey, F.~J.
 \newblock The kolmogorov--smirnov test for goodness of fit.
 \newblock \emph{Journal of the American Statistical Association}, 46\penalty0 (253):\penalty0 68--78, 1951.
-
-\bibitem[Matthews \& Glitre(2021)Matthews and Glitre]{matthews2021genre}
-Matthews, P. and Glitre, K.
-\newblock Genre analysis of movies using a topic model of plot summaries.
-\newblock \emph{Journal of the Association for Information Science and Technology}, 72\penalty0 (12):\penalty0 1511--1527, 2021.
-\newblock \doi{10.1002/asi.24525}.
 
 \bibitem[Raffel et~al.(2023)Raffel, Shazeer, Roberts, Lee, Narang, Matena, Zhou, Li, and Liu]{raffel2023exploringlimitstransferlearning}
 Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou, Y., Li, W., and Liu, P.~J.

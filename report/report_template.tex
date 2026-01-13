@@ -75,7 +75,7 @@
 
 \twocolumn[
 % \icmltitle{The Geometry of Cinema: Quantifying 75 Years of Cultural Drift}
-\icmltitle{Data Literacy 2025 Project Report}
+\icmltitle{Plot Twists Over Time: Quantifying How Movie Stories Have Changed over 95 Years}
 
 % It is OKAY to include author information, even for blind
 % submissions: the style file will automatically remove it for you
@@ -141,11 +141,7 @@ Cultural narratives encode and transmit evolving societal values, yet quantifyin
 
 \section{Introduction}\label{sec:intro}
 
-Cinema provides a rich archive of narrative structures that encode evolving societal values across generations. Stories serve not only to entertain but to instruct, and those narratives that align with existing social values are more likely to survive and propagate through collective memory. Recent computational work has revealed hidden cultural patterns in large narrative corpora. \cite{xu2020cinderella} used word embeddings to uncover systematic gender stereotypes in movie synopses, revealing the "Cinderella complex" where female characters' happiness depends asymmetrically on male characters. \cite{matthews2021genre} applied topic modeling to investigate genre structure and temporal evolution, demonstrating that lexical features capture meaningful genre conventions and showing how genres shift in composition over time. These studies establish that quantitative methods can illuminate cultural phenomena at scales beyond traditional close reading, revealing patterns that operate across thousands of narratives.
-
-However, measuring semantic change in cultural narratives over extended historical periods remains methodologically challenging. Previous approaches have examined genre structure at specific moments or through discrete topic models that capture lexical shifts but not the continuous geometric evolution of semantic categories. Can we characterize not merely that genres change, but how they change whether through gradual drift, sudden discontinuities, or cyclical patterns? Furthermore, while linguistic corpora have been analyzed for semantic drift using diachronic word embeddings, these methods require temporal alignment procedures that introduce potential artifacts when comparing meanings across decades.
-
-We address these questions by constructing a unified semantic space from a large corpus of film plot summaries spanning multiple decades. By embedding all narratives into a single static vector space, we eliminate temporal alignment requirements while preserving fine grained semantic relationships. Within this space, we represent genres and thematic clusters as centroids and track their trajectories over time. By computing geometric properties of these trajectories including velocity, acceleration, and curvature we can distinguish periods of continuous semantic evolution from moments of structural reorganization where genres undergo fundamental conceptual shifts. This geometric analysis reveals not just that meanings change, but the dynamics of how they change, providing quantitative measures of cultural evolution.
+Cinema provides a rich archive of narrative structures that encode evolving societal values across generations. Recent computational work has revealed hidden cultural patterns in large narrative corpora. Previous approaches measuring semantic change in cultural narratives over extended historical periods remains methodologically challenging, focusing on genre structure at specific moments or through discrete topic models that capture lexical shifts but not the continuous geometric evolution of semantic categories. We address these temporal analysis by constructing a unified semantic space from a large corpus of film plot summaries spanning multiple decades. By computing geometric properties of these trajectories, spread and novelty, we can distinguish periods of continuous semantic evolution from moments of structural reorganization where genres undergo fundamental conceptual shifts. This geometric analysis reveals not just that meanings change, but the dynamics of how they change, providing quantitative measures of cultural evolution via movie text plots. 
 
 \section{Related Work}\label{sec:related_work}
 
