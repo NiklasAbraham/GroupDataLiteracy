@@ -2,6 +2,14 @@
 
 Group 3 project for ML4102 Data Literacy at the University of Tübingen.
 
+## Authors
+
+- **Ansel Cheung** (Matrikelnummer 7274374, MSc Machine Learning) - ansel-heng-yu.cheung@uni-tuebingen.de
+- **Alessio Villa** (Matrikelnummer 7306912, MSc Computer Science) - alessio.villa@student.uni-tuebingen.de
+- **Bartol Markovinović** (Matrikelnummer 7324790, MSc Machine Learning) - bartol.markovinovic@student.uni-tuebingen.de
+- **Martín López de Ipiña** (Matrikelnummer 7293076, MSc Machine Learning) - martin.lopez-de-ipina-munoz@student.uni-tuebingen.de
+- **Niklas Abraham** (Matrikelnummer 7307188, MSc Machine Learning) - niklas-sebastian.abraham@student.uni-tuebingen.de
+
 ## Abstract
 
 We analyze semantic evolution in cinema by embedding movie plot summaries from 1930 to 2024 into a unified semantic space. Using distance distributions, novelty scores, and statistical tests, we quantify how genres and thematic clusters shift over time. Our analysis reveals periods of semantic stability and reorganization, providing quantitative measures of cultural change in narrative structures across nearly a century of cinema.
