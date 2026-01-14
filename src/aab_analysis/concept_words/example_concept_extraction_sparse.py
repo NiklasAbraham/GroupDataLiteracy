@@ -6,19 +6,27 @@ This shows the easy-to-use API for extracting concepts from text.
 
 import sys
 from pathlib import Path
+
+import numpy as np
 import spacy
 from transformers import AutoTokenizer
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SRC_DIR = BASE_DIR / 'src'
-sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(BASE_DIR))
 
-from src.utils.data_utils import load_final_dataset
-from embedding.embedding import EmbeddingService
-from concept_words.concept_extraction_sparse import extract_concepts_from_embedding_results
-from concept_words.concept_extraction_dense import extract_dense_embedding_from_results
-from concept_words.concept_space import ConceptSpace, get_concept_space_filenames, DEFAULT_CONCEPT_DIR
-import numpy as np
+from src.aab_analysis.concept_words.concept_extraction_dense import (  # noqa: E402
+    extract_dense_embedding_from_results,
+)
+from src.aab_analysis.concept_words.concept_extraction_sparse import (  # noqa: E402
+    extract_concepts_from_embedding_results,
+)
+from src.aab_analysis.concept_words.concept_space import (  # noqa: E402
+    DEFAULT_CONCEPT_DIR,
+    ConceptSpace,
+    get_concept_space_filenames,
+)
+from src.aaa_data_pipline.embedding.embedding import EmbeddingService  # noqa: E402
+from src.utils.data_utils import load_final_dataset  # noqa: E402
 
 # Configuration
 DATA_DIR = str(BASE_DIR / "data" / "data_final")

@@ -6,32 +6,33 @@ from data_utils, and creates UMAP visualizations colored by year and genre.
 """
 
 import os
+import sys
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import umap
-import matplotlib.pyplot as plt
 import seaborn as sns
-from pathlib import Path
-import sys
-from sklearn.manifold import TSNE
+import umap
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 # Set up paths - navigate from src/analysis to data directory
 try:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 except NameError:
     # Fallback for notebooks - go up two directories from current working directory
-    BASE_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..'))
+    BASE_DIR = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
 
-# Add project root and src directory to path for imports
-SRC_DIR = os.path.join(BASE_DIR, 'src')
+# Add project root to path for imports
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
-if SRC_DIR not in sys.path:
-    sys.path.insert(0, SRC_DIR)
 
 # Import functions from data_utils
-from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings
+from src.utils.data_utils import (  # noqa: E402
+    load_final_dataset,
+    load_final_dense_embeddings,
+)
 
 DATA_DIR = os.path.join(BASE_DIR, 'data', 'data_final')
 CSV_PATH = os.path.join(BASE_DIR, 'data', 'data_final', 'final_dataset.csv')

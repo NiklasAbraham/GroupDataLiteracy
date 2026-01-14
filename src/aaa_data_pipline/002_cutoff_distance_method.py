@@ -1,13 +1,20 @@
-from ..utils.data_utils import load_embeddings_as_dict
 import os
+import sys
+from pathlib import Path
 import pandas as pd
 from scipy.spatial.distance import cosine
 import numpy as np
 from tqdm.auto import tqdm
 from matplotlib import pyplot as plt
 
-DATA_DIR = '../../all_data_run_2511/data'
-CLEAN_DATA_PATH = os.path.join(DATA_DIR, 'cleaned_movie_data.csv')
+# Get project root
+BASE_DIR = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(BASE_DIR))
+
+from src.utils.data_utils import load_embeddings_as_dict
+
+DATA_DIR = os.path.join(BASE_DIR, "data", "data_final")
+CLEAN_DATA_PATH = os.path.join(DATA_DIR, "final_dataset.csv")
 BUCKET_SIZE_PERCENTILE = 1.0
 
 def calculate_distance_to_centroid(

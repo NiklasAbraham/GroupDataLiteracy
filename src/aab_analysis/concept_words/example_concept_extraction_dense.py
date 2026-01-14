@@ -8,16 +8,15 @@ import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SRC_DIR = BASE_DIR / 'src'
-sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(BASE_DIR))
 
-from src.utils.data_utils import load_final_dataset
-from embedding.embedding import EmbeddingService
-from concept_words.concept_extraction_dense import (
+from src.aab_analysis.concept_words.concept_extraction_dense import (  # noqa: E402
     extract_concepts_from_dense_embedding,
-    extract_dense_embedding_from_results
+    extract_dense_embedding_from_results,
 )
-from concept_words.concept_space import get_concept_space_filenames
+from src.aab_analysis.concept_words.concept_space import get_concept_space_filenames  # noqa: E402
+from src.aaa_data_pipline.embedding.embedding import EmbeddingService  # noqa: E402
+from src.utils.data_utils import load_final_dataset  # noqa: E402
 
 # Configuration
 DATA_DIR = str(BASE_DIR / "data" / "data_final")  # Movie data location
@@ -78,7 +77,7 @@ def main():
     print(f"  Words: {concept_words_path}")
     print(f"  Vectors: {CONCEPT_DIR / vecs_filename}")
     if concept_words_path.exists():
-        from concept_words.concept_space import ConceptSpace
+        from src.aab_analysis.concept_words.concept_space import ConceptSpace
         concept_space = ConceptSpace(concept_words_path, CONCEPT_DIR / vecs_filename, MODEL_NAME)
         print(f"  Loaded {len(concept_space.concept_words)} concepts")
         print(f"  Sample concepts: {', '.join(concept_space.concept_words[:10])}")

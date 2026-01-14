@@ -7,24 +7,24 @@ the PCA space for interpretation.
 """
 
 import sys
+import warnings
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-from typing import Optional, List, Tuple, Dict
-import warnings
 
-# Add src to path for imports
+# Add project root to path for imports
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SRC_DIR = BASE_DIR / 'src'
-sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(BASE_DIR))
 
-from concept_words.concept_space import (
-    ConceptSpace,
+from src.aab_analysis.concept_words.concept_space import (  # noqa: E402
     DEFAULT_CONCEPT_DIR,
     DEFAULT_CONCEPT_MODEL,
-    get_concept_space_filenames
+    ConceptSpace,
+    get_concept_space_filenames,
 )
 
 warnings.filterwarnings('ignore')

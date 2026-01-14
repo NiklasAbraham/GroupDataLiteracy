@@ -10,7 +10,7 @@ sys.path.insert(0, BASE_DIR)
 
 import numpy as np  # noqa: E402
 
-from src.analysis.math_functions import (  # noqa: E402
+from src.aab_analysis.math_functions import (  # noqa: E402
     find_most_dissimilar_movies,
 )
 from src.utils.data_utils import (  # noqa: E402

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Import functions from data_utils
 # Import cosine distance functions from math module
-from src.analysis.math_functions.cosine_distance_util import (
+from src.aab_analysis.math_functions.cosine_distance_util import (
     calculate_average_cosine_distance,
     calculate_average_cosine_distance_between_groups,
 )

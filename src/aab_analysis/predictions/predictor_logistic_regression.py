@@ -21,10 +21,13 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 # Add parent directories to path for imports
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SRC_DIR = BASE_DIR / "src"
-sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(BASE_DIR))
 
-from src.utils.data_utils import cluster_genres, load_movie_data, load_movie_embeddings
+from src.utils.data_utils import (  # noqa: E402
+    cluster_genres,
+    load_movie_data,
+    load_movie_embeddings,
+)
 
 
 def _normalize_genres(genres: np.ndarray) -> Tuple[List[List[str]], np.ndarray]:

@@ -20,21 +20,21 @@ SRC_DIR = os.path.join(BASE_DIR, "src")
 sys.path.insert(0, BASE_DIR)
 
 # Import functions from math_functions and data_utils
-from src.analysis.math_functions import (  # type: ignore  # noqa: E402
+from src.aab_analysis.math_functions import (  # type: ignore  # noqa: E402
     compute_anchor_embedding,
     find_movies_in_epsilon_ball,
     interpret_ks_test,
     kolmogorov_smirnov_test,
     kolmogorov_smirnov_test_temporal,
 )
-from src.analysis.utils.epsilon_ball_utils import (  # type: ignore  # noqa: E402
+from src.aab_analysis.utils.epsilon_ball_utils import (  # type: ignore  # noqa: E402
     compute_embeddings_hash,
     get_anchor_names_string,
     load_cached_mean_embedding,
     save_cached_mean_embedding,
     truncate_filename_component,
 )
-from src.analysis.visualizations.epsilon_ball_visualization import (  # type: ignore  # noqa: E402
+from src.aab_analysis.visualizations.epsilon_ball_visualization import (  # type: ignore  # noqa: E402
     plot_distance_distribution,
     plot_ks_test_cdf,
     plot_ks_test_temporal_cdf,

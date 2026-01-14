@@ -7,19 +7,20 @@ All chunking methods must inherit from this class and implement the embed() meth
 """
 
 import abc
-import numpy as np
-from typing import Optional, Dict
 import sys
 from pathlib import Path
+from typing import Dict, Optional
 
-# Add src to path for imports
-# chunk_base_class.py is in src/analysis/chunking/
-# So we go up 3 levels to get to src/
-SRC_DIR = Path(__file__).resolve().parent.parent.parent
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+import numpy as np
 
-from embedding.embedding import EmbeddingService
+# Add project root to path for imports
+# chunk_base_class.py is in src/aab_analysis/chunking/
+# So we go up 4 levels to get to project root
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from src.aaa_data_pipline.embedding.embedding import EmbeddingService  # noqa: E402
 
 
 class ChunkBase(abc.ABC):

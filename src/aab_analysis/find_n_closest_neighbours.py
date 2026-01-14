@@ -20,7 +20,7 @@ sys.path.insert(0, BASE_DIR)
 
 # Import functions from data_utils
 # Path setup must occur before this import
-from src.analysis.math_functions import (
+from src.aab_analysis.math_functions import (
     find_n_closest_neighbours,  # type: ignore  # noqa: E402
 )
 from src.utils.data_utils import (  # type: ignore  # noqa: E402

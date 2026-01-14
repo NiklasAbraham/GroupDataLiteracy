@@ -25,7 +25,7 @@ sys.path.insert(0, BASE_DIR)
 
 # Import functions from data_utils
 # Path setup must occur before this import
-from src.analysis.math_functions import (  # type: ignore  # noqa: E402
+from src.aab_analysis.math_functions import (  # type: ignore  # noqa: E402
     compute_anchor_embedding,
 )
 from src.utils.data_utils import (  # type: ignore  # noqa: E402

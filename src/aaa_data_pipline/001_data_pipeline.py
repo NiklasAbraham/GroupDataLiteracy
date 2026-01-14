@@ -42,7 +42,7 @@ from embedding.util_embeddings import verify_embeddings, verify_gpu_setup  # noq
 
 # Import chunking classes
 try:
-    from analysis.chunking import ChunkFirstEmbed, CLSToken, LateChunking, MeanPooling
+    from src.aab_analysis.chunking import ChunkFirstEmbed, CLSToken, LateChunking, MeanPooling
 
     CHUNKING_AVAILABLE = True
 except ImportError:
@@ -62,7 +62,7 @@ if not CHUNKING_AVAILABLE:
 # Base directory paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-DATA_DIR = os.path.join(BASE_DIR, "data")
+DATA_DIR = os.path.join(BASE_DIR, "data", "data_final")
 
 # Global reference for cleanup
 _embedding_service_instance = None

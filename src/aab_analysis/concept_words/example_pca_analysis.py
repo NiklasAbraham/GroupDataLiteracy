@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(BASE_DIR / 'src'))
 
 from src.utils.data_utils import load_final_data_with_embeddings
-from concept_words.pca_analysis import run_pca_analysis
+from src.aab_analysis.concept_words.pca_analysis import run_pca_analysis
 
 
 def example_random_movies():

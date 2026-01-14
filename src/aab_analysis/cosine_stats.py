@@ -19,7 +19,7 @@ from scipy import stats
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src.analysis.math_functions.whitening import debias_embeddings
+from src.aab_analysis.math_functions.whitening import debias_embeddings
 from src.utils.data_utils import (
     load_final_dataset,
     load_final_dense_embeddings,

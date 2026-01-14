@@ -7,31 +7,29 @@ Orchestrates the embedding bias-variance experiment across all chunking methods.
 
 import os
 import sys
-import numpy as np
-import pandas as pd
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
-from datetime import datetime
+
+import numpy as np
+import pandas as pd
 import torch
 
 # Add parent directories to path for imports
-# manager.py is in src/analysis/chunking/
+# manager.py is in src/aab_analysis/chunking/
 # So we go up 4 levels to get to project root
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-SRC_DIR = BASE_DIR / 'src'
-sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(BASE_DIR))
 
-from src.utils.data_utils import load_final_dataset
-from analysis.chunking.chunk_base_class import ChunkBase
-from analysis.chunking import calculations
-from embedding.embedding import EmbeddingService
-from embedding.util_embeddings import verify_gpu_setup
-
-# Import all chunking methods
-from analysis.chunking.chunk_mean_pooling import MeanPooling
-from analysis.chunking.chunk_no_chunking_cls_token import CLSToken
-from analysis.chunking.chunk_first_then_embed import ChunkFirstEmbed
-from analysis.chunking.chunk_late_chunking import LateChunking
+from src.aab_analysis.chunking import calculations  # noqa: E402
+from src.aab_analysis.chunking.chunk_base_class import ChunkBase  # noqa: E402
+from src.aab_analysis.chunking.chunk_first_then_embed import ChunkFirstEmbed  # noqa: E402
+from src.aab_analysis.chunking.chunk_late_chunking import LateChunking  # noqa: E402
+from src.aab_analysis.chunking.chunk_mean_pooling import MeanPooling  # noqa: E402
+from src.aab_analysis.chunking.chunk_no_chunking_cls_token import CLSToken  # noqa: E402
+from src.aaa_data_pipline.embedding.embedding import EmbeddingService  # noqa: E402
+from src.aaa_data_pipline.embedding.util_embeddings import verify_gpu_setup  # noqa: E402
+from src.utils.data_utils import load_final_dataset  # noqa: E402
 
 # ============================================================================
 # Configuration Parameters

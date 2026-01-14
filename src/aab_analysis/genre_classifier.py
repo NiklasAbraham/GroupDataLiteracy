@@ -28,10 +28,13 @@ from tqdm import tqdm
 base_path = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(base_path))
 
-from src.api.wikipedia_handler import get_page_from_url
-from src.data_cleaning import clean_dataset
-
+from src.aaa_data_pipline.api.wikipedia_handler import get_page_from_url
 from src.utils.data_utils import load_movie_data, preprocess_genres
+
+# Import clean_dataset from data cleaning module (module name starts with number, use importlib)
+import importlib
+_cleaning_module = importlib.import_module("src.aaa_data_pipline.004_data_cleaning")
+clean_dataset = _cleaning_module.clean_dataset
 
 
 def extract_unique_genres(movie_df: pd.DataFrame) -> List[str]:

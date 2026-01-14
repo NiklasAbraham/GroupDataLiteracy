@@ -328,7 +328,7 @@ def main(
 
         # Apply transformation (whitening takes precedence over debias)
         if whiten:
-            from src.analysis.math_functions.whitening import whiten_embeddings
+            from src.aab_analysis.math_functions.whitening import whiten_embeddings
 
             logger.info(
                 f"Whitening embeddings (n_components={whiten_n_components}, normalize={whiten_normalize})..."
@@ -405,7 +405,7 @@ def main(
                 "(This may take a while - results will be cached for future use)"
             )
 
-            from src.analysis.math_functions.gaussian_analysis import (
+            from src.aab_analysis.math_functions.gaussian_analysis import (
                 analyze_gaussianity,
             )
 
@@ -425,7 +425,7 @@ def main(
         from scipy import stats
         from sklearn.decomposition import PCA
 
-        from src.analysis.math_functions.gaussian_analysis import (
+        from src.aab_analysis.math_functions.gaussian_analysis import (
             create_gaussianity_plots,
         )
 

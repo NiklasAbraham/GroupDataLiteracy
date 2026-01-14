@@ -20,7 +20,7 @@ base_path = Path(__file__).parent.parent.parent
 from api.wikidata_handler import get_wikidata_subclasses  # noqa: E402
 from src.utils.data_utils import load_movie_data, preprocess_genres  # noqa: E402
 
-DATA_DIR = os.path.join(base_path, "data")
+DATA_DIR = os.path.join(base_path, "data", "data_final")
 CLEAN_DATASET_SAVE_PATH = os.path.join(DATA_DIR, "final_dataset.csv")
 MAX_PLOT_LENGTH = 14000
 WRONG_CLASSES_SAVE_PATH = os.path.join(DATA_DIR, "wrong_wikidata_classes.json")
