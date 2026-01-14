@@ -14,6 +14,10 @@ Group 3 project for ML4102 Data Literacy at the University of Tübingen.
 
 We analyze semantic evolution in cinema by embedding movie plot summaries from 1930 to 2024 into a unified semantic space. Using distance distributions, novelty scores, and statistical tests, we quantify how genres and thematic clusters shift over time. Our analysis reveals periods of semantic stability and reorganization, providing quantitative measures of cultural change in narrative structures across nearly a century of cinema.
 
+## Lab Book
+
+After the lecture, we discussed whether or not to include a lab book, since we prepared weekly slides for each tutorial. Every week, we used these slides to plan and document our progress on the project. As a result, the slides serve as a record of all the steps we took including many intermediate ideas and experiments that did not end up in the final report and provide a broader picture of our workflow. Although the slides are somewhat informal and contain the occasional meme, we ultimately decided to include them. We believe they give a fuller view of the project process and also reflect the fun and humor we experienced working together.
+
 ## Project Workflow
 
 The project follows a clear data flow through the folder structure:
