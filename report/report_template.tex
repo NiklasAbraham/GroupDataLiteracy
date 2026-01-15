@@ -259,6 +259,27 @@ After the data was collected and cleaned, the first step was to embed the movie 
 
 Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus. Such distributions encode structural properties of the embedding space and reveal whether semantic relationships exhibit systematic patterns across temporal periods or thematic categories.
 
+As movie genres provide a meaningful taxonomy with potential temporal evolution patterns, we examine semantic drift across different time periods of an arbitrary number of years. To this end, embeddings are first grouped by genre $g$ into discrete time periods $\tau$, forming the set $\mathcal{M}_g^{(\tau)}$ of plot embeddings. For each group, two alternative representative embeddings are computed: the \textbf{centroid} (arithmetic mean) $\bar{\mathbf{e}}_g^{(\tau)}$ and the \textbf{medoid} (cosine distance minimizer embedding) $\tilde{\mathbf{e}}_g^{(\tau)}$. We computed the following metrics to analyse the drift dynamics across the groups:
+
+\textbf{Genre drift and acceleration: }drift (Equation \ref{eq:drift}) measures displacement between representative embeddings of consecutive periods, capturing how a genre's semantic center evolves over time. Acceleration quantifies the change in drift between consecutive periods.
+
+\begin{equation}
+    % === 3. Drift Velocity ===
+    \mathbf{d}_g^{(\tau)} = \bar{\mathbf{e}}_g^{(\tau + \Delta t)} - \bar{\mathbf{e}}_g^{(\tau)}
+    \label{eq:drift}
+\end{equation}
+\textbf{Inter genre distance: }determines cosine distance between representatives of each pair of genres for each year, enabling pairwise comparison between specific genres.
+
+Due to group size differences between time periods, two alternative normalization 
+approaches have been employed: (1) downsampling, ensuring equal sampling error 
+across groups, and (2) z-score normalization, which accounts for the standard 
+error of the difference between group means:
+\begin{equation}
+   \hat{v}_g^{(\tau)} = \frac{v_g^{(\tau)}}{\sigma_{\text{pooled}} \cdot \sqrt{\frac{1}{n_g^{(\tau)}} + \frac{1}{n_g^{(\tau + \Delta t)}}}}
+\end{equation}
+where $\sigma_{\text{pooled}}$ is the pooled within group standard deviation of cosine distances, and $n_g^{(\tau)}$ is the number of movies in genre $g$ at time $\tau$.
+
+
 \subsubsection{Kolmogorov-Smirnov test}
 
 To rigorously compare distance distributions across different subsets of movies, for instance films from different decades or belonging to distinct genres or distinct epsilon balls around anchor movies, we employ the Kolmogorov-Smirnov test \cite{massey1951}, a non parametric statistical method for assessing whether two empirical distributions arise from the same underlying continuous distribution.
@@ -268,9 +289,6 @@ A key design choice in applying this framework is the selection of a reference p
 In the context of temporal semantic analysis, the KS test enables systematic comparison of distance distributions across decades. By computing distances from fixed reference points (such as mean embeddings of genre clusters) to movies from different decades, we can assess whether the spatial organization of semantic representations evolves over time. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar.
 
 To operationalize this framework, we construct epsilon balls around selected anchor movies by collecting all movies within a specified cosine distance threshold, typically $\epsilon \in [0.24, 0.30]$. Given anchor movies representing a specific thematic category (e.g., spy films), all movies within the epsilon ball exhibit high plot similarity to the anchors, defining a local semantic neighborhood. We compare the distance distributions of movies within this epsilon ball to those from a control group (constructed using the mean embedding of all movies) to quantify whether the local semantic structure differs from the global distributional properties. To analyze temporal evolution explicitly, we construct cumulative distribution functions (CDFs) of release years for movies within the epsilon ball and compare them to the corresponding CDFs from the control group. A temporal shift in movie plots manifests as a divergence between these CDFs, indicating that the semantic neighborhood exhibits a different temporal distribution than expected under temporal uniformity. Interpretation of observed temporal shifts is performed by examining historical context and culturally significant events within the relevant time periods.
-
-\subsection{Genre analysis}
-\input{stuff/genre_analysis.tex}
 
 \section{Results}\label{sec:results}
 
@@ -282,6 +300,8 @@ We begin with an overview of the global structure of the embedding space by exam
 
 To assess the extent to which genre labels correspond to distinct regions in the embedding space, we analyzed separation metrics across 19 genres. The overall intra-genre distance (mean cosine distance between movies within the same genre) was 0.5042, while the overall inter-genre distance (mean cosine distance between movies from different genres) was 0.5268. This yields a separation ratio of 1.0448 and a separation gap of 0.0226. The proximity of these values, with inter-genre distances only marginally exceeding intra-genre distances, indicates substantial overlap between genre clusters in the semantic space. This interpretation is further supported by a silhouette score of $-0.0334$, where negative values indicate that genres are not well separated and exhibit significant intermingling. These findings suggest that while embeddings capture semantic similarity, genre boundaries in this high dimensional space are relatively porous, reflecting the hybrid and overlapping nature of cinematic categorization.
 
+% I could add the plot but it doesn't show shit
+None of the genre based analyses yielded statistically significant results, suggesting that genres may be too broad as analytical categories and any underlying patterns are likely obscured by noise. After normalization, the cosine distance of each time group  epresentative embedding with respect to the previous one remained stochastic. Inter genre analysis yielded the same result. 
 
 \subsection{Kolmogorov-Smirnov test}
 
