@@ -75,7 +75,7 @@
 
 \twocolumn[
 % \icmltitle{The Geometry of Cinema: Quantifying 75 Years of Cultural Drift}
-\icmltitle{Plot Twists Over Time: Quantifying How Movie Stories Have Changed over 95 Years}
+\icmltitle{Plot Twists Over Time: How Movie Stories Have Changed over 95 Years}
 
 % It is OKAY to include author information, even for blind
 % submissions: the style file will automatically remove it for you
@@ -141,19 +141,7 @@ We analyze semantic evolution in cinema by embedding movie plot summaries from 1
 
 \section{Introduction}\label{sec:intro}
 
-Cinema provides a rich archive of narrative structures that encode evolving societal values across generations. Recent computational work has revealed hidden cultural patterns in large narrative corpora. Previous approaches measuring semantic change in cultural narratives over extended historical periods remains methodologically challenging, focusing on genre structure at specific moments or through discrete topic models that capture lexical shifts but not the continuous geometric evolution of semantic categories. We address these temporal analysis by constructing a unified semantic space from a large corpus of film plot summaries spanning multiple decades. By computing geometric properties of these trajectories, spread and novelty, we can distinguish periods of continuous semantic evolution from moments of structural reorganization where genres undergo fundamental conceptual shifts. This geometric analysis reveals not just that meanings change, but the dynamics of how they change, providing quantitative measures of cultural evolution via movie text plots. 
-
-\section{Related Work}\label{sec:related_work}
-
-There have been several notable works in the area of movie plot analysis using natural language processing. \cite{sreenivasan2013quantitative} makes use of SBert to create text embeddings for their movie dataset, which was also curated from Wikipedia and IMDB. They devised a "Innovation Score" which was mean cosine distance.
-
-\cite{dubourg2023cinema} is another relevant paper which uses crowdsourced keywords from the IMDB as a window into the contents of films and prescribe novelty scores for each film based on occurrence probabilities of individual keywords and keyword pairs. They devised a method to assign a novelty score to each film on the basis of the keywords associated with it and the keywords appearing in all films that were released prior to it.
-
-Our use of word embeddings to represent narrative content draws significant inspiration from the work of \cite{xu2020cinderella}. In their study of the "Cinderella Complex" the authors demonstrated that high-dimensional vector spaces can capture latent social biases and emotional dependencies within movie synopses.
-
-\cite{DiMarco2025} investigated the evolution of musical styles over time using network science techniques. Although on a different dataset and domain, their approach also focuses on observing changes to structural properties over time, such as convergence or simplification of music in the later years.
-
-However little to none of the papers analyzes text embeddings from LLMs in a temporal manner.
+Cinema provides a rich archive of narrative structures that encode evolving societal values across generations. Previous approaches employ keyword search or topic modelling \cite{dubourg2023cinema} to explore temporal trends in movie plots. While these older methods might be insightful but challenging, recent computational work \cite{xu2020cinderella} has revealed hidden cultural patterns in large narrative corpora. One such analysis conducted on musical domain uses high dimensional embeddings to observe changes to structural properties over time \cite{DiMarco2025}. We build upon these foundations by leveraging advances in large language models (LLMs) to embed movie plot summaries \cite{sreenivasan2013quantitative} into a unified semantic space. Using novel statistical methods, we quantitatively analyze how movie narrative evolve over time.
 
 \section{Data and Methods}\label{sec:methods}
 
