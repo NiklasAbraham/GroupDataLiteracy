@@ -171,7 +171,7 @@ After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first 
     \item \textbf{Filtering out movies with excessively long plots.} We filtered out movies with plots longer than 14,000 characters from our dataset because these plots are labeled by Wikipedia as \textit{excessively long}.
     \item \textbf{Removal of movies with low entropy plots.}
     \item \textbf{Genre filtering.} We filtered out genres that appear only once in the dataset because these genres obviously do not describe a group of movies.
-    \item \textbf{Exclusion of explicit content.} We excluded movies whose primary genres fell within explicit or highly exploitative categories, such as Bavarian porn, Nazi exploitation, cannibal film, cartoon pornography, erotic film, sexploitation film, and related genres. These categories were removed in order to focus our analysis on mainstream cinematic narratives, to avoid the distorting effects that fringe, pornographic, or exploitation genres would have on cultural and semantic trends in the wider corpus, and because including them would not have been appropriate or useful for a university project of this scope.
+    \item \textbf{Exclusion of explicit content.} We excluded movies whose primary genres fell within explicit or highly exploitative categories, such as Bavarian porn, Nazi exploitation, erotic film, and related genres. These categories were removed in order to focus our analysis on mainstream cinematic narratives and because including them would not have been appropriate or useful for a university project of this scope.
 \end{itemize}
 
 The most critical cleaning step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and compute the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
@@ -203,9 +203,6 @@ To check that the embeddings meaningfully represent plot similarity, we measured
 \subsubsection{Genre Taxonomy}
 
 The raw dataset included 975 unique genre labels, many of which were redundant or highly similar. To simplify and standardize the taxonomy, we first removed genres that appeared only once, reducing the set to 463. We then embedded the Wikipedia descriptions (available for 359 genres) using the BGE-M3 model, and clustered these vectors with $k=20$ using k-means. Each cluster was manually labeled based on thematic similarity, resulting in 20 coherent genre categories used in further analyses.
-
-\subsubsection{Genre stability}
-
 
 
 \subsection{Novelty analysis}
@@ -282,7 +279,8 @@ To operationalize this framework, we construct epsilon balls around selected anc
 
 In this section, we present and interpret the main empirical findings of our analysis on the embedding space of movie plot summaries. Our results address the spatial structure of the embedding space, overall trends in movie similarity, and how key summary statistics illustrate broader cultural and semantic patterns.
 
-\textbf{Spread analysis}
+\subsection{Spread analysis}
+
 There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5. All 3 metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms) \cite{yamagiwa2024norm}. We could not interpret much from the results of this analysis of movie spread over the years. Mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively. Spectral norm had a slight increase from 2.1 to 2.8. We interpreted this as the overall spread of movies remaining relatively constant over the years with outliers becoming more polarizing. It was hard to determine what these polarizing axis were, as they changed yearly and were a combination of multiple dimensions.
 
 \subsection{General Spatial Analysis}
