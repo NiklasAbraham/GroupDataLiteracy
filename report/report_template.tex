@@ -283,7 +283,7 @@ To operationalize this framework, we construct epsilon balls around selected anc
 In this section, we present and interpret the main empirical findings of our analysis on the embedding space of movie plot summaries. Our results address the spatial structure of the embedding space, overall trends in movie similarity, and how key summary statistics illustrate broader cultural and semantic patterns.
 
 \textbf{Spread analysis}
-There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5. All 3 metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms). We could not interpret much from the results of this analysis of movie spread over the years. Mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively. Spectral norm had a slight increase from 2.1 to 2.8. We interpreted this as the overall spread of movies remaining relatively constant over the years with outliers becoming more polarizing. It was hard to determine what these polarizing axis were, as they changed yearly and were a combination of multiple dimensions.
+There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5. All 3 metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms) \cite{yamagiwa2024norm}. We could not interpret much from the results of this analysis of movie spread over the years. Mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively. Spectral norm had a slight increase from 2.1 to 2.8. We interpreted this as the overall spread of movies remaining relatively constant over the years with outliers becoming more polarizing. It was hard to determine what these polarizing axis were, as they changed yearly and were a combination of multiple dimensions.
 
 \subsection{General Spatial Analysis}
 
@@ -319,6 +319,10 @@ To further validate the methodology, we applied the same framework to movies foc
 \section{Discussion \& Conclusion}\label{sec:conclusion}
 
 % Use this section to briefly summarize the entire text. Highlight limitations and problems, but also make clear statements where they are possible and supported by the analysis. 
+
+We have utilized modern embedding methods and multiple statistical tools to analyze the evolution of movie plot embeddings over nearly a century of cinema. Our findings indicate that while the overall semantic structure of movie plots remains relatively stable, specific thematic subgenres exhibit distinct temporal emergence patterns. 
+
+We must acknowledge the limitations that arise from our data sources. Wikipedia plot summaries, while standardized, may not fully capture the nuances of original narratives, potentially introducing bias. Additionally, our reliance on a single embedding model, while ensuring a unified semantic space, may overlook temporal linguistic shifts. More importantly, the evolution of cinema is not only reflected in plot summaries but also in cinematography, direction, music, feeling, acting and other non textual elements. Future work could explore multimodal embeddings that integrate visual and auditory features alongside textual data.
 
 \newpage
 \newpage
