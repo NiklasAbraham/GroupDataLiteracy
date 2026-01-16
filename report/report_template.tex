@@ -280,14 +280,10 @@ To operationalize this framework, we construct epsilon balls around selected anc
 
 \section{Results}\label{sec:results}
 
-\textbf{Spread analysis}
-There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5. All 3 metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms). We could not interpret much from the results of this analysis of movie spread over the years. Mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively. Spectral norm had a slight increase from 2.1 to 2.8. We interpreted this as the overall spread of movies remaining relatively constant over the years with outliers becoming more polarizing.
-
-We look at the top 5 and bottom 5 US and Germany movies aligned with the first PC for 3 arbitrary years. In 1952, the 2 polarizing ends seems to be about action western vs drama comedy, in 2003 it changed to be about horror/documentaries vs romance and drama, and finally in 2024, it was clear that one end was heavily about horror and thriller while the other end was about documentary/biography. 
-
-We concluded that since wikipedia movie plots were written in modern day english, the embeddings of each movie plot were not significantly affected by the year it was written. Furthermore, the embedding model was trained on a large corpus of text from different time periods, making it robust to temporal linguistic variations. Therefore, any observed semantic drift in the embedding space is more likely to reflect genuine changes in movie plot themes and structures over time, rather than artifacts of language evolution.
-
 In this section, we present and interpret the main empirical findings of our analysis on the embedding space of movie plot summaries. Our results address the spatial structure of the embedding space, overall trends in movie similarity, and how key summary statistics illustrate broader cultural and semantic patterns.
+
+\textbf{Spread analysis}
+There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5. All 3 metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms). We could not interpret much from the results of this analysis of movie spread over the years. Mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively. Spectral norm had a slight increase from 2.1 to 2.8. We interpreted this as the overall spread of movies remaining relatively constant over the years with outliers becoming more polarizing. It was hard to determine what these polarizing axis were, as they changed yearly and were a combination of multiple dimensions.
 
 \subsection{General Spatial Analysis}
 
