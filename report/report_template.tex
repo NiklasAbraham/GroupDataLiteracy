@@ -280,6 +280,13 @@ To operationalize this framework, we construct epsilon balls around selected anc
 
 \section{Results}\label{sec:results}
 
+\textbf{Spread analysis}
+There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5. All 3 metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms). We could not interpret much from the results of this analysis of movie spread over the years. Mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively. Spectral norm had a slight increase from 2.1 to 2.8. We interpreted this as the overall spread of movies remaining relatively constant over the years with outliers becoming more polarizing.
+
+We look at the top 5 and bottom 5 US and Germany movies aligned with the first PC for 3 arbitrary years. In 1952, the 2 polarizing ends seems to be about action western vs drama comedy, in 2003 it changed to be about horror/documentaries vs romance and drama, and finally in 2024, it was clear that one end was heavily about horror and thriller while the other end was about documentary/biography. 
+
+We concluded that since wikipedia movie plots were written in modern day english, the embeddings of each movie plot were not significantly affected by the year it was written. Furthermore, the embedding model was trained on a large corpus of text from different time periods, making it robust to temporal linguistic variations. Therefore, any observed semantic drift in the embedding space is more likely to reflect genuine changes in movie plot themes and structures over time, rather than artifacts of language evolution.
+
 In this section, we present and interpret the main empirical findings of our analysis on the embedding space of movie plot summaries. Our results address the spatial structure of the embedding space, overall trends in movie similarity, and how key summary statistics illustrate broader cultural and semantic patterns.
 
 \subsection{General Spatial Analysis}
@@ -312,83 +319,6 @@ To further validate the methodology, we applied the same framework to movies foc
     \caption{KS test on temporal distributions for Middle East conflict films epsilon ball ($\epsilon = 0.28$) versus control group. The temporal divergence is more pronounced than in the spy film case, with the largest difference occurring before the Gulf War period, followed by rapid convergence as production of conflict-themed films increased.}
     \label{fig:ks_test_temporal_middle_east}
 \end{figure}
-
-\textbf{Spread analysis}
-There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5.
-
-(1) Mean L2 Norm is the average L2 distance from each movie embedding to its yearly centroid, interpretable as Intra Year Dispersion. L2 norm in our data can vary from 0 to 2, since the embeddings are already normalized to magnitude 1.
-
-(2) Frobenius norm measures total variance \cite{devroye2018total} of the centered yearly embeddings, since its formulation is $\mathbb{E}[\|X - \mathbb{E}[X]\|^2]$ and can be interpreted as Total Yearly Variance.
-
-(3) Spectral norm measures the maximum variance direction of the centered yearly embeddings, since its formulation is $\sup_{\|v\|=1} \| (X - \mathbb{E}[X]) v \|^2$ and can be interpreted as the standard deviation of the "Polarizing" axis of the year.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/spread_analysis/intra_year_l2_spread.png}
-    \caption{Intra year dispersion}
-    \label{fig:intra_year_spread}
-\end{figure}
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/spread_analysis/frob_spec_norms.png}
-    \caption{Spectral and Frobenius Norm of yearly movies against yearly centroid}
-    \label{fig:frob_spec_norm}
-\end{figure}
-
-
-The combination of all 3 metrics gives us a holistic view of how the spread of movies change over the years. From Figure \ref{fig:intra_year_spread}, mean is relatively stable but Figure \ref{fig:frob_spec_norm} shows both Frobenius and Spectral norm increasing. The increase must be due to some outliers and especially on the "Polarizing" axis. Overall, movies are still very stably spaced out with the exception of a few movies every year. We now analyze which of these movies are on the extreme ends of the polarizing axix (principal component 1).
-
-\begin{table*}[t]
-\centering
-\caption{Top and Bottom Performing Films by Country and Year}
-\label{tab:film_rankings}
-\begin{tabular}{@{}llp{5cm}p{5cm}@{}}
-\toprule
-\textbf{Year} & \textbf{Rank} & \textbf{US Films} & \textbf{German Films} \\
-\midrule
-\multirow{10}{*}{1952} 
-    & Top 1    & Monsoon & Lockende Sterne \\
-    & Top 2    & Strange Fascination & We're Dancing on the Rainbow \\
-    & Top 3    & No Time for Flowers & The Colourful Dream \\
-    & Top 4    & Just Across the Street	 & Rosen blühen auf dem Heidegrab \\
-    & Top 5    & Everything I Have Is Yours & Das kann jedem passieren \\
-    \cmidrule{2-4}
-    & Bottom 5 & Bend of the River & Toxi \\
-    &         2 & Denver and Rio Grande & The Condemned Village \\
-    &         3 & Red Skies of MontanaH & My Name is Niki \\
-    &         4 & The Savage & The Thief of Bagdad \\
-    &         5 & The Cimarron Kid & All Clues Lead to Berlin \\
-\midrule
-\multirow{10}{*}{2003} 
-    & Top 1    & Aileen: Life and Death of a Serial Killer & Beyond the Limits \\
-    & Top 2    & Whole & Nikos the Impaler \\
-    & Top 3    & Ghosts of the Abyss & Baltic Storm \\
-    & Top 4    & DC 9/11: Time of Crisis & Debris documentar \\
-    & Top 5    & Marion's Triumph & Wrong Turn \\
-    \cmidrule{2-4}
-    & Bottom 5 & Sinbad: Legend of the Seven Seas & The Suit \\
-    &         2 & The One & Noi the Albino \\
-    &         3 & The Jungle Book 2 & The Story of the Weeping Camel \\
-    &         4 & Cosmopolitan & A Little Bit of Freedom \\
-    &         5 & Flavors & Spring, Summer, Fall, Winter... and Spring \\
-\midrule\multirow{10}{*}{2024} 
-    & Top 1    & Terrifier 3 & The Devil's Bath \\
-    & Top 2    & It's What's Inside & Bird \\
-    & Top 3    & Beetlejuice Beetlejuice & A Sacrifice \\
-    & Top 4    & Smile 2 & Cuckoo \\
-    & Top 5    & The Thundermans Return & Santosh \\
-    \cmidrule{2-4}
-    & Bottom 5 & The Firing Squad & Every You Every Me \\
-    &         2 & The True Story of Tamara de Lempicka and The Art of Survival & Spy vs. Spy \\
-    &         3 & Harvest & The Empire \\
-    &         4 & Waltzing with Brando & Rabia \\
-    &         5 & Putin & Harvest \\
-\bottomrule
-\end{tabular}
-\end{table*}
-
-Table \ref{tab:film_rankings} We look at the top 5 and bottom 5 US and Germany movies aligned with the first PC, where we chose arbitrary years. In 1952, the 2 polarizing ends seems to be about action western vs drama comedy, in 2003 it changed to be about horror/documentaries vs romance and drama, and finally in 2024, it was clear that one end was heavily about horror and thriller while the other end was about documentary/biography.
 
 \section{Discussion \& Conclusion}\label{sec:conclusion}
 
