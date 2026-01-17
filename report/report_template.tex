@@ -142,14 +142,15 @@ We analyze semantic evolution in cinema by embedding movie plot summaries from 1
 \section{Introduction}\label{sec:intro}
 
 Cinema provides a rich archive of narrative structures that encode evolving societal values across generations. Previous approaches employ keyword search or topic modelling \cite{dubourg2023cinema} to explore temporal trends in movie plots. While these older methods might be insightful but challenging, recent computational work \cite{xu2020cinderella} has revealed hidden cultural patterns in large narrative corpora. One such analysis conducted on the musical domain uses high dimensional embeddings to observe changes to structural properties over time \cite{DiMarco2025}. We build upon these foundations by leveraging advances in large language models (LLMs) to embed movie plot summaries \cite{sreenivasan2013quantitative} into a unified semantic space. Using novel statistical methods, we quantitatively analyze how movie narratives evolve over time.
+Common public sentiment is that the film industry is \textit{"running out of ideas"} resulting in movies that are becoming less creative and more similar to each other over time. We analyze this claim...?
 
 \section{Data and Methods}\label{sec:methods}
 
 \subsection{Data Collection}
 
-We constructed our movie corpus using a multi-stage pipeline that systematically integrated three complementary sources: Wikidata, The Movie Database (TMDb), and Wikipedia. This approach combines rich structured metadata with the detailed textual content required for semantic analysis.
+We constructed our movie corpus using a multi-stage pipeline that systematically integrated three complementary sources: Wikidata, The Movie Database (TMDb), and Wikipedia. This approach combines rich structured metadata with the detailed textual content required for semantic analysis. SHOULD BE REMOVED?
 
-The initial dataset was constructed by querying Wikidata for movies released from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we iterated through the years and first acquired QIDs of all Wikidata items which have a Wikidata class that is an indirect subclass of film and have a first publication date in the given year. During this step we removed QIDs of items that do not have an English Wikipedia page associated with them. We also tried to remove non-feature movies by excluding subclasses of classes "short film" and "television series episode". However, this filtering was not perfect and further filtering of Wikidata classes was performed during post processing. After acquiring the list of identifiers, we processed them in small batches of 20 and queried Wikidata for each movie's features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. Additionally, box office, box office currency, budget and budget currency values were also queried, but they had very low coverage in the raw dataset and were not used in the final analysis.
+The initial dataset was constructed by querying Wikidata, an open knowledge graph structured as a network of items, connected together by properties. We used its SPARQL API to extract items classified as films with release dates ranging from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we gathered the data iteratively by release year. We first retrieved QIDs of items describing feature films, then processed them in small batches to gather the rest of relevant features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. During collection of QIDs, items classified as short film or television series episode were excluded, and final filtering of non-feature films was performed during data cleaning.
 
 Second, we enriched the dataset using TMDb, a community-driven database that offers quantitative measures of popularity and user engagement. Wikidata's external identifiers enabled direct mapping to TMDb entries, from which we programmatically retrieved vote counts, vote averages, and popularity metrics for each film. These measures served as proxies for audience engagement and cultural impact, informing downstream film filtering and weighting.
 
@@ -159,35 +160,28 @@ The last enrichment stage addressed limitations in TMDb voting statistics. Many 
 
 All data sources are open and appropriately licensed. Wikidata \cite{wikidata} is released under CC0 1.0 Universal (public domain). Wikipedia \cite{wikipedia} is under CC BY SA 4.0, and TMDb \cite{tmdb} under CC BY NC 4.0, allowing non-commercial research with attribution. This ensures reproducibility and legal compliance.
 
-After the data was collected in a tabular format, the textual plot descriptions required transformation into vector representations via a suitable embedding model for downstream analysis. The plot descriptions extracted from Wikipedia pages exhibit substantial variability in length, ranging from 10 to 20,479 characters, corresponding to approximately 6 to 5,296 tokens in an English tokenizer. All plot descriptions in our corpus are in English, which simplifies the embedding process by eliminating cross-lingual considerations. After performing the explicitly described data pipeline steps, the final dataset contained 161{,}533 data points (movies) with an average coverage of 81\% in the categories of actors, directors, genres, and year.
+After the data was collected in a tabular format, the textual plot descriptions required transformation into vector representations via a suitable embedding model for downstream analysis. The plot descriptions extracted from Wikipedia pages exhibit substantial variability in length, ranging from 10 to 20,479 characters, corresponding to approximately 6 to 5,296 tokens in an English tokenizer. All plot descriptions in our corpus are in English, which simplifies the embedding process by eliminating cross-lingual considerations. After performing the explicitly described data pipeline steps, the final dataset contained 141{,}119 data points (movies) with an average coverage of 81\% in the categories of actors, directors, genres, and year.
 
 \subsection{Data cleaning}
 
-After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first ensured that our dataset does not contain any duplicates with respect to Wikidata QIDs and Wikipedia links. Then we performed the following data filtration and cleaning steps:
+After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first ensured that our dataset does not contain any duplicates with respect to Wikidata QIDs and Wikipedia links, and then applied several filtering steps described in Figure \ref{fig:data_cleaning_funnel}.
 
-\begin{itemize}
-    \item \textbf{Filtering out movies without a Wikipedia plot.}
-    \item \textbf{Removal of non-feature movies.} We removed samples from our dataset that had a Wikidata class that is an indirect subclass of a class that does not describe a feature movie. Some examples of not feasible Wikidata classes include trailers, television series episodes, short films and radio programs. 
-    \item \textbf{Filtering out movies with excessively long plots.} We filtered out movies with plots longer than 14,000 characters from our dataset because these plots are labeled by Wikipedia as \textit{excessively long}.
-    \item \textbf{Removal of movies with low entropy plots.}
-    \item \textbf{Genre filtering.} We filtered out genres that appear only once in the dataset because these genres obviously do not describe a group of movies.
-    \item \textbf{Exclusion of explicit content.} We excluded movies whose primary genres fell within explicit or highly exploitative categories, such as Bavarian porn, Nazi exploitation, erotic film, and related genres. These categories were removed in order to focus our analysis on mainstream cinematic narratives and because including them would not have been appropriate or useful for a university project of this scope.
-\end{itemize}
+% \begin{itemize}
+%     \item \textbf{Filtering out movies without a Wikipedia plot.}
+%     \item \textbf{Removal of non-feature movies based on the Wikidata class.}
+%     \item \textbf{Filtering out movies with excessively long plots.} We filtered out movies with plots longer than 14,000 characters from our dataset because these plots are labeled by Wikipedia as \textit{excessively long}.
+%     \item \textbf{Removal of movies with low entropy plots.}
+%     \item \textbf{Exclusion of explicit content.} We excluded movies whose primary genres fell within explicit or highly exploitative categories, such as Bavarian porn, Nazi exploitation, erotic film, and related genres. These categories were removed in order to focus our analysis on mainstream cinematic narratives and because including them would not have been appropriate or useful for a university project of this scope.
+% \end{itemize}
 
-The most critical cleaning step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and compute the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
+
+The most critical filtering step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and compute the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=8cm]{figures/funnel_chart_data_cleaning.png}
     \caption{Data cleaning pipeline: number of movies retained after each filtering step.}
     \label{fig:data_cleaning_funnel}
-\end{figure}
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/entropy_cutoff.png}
-    \caption{Results of manual labeling of 150 plots in the borderline entropy region with the chosen entropy threshold}
-    \label{fig:entropy_cutoff}
 \end{figure}
 
 \subsubsection{Embedding of the movie plot summaries}
@@ -203,37 +197,6 @@ To check that the embeddings meaningfully represent plot similarity, we measured
 \subsubsection{Genre Taxonomy}
 
 The raw dataset included 975 unique genre labels, many of which were redundant or highly similar. To simplify and standardize the taxonomy, we first removed genres that appeared only once, reducing the set to 463. We then embedded the Wikipedia descriptions (available for 359 genres) using the BGE-M3 model, and clustered these vectors with $k=20$ using k-means. Each cluster was manually labeled based on thematic similarity, resulting in 20 coherent genre categories used in further analyses.
-
-
-\subsection{Novelty analysis}
-
-This part in introduction maybe:
-Common public sentiment is that the film industry is "running out of ideas" resulting in movies that are becoming less creative and more similar to each other over time.
-
-Then later:
-To investigate the claim that movies are becoming less novel over time, we developed a metric for novelty defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
-
-\begin{equation}
-    \text{Novelty}(m_i) = \min_{j: year_j < year_i} \left( 1 - \frac{E(m_i) \cdot E(m_j)}{\|E(m_i)\| \|E(m_j)\|} \right)
-\end{equation} 
-
-where \( E(m) \) denotes the embedding vector of a movie's plot.
-Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
-To compute these scores, we use the Faiss library \cite{douze2024faiss}.
-Movies were sorted chronologically and processed in yearly batches. For a given batch we queried the Faiss index containing all prior movies to find distances to the nearest neighbor for each movie in the current batch. After that, the current batch was added to the index for subsequent queries.
-
-Results:
-In order to assess if temporal trends of novelty scores exist, we plot the average novelty score per year alongside scattered individual movie scores in Figure \ref{fig:novelty_over_time}.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/novelty_over_time.png}
-    \caption{Novelty scores of movies over time. The blue line represents the average novelty score per year, while individual movie scores are shown as scattered points.}
-    \label{fig:novelty_over_time}
-\end{figure}
-
-The resulting plot indicates that the average yearly novelty remained relatively constant from the 1950s onwards.
-TODO: Find better way to plot this, maybe novelty of all movies vs novelty of Oscar nominees?
 
 
 \subsection{Methodology}
@@ -264,6 +227,17 @@ error of the difference between group means:
 \end{equation}
 where $\sigma_{\text{pooled}}$ is the pooled within-group standard deviation of cosine distances, and $n_g^{(\tau)}$ is the number of movies in genre $g$ at time $\tau$.
 
+\subsubsection{Novelty analysis}
+
+To investigate the claim that movies are becoming less novel over time, we developed a metric for novelty defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
+
+\begin{equation}
+    \text{Novelty}(m_i) = \min_{j: year_j < year_i} \left( 1 - \frac{E(m_i) \cdot E(m_j)}{\|E(m_i)\| \|E(m_j)\|} \right)
+\end{equation} 
+
+where \( E(m) \) denotes the embedding vector of a movie's plot.
+Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
+To compute these scores, we used the Faiss library \cite{douze2024faiss} to efficiently find the preceding nearest neighbors of movie plot embeddings based on the cosine distance.
 
 \subsubsection{Kolmogorov-Smirnov test}
 
@@ -287,6 +261,17 @@ None of the genre-based analyses yielded statistically significant results, sugg
 \subsection{Spread analysis}
 
 There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5. All 3 metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms) \cite{yamagiwa2024norm}. We could not interpret much from the results of this analysis of movie spread over the years. Mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively. Spectral norm had a slight increase from 2.1 to 2.8. We interpreted this as the overall spread of movies remaining relatively constant over the years with outliers becoming more polarizing. It was hard to determine what these polarizing axes were, as they changed yearly and were a combination of multiple dimensions.
+
+\subsection{Novelty score}
+
+In order to assess if temporal trends of novelty scores exist, we plot the average novelty score per year alongside scattered individual movie scores in Figure \ref{fig:novelty_over_time}. 
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=8cm]{figures/novelty_over_time.png}
+    \caption{Novelty scores of movies over time. The blue line represents the average novelty score per year, while individual movie scores are shown as scattered points.}
+    \label{fig:novelty_over_time}
+\end{figure}
 
 \subsection{Kolmogorov-Smirnov test}
 
