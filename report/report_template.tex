@@ -136,7 +136,7 @@
 \printAffiliationsAndNotice{\icmlEqualContribution} % otherwise use the standard text.
 
 \begin{abstract}
-We analyze semantic evolution in cinema by embedding movie plot summaries from 1930 to 2024 into a unified semantic space. Using distance distributions, novelty scores, and Kolmogorov-Smirnov tests, we quantify temporal shifts in narrative structures. Our analysis reveals overall semantic stability alongside distinct temporal emergence patterns in specific thematic subgenres, providing quantitative measures of cultural change across nearly a century of cinema.
+We analyze semantic evolution in cinema by embedding movie plot summaries (1930-2024) into a unified semantic space. Using distance distributions, novelty scores, and Kolmogorov-Smirnov tests, we quantify temporal shifts in narrative structures, revealing overall semantic stability alongside distinct emergence patterns in specific subgenres
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -186,7 +186,7 @@ The most critical filtering step was the removal of movies with low-entropy plot
 
 For embedding, we selected the BGE-M3 model \cite{chen2024bgem3embeddingmultilingualmultifunctionality} based on its strong showing (28th place) on the Massive Text Embedding Benchmark (MTEB) leaderboard\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}. BGE-M3 is compact (0.5B parameters), supports 8,192-token context length, and can embed entire movie plots in a single vector.
 
-A key methodological choice was to use a single, static embedding model for all time periods, rather than training separate or temporally aligned models. This ensures all film plots are represented in a unified latent space, avoiding complex post hoc alignment and minimizing artifacts. The Wikipedia-based plot summaries are not contemporaneous texts from those eras, instead, they are modern English descriptions collectively maintained and updated since Wikipedia's founding in 2001. Thus, any linguistic variation or semantic drift in the summaries themselves is minimal. We evaluated several document embedding methods (chunking and pooling) and metrics as described in \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a, raffel2023exploringlimitstransferlearning}, and selected CLS Token as our approach (for the details of the evaluation see \cite{our_github_repo}).
+We use a single static model for all time periods to ensure unified representation in a common latent space. Since Wikipedia summaries are modern English (maintained since 2001), linguistic drift is negligible. After evaluating chunking and pooling methods \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a, raffel2023exploringlimitstransferlearning}, we selected CLS Token (details: \cite{our_github_repo}).
 
 \subsubsection{Internal data validation}
 
@@ -239,9 +239,7 @@ To compute these scores, we used the Faiss library \cite{douze2024faiss} to effi
 
 \subsubsection{Kolmogorov-Smirnov test}
 
-To rigorously compare distance distributions across different subsets of movies, for instance films from different decades or belonging to distinct genres, we employ the Kolmogorov-Smirnov test \cite{massey1951}, a non-parametric statistical method for assessing whether two empirical distributions arise from the same underlying continuous distribution.
-
-In the context of temporal semantic analysis, the KS test enables systematic comparison of distance distributions across decades. By computing distances from fixed reference points (such as mean embeddings of genre clusters) to movies from different decades, we can assess whether the spatial organization of semantic representations evolves over time. If the semantic structure of cinema remains stable over time, distance distributions should remain statistically similar. To operationalize this framework, we construct epsilon balls around selected anchor movies by collecting all movies within a specified cosine distance threshold, typically $\epsilon \in [0.24, 0.30]$. Given anchor movies representing a specific thematic category (e.g., spy films), all movies within the epsilon ball exhibit high plot similarity to the anchors, defining a local semantic neighborhood. We compare the distance distributions of movies within this epsilon ball to those from a control group (constructed using the mean embedding of all movies) to quantify whether the local semantic structure differs from the global distributional properties. To analyze temporal evolution explicitly, we construct cumulative distribution functions (CDFs) of release years for movies within the epsilon ball and compare them to the corresponding CDFs from the control group. A temporal shift in movie plots manifests as a divergence between these CDFs, indicating that the semantic neighborhood exhibits a different temporal distribution than expected under temporal uniformity. Interpretation of observed temporal shifts is performed by examining historical context and culturally significant events within the relevant time periods.
+To compare distance distributions across movie subsets (e.g., different decades or genres), we employ the Kolmogorov-Smirnov test \cite{massey1951}. We construct $\epsilon$-balls ($\epsilon \in [0.24, 0.30]$) around anchor movies representing specific themes, collecting all movies within the distance threshold to define local semantic neighborhoods. We compare distance distributions and temporal CDFs (cumulative distribution functions of release years) within these neighborhoods to a control group (global mean embedding). Divergence indicates temporal shifts: if semantic structure remains stable, distributions should be similar across time periods.
 
 \section{Results}\label{sec:results}
 
