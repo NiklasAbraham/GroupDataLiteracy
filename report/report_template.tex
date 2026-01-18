@@ -148,8 +148,6 @@ Common public sentiment is that the film industry is \textit{"running out of ide
 
 \subsection{Data Collection}
 
-We constructed our movie corpus using a multi-stage pipeline that systematically integrated three complementary sources: Wikidata, The Movie Database (TMDb), and Wikipedia. This approach combines rich structured metadata with the detailed textual content required for semantic analysis. SHOULD BE REMOVED?
-
 The initial dataset was constructed by querying Wikidata, an open knowledge graph structured as a network of items, connected together by properties. We used its SPARQL API to extract items classified as films with release dates ranging from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we gathered the data iteratively by release year. We first retrieved QIDs of items describing feature films, then processed them in small batches to gather the rest of relevant features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. During collection of QIDs, items classified as short film or television series episode were excluded, and final filtering of non-feature films was performed during data cleaning.
 
 Second, we enriched the dataset using TMDb, a community-driven database that offers quantitative measures of popularity and user engagement. Wikidata's external identifiers enabled direct mapping to TMDb entries, from which we programmatically retrieved vote counts, vote averages, and popularity metrics for each film. These measures served as proxies for audience engagement and cultural impact, informing downstream film filtering and weighting.
@@ -286,14 +284,14 @@ To examine the temporal dimension, we construct cumulative distribution function
     \label{fig:ks_test_temporal_bond}
 \end{figure}
 
-To further validate the methodology, we applied the same framework to movies focused on Middle East conflicts, using anchor movies such as \textit{Black Hawk Down}, \textit{The Hurt Locker}, \textit{Zero Dark Thirty}, and \textit{American Sniper}. Figure~\ref{fig:ks_test_temporal_middle_east} displays the temporal distribution analysis for this thematic category. The temporal shift is even more pronounced than in the spy film case, with the largest divergence occurring prior to the Gulf War period. Following this point, the frequency of movies semantically similar to the anchor movies increases rapidly. This pattern suggests that Middle East conflict films represent a temporally concentrated genre that emerged in response to specific historical events.
+ % To further validate the methodology, we applied the same framework to movies focused on Middle East conflicts, using anchor movies such as \textit{Black Hawk Down}, \textit{The Hurt Locker}, \textit{Zero Dark Thirty}, and \textit{American Sniper}. Figure~\ref{fig:ks_test_temporal_middle_east} displays the temporal distribution analysis for this thematic category. The temporal shift is even more pronounced than in the spy film case, with the largest divergence occurring prior to the Gulf War period. Following this point, the frequency of movies semantically similar to the anchor movies increases rapidly. This pattern suggests that Middle East conflict films represent a temporally concentrated genre that emerged in response to specific historical events.
 
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/ks_test_temporal_Black_Hawk_Down__The_Hurt_Locker__Zero_Dark_Thirty__American_Sniper__Lone_Survivor__13_Hours_The_Secret_Soldier__26dca182_eps0.28.png}
-    \caption{KS test on temporal distributions for Middle East conflict films epsilon ball ($\epsilon = 0.28$) versus control group. The temporal divergence is more pronounced than in the spy film case, with the largest difference occurring before the Gulf War period, followed by rapid convergence as production of conflict-themed films increased.}
-    \label{fig:ks_test_temporal_middle_east}
-\end{figure}
+% \begin{figure}[ht]
+%    \centering
+%    \includegraphics[width=8cm]{figures/ks_test_temporal_Black_Hawk_Down__The_Hurt_Locker__Zero_Dark_Thirty__American_Sniper__Lone_Survivor__13_Hours_The_Secret_Soldier__26dca182_eps0.28.png}
+%    \caption{KS test on temporal distributions for Middle East conflict films epsilon ball ($\epsilon = 0.28$) versus control group. The temporal divergence is more pronounced than in the spy film case, with the largest difference occurring before the Gulf War period, followed by rapid convergence as production of conflict-themed films increased.}
+%    \label{fig:ks_test_temporal_middle_east}
+% \end{figure}
 
 \section{Discussion \& Conclusion}\label{sec:conclusion}
 We have utilized modern embedding methods and multiple statistical tools to analyze the evolution of movie plot embeddings over nearly a century of cinema. Our findings indicate that while the overall semantic structure of movie plots remains relatively stable, specific thematic subgenres exhibit distinct temporal emergence patterns. 
