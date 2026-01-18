@@ -1,48 +1,48 @@
-This is BibTeX, Version 0.99d (TeX Live 2025)
+This is BibTeX, Version 0.99d (TeX Live 2024)
 Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: report_template.aux
 The style file: icml2025.bst
 Database file #1: bibliography.bib
 Warning--empty journal in douze2024faiss
-You've used 15 entries,
+You've used 17 entries,
             2773 wiz_defined-function locations,
-            690 strings with 8340 characters,
-and the built_in function-call counts, 7758 in all, are:
-= -- 649
-> -- 603
-< -- 9
-+ -- 204
-- -- 188
-* -- 663
-:= -- 1230
-add.period$ -- 55
-call.type$ -- 15
-change.case$ -- 106
-chr.to.int$ -- 14
-cite$ -- 31
-duplicate$ -- 298
-empty$ -- 536
-format.name$ -- 203
-if$ -- 1595
-int.to.chr$ -- 2
+            700 strings with 8626 characters,
+and the built_in function-call counts, 8326 in all, are:
+= -- 705
+> -- 614
+< -- 12
++ -- 210
+- -- 191
+* -- 683
+:= -- 1313
+add.period$ -- 64
+call.type$ -- 17
+change.case$ -- 113
+chr.to.int$ -- 15
+cite$ -- 35
+duplicate$ -- 323
+empty$ -- 601
+format.name$ -- 210
+if$ -- 1723
+int.to.chr$ -- 3
 int.to.str$ -- 1
-missing$ -- 8
-newline$ -- 92
-num.names$ -- 64
-pop$ -- 229
+missing$ -- 7
+newline$ -- 105
+num.names$ -- 72
+pop$ -- 253
 preamble$ -- 1
-purify$ -- 91
+purify$ -- 96
 quote$ -- 0
-skip$ -- 268
+skip$ -- 290
 stack$ -- 0
-substring$ -- 121
-swap$ -- 43
+substring$ -- 125
+swap$ -- 47
 text.length$ -- 4
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 165
+type$ -- 187
 warning$ -- 1
-while$ -- 55
+while$ -- 61
 width$ -- 0
-write$ -- 214
+write$ -- 244
 (There was 1 warning)
