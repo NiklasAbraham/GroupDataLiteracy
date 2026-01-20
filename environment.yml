@@ -204,6 +204,7 @@ dependencies:
       - transformers==4.57.1
       - trec-car-tools==2.6
       - triton==3.5.0
+      - tueplots>=0.0.1
       - typer-slim==0.21.1
       - typing-inspection==0.4.2
       - tzdata==2025.2

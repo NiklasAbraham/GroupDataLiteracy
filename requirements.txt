@@ -138,6 +138,7 @@ srsly==2.5.2
 stack_data @ file:///home/conda/feedstock_root/build_artifacts/stack_data_1733569443808/work
 sympy==1.14.0
 thinc==8.3.10
+tueplots>=0.0.1
 threadpoolctl==3.6.0
 tokenizers==0.22.1
 torch==2.9.0

@@ -3,6 +3,7 @@ Visualization functions for epsilon ball analysis.
 
 This module provides plotting functions for visualizing epsilon ball analysis results,
 including temporal distributions, distance distributions, and K-S test comparisons.
+Uses tueplots (ICML 2024 bundle) for figure size, fonts, and Uni Tuebingen colors.
 """
 
 import logging
@@ -10,6 +11,8 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import tueplots.constants.color.rgb as rgb
+from tueplots import bundles
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +21,6 @@ def plot_movies_over_time(
     results_df: pd.DataFrame,
     output_path: str = None,
     title: str = "Movies in Epsilon Ball Over Time",
-    figsize: tuple = (12, 6),
     random_results_df: pd.DataFrame = None,
 ):
     """
@@ -26,9 +28,8 @@ def plot_movies_over_time(
 
     Parameters:
     - results_df: DataFrame from analyze_epsilon_ball
-    - output_path: Path to save the plot (if None, displays plot)
+    - output_path: Path to save the plot (if None, displays plot). Use .pdf for vector output.
     - title: Plot title (will have total count appended)
-    - figsize: Figure size tuple
     - random_results_df: Optional DataFrame from control group (mean embedding) analysis for comparison
     """
     if results_df.empty:
@@ -104,35 +105,35 @@ def plot_movies_over_time(
             random_sma_10 / random_max if random_max > 0 else random_sma_10
         )
 
-        fig, ax1 = plt.subplots(figsize=figsize)
+        plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=1))
+        fig, ax1 = plt.subplots()
 
         ax1.bar(
             anchor_normalized.index,
             anchor_normalized.values,
             alpha=0.7,
             edgecolor="black",
-            color="steelblue",
+            color=rgb.tue_blue,
             label="Anchor Movies (normalized)",
         )
         ax1.plot(
             sma_3_normalized.index,
             sma_3_normalized.values,
-            color="red",
+            color=rgb.tue_red,
             linewidth=2,
             label="Anchor SMA (3)",
         )
         ax1.plot(
             sma_10_normalized.index,
             sma_10_normalized.values,
-            color="darkred",
+            color=rgb.tue_red,
             linewidth=2,
+            linestyle="--",
             label="Anchor SMA (10)",
         )
-        ax1.set_xlabel("Year", fontsize=12)
-        ax1.set_ylabel(
-            "Normalized Count (Anchor Movies)", fontsize=12, color="steelblue"
-        )
-        ax1.tick_params(axis="y", labelcolor="steelblue")
+        ax1.set_xlabel("Year")
+        ax1.set_ylabel("Normalized Count (Anchor Movies)", color=rgb.tue_blue)
+        ax1.tick_params(axis="y", labelcolor=rgb.tue_blue)
         ax1.grid(True, alpha=0.3, axis="y")
 
         ax2 = ax1.twinx()
@@ -146,13 +147,13 @@ def plot_movies_over_time(
             random_aligned.values,
             alpha=0.5,
             edgecolor="black",
-            color="coral",
+            color=rgb.tue_orange,
             label="Control Group (normalized)",
         )
         ax2.plot(
             random_sma_3_normalized.index,
             random_sma_3_normalized.values,
-            color="lightcoral",
+            color=rgb.tue_orange,
             linewidth=1.5,
             linestyle="--",
             alpha=0.6,
@@ -161,44 +162,52 @@ def plot_movies_over_time(
         ax2.plot(
             random_sma_10_normalized.index,
             random_sma_10_normalized.values,
-            color="lightpink",
+            color=rgb.tue_lightorange,
             linewidth=1.5,
             linestyle="--",
             alpha=0.6,
             label="Control Group SMA (10)",
         )
-        ax2.set_ylabel("Normalized Count (Control Group)", fontsize=12, color="coral")
-        ax2.tick_params(axis="y", labelcolor="coral")
+        ax2.set_ylabel("Normalized Count (Control Group)", color=rgb.tue_orange)
+        ax2.tick_params(axis="y", labelcolor=rgb.tue_orange)
 
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
         labels2 = [label.replace("Random", "Control Group") for label in labels2]
         ax1.legend(lines1 + lines2, labels1 + labels2, loc="best")
 
-        plt.title(
-            f"{title} (Total: {total_movies} movies, Normalized)",
-            fontsize=14,
-            fontweight="bold",
-        )
+        plt.title(f"{title} (Total: {total_movies} movies, Normalized)")
         plt.tight_layout()
     else:
-        plt.figure(figsize=figsize)
-        plt.bar(year_counts.index, year_counts.values, alpha=0.7, edgecolor="black")
-        plt.plot(sma_3.index, sma_3.values, color="red", linewidth=2, label="SMA (3)")
+        plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=1))
+        plt.figure()
+        plt.bar(
+            year_counts.index,
+            year_counts.values,
+            alpha=0.7,
+            edgecolor="black",
+            color=rgb.tue_blue,
+        )
         plt.plot(
-            sma_10.index, sma_10.values, color="darkred", linewidth=2, label="SMA (10)"
+            sma_3.index, sma_3.values, color=rgb.tue_red, linewidth=2, label="SMA (3)"
         )
-        plt.xlabel("Year", fontsize=12)
-        plt.ylabel("Number of Movies", fontsize=12)
-        plt.title(
-            f"{title} (Total: {total_movies} movies)", fontsize=14, fontweight="bold"
+        plt.plot(
+            sma_10.index,
+            sma_10.values,
+            color=rgb.tue_red,
+            linewidth=2,
+            linestyle="--",
+            label="SMA (10)",
         )
+        plt.xlabel("Year")
+        plt.ylabel("Number of Movies")
+        plt.title(f"{title} (Total: {total_movies} movies)")
         plt.legend()
         plt.grid(True, alpha=0.3, axis="y")
         plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.savefig(output_path, bbox_inches="tight")
         logger.info(f"Plot saved to {output_path}")
     else:
         plt.show()
@@ -210,16 +219,14 @@ def plot_distance_distribution(
     results_df: pd.DataFrame,
     output_path: str = None,
     title: str = "Distance Distribution in Epsilon Ball",
-    figsize: tuple = (10, 6),
 ):
     """
     Plot the distribution of distances in the epsilon ball.
 
     Parameters:
     - results_df: DataFrame from analyze_epsilon_ball
-    - output_path: Path to save the plot (if None, displays plot)
+    - output_path: Path to save the plot (if None, displays plot). Use .pdf for vector output.
     - title: Plot title (will have total count appended)
-    - figsize: Figure size tuple
     """
     if results_df.empty:
         logger.warning("No data to plot")
@@ -233,22 +240,23 @@ def plot_distance_distribution(
         f"(distance range: {all_distances.min():.6f} to {all_distances.max():.6f})"
     )
 
-    plt.figure(figsize=figsize)
+    plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=1))
+    plt.figure()
     # Use ALL movies in epsilon ball for histogram (not limited)
     plt.hist(
         all_distances,
         bins=50,
         alpha=0.7,
         edgecolor="black",
-        color="steelblue",
+        color=rgb.tue_blue,
     )
-    plt.xlabel("Cosine Distance", fontsize=12)
-    plt.ylabel("Number of Movies", fontsize=12)
-    plt.title(f"{title} (Total: {total_movies} movies)", fontsize=14, fontweight="bold")
+    plt.xlabel("Cosine Distance")
+    plt.ylabel("Number of Movies")
+    plt.title(f"{title} (Total: {total_movies} movies)")
     plt.grid(True, alpha=0.3, axis="y")
     plt.axvline(
         all_distances.mean(),
-        color="red",
+        color=rgb.tue_red,
         linestyle="--",
         linewidth=2,
         label=f"Mean: {all_distances.mean():.4f}",
@@ -257,7 +265,7 @@ def plot_distance_distribution(
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.savefig(output_path, bbox_inches="tight")
         logger.info(f"Plot saved to {output_path}")
     else:
         plt.show()
@@ -272,7 +280,6 @@ def plot_ks_test_cdf(
     p_value: float,
     output_path: str = None,
     title: str = "Kolmogorov-Smirnov Test: Distance Distributions",
-    figsize: tuple = (12, 8),
     interpretation: dict = None,
 ):
     """
@@ -283,9 +290,8 @@ def plot_ks_test_cdf(
     - random_distances: Array of cosine distances from control group epsilon ball
     - ks_statistic: K-S test statistic
     - p_value: p-value from K-S test
-    - output_path: Path to save the plot (if None, displays plot)
+    - output_path: Path to save the plot (if None, displays plot). Use .pdf for vector output.
     - title: Plot title
-    - figsize: Figure size tuple
     - interpretation: Optional interpretation dict from interpret_ks_test
     """
     anchor_sorted = np.sort(anchor_distances)
@@ -303,17 +309,22 @@ def plot_ks_test_cdf(
     max_diff_anchor_cdf = anchor_cdf_interp[max_diff_idx]
     max_diff_random_cdf = random_cdf_interp[max_diff_idx]
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=2))
+    fig, (ax1, ax2) = plt.subplots(1, 2)
 
     ax1.plot(
-        anchor_sorted, anchor_cdf, label="Anchor Movies", linewidth=2, color="blue"
+        anchor_sorted,
+        anchor_cdf,
+        label="Anchor Movies",
+        linewidth=2,
+        color=rgb.tue_blue,
     )
     ax1.plot(
         random_sorted,
         random_cdf,
         label="Control Group",
         linewidth=2,
-        color="red",
+        color=rgb.tue_red,
         linestyle="--",
     )
 
@@ -327,9 +338,9 @@ def plot_ks_test_cdf(
     ax1.plot(max_diff_dist, max_diff_anchor_cdf, "ko", markersize=8)
     ax1.plot(max_diff_dist, max_diff_random_cdf, "ko", markersize=8)
 
-    ax1.set_xlabel("Cosine Distance", fontsize=12)
-    ax1.set_ylabel("Cumulative Probability", fontsize=12)
-    ax1.set_title("Cumulative Distribution Functions", fontsize=12, fontweight="bold")
+    ax1.set_xlabel("Cosine Distance")
+    ax1.set_ylabel("Cumulative Probability")
+    ax1.set_title("Cumulative Distribution Functions")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     ax1.set_ylim([0, 1.05])
@@ -345,7 +356,7 @@ def plot_ks_test_cdf(
         bins=bins,
         alpha=0.6,
         label="Anchor Movies",
-        color="blue",
+        color=rgb.tue_blue,
         density=True,
     )
     ax2.hist(
@@ -353,7 +364,7 @@ def plot_ks_test_cdf(
         bins=bins,
         alpha=0.6,
         label="Control Group",
-        color="red",
+        color=rgb.tue_red,
         density=True,
     )
     ax2.axvline(
@@ -363,22 +374,18 @@ def plot_ks_test_cdf(
         linewidth=2,
         label=f"Max Diff Point (D={ks_statistic:.4f})",
     )
-    ax2.set_xlabel("Cosine Distance", fontsize=12)
-    ax2.set_ylabel("Density", fontsize=12)
-    ax2.set_title("Distance Distribution Histograms", fontsize=12, fontweight="bold")
+    ax2.set_xlabel("Cosine Distance")
+    ax2.set_ylabel("Density")
+    ax2.set_title("Distance Distribution Histograms")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
 
-    fig.suptitle(
-        f"{title}\nK-S Statistic: {ks_statistic:.6f}",
-        fontsize=14,
-        fontweight="bold",
-    )
+    fig.suptitle(f"{title}\nK-S Statistic: {ks_statistic:.6f}")
 
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.savefig(output_path, bbox_inches="tight")
         logger.info(f"K-S test plot saved to {output_path}")
     else:
         plt.show()
@@ -393,7 +400,6 @@ def plot_ks_test_temporal_cdf(
     p_value: float,
     output_path: str = None,
     title: str = "Kolmogorov-Smirnov Test: Temporal Distributions",
-    figsize: tuple = (14, 6),
     interpretation: dict = None,
 ):
     """
@@ -404,9 +410,8 @@ def plot_ks_test_temporal_cdf(
     - random_year_counts: Series of movie counts per year for control group
     - ks_statistic: K-S test statistic
     - p_value: p-value from K-S test
-    - output_path: Path to save the plot (if None, displays plot)
+    - output_path: Path to save the plot (if None, displays plot). Use .pdf for vector output.
     - title: Plot title
-    - figsize: Figure size tuple
     - interpretation: Optional interpretation dict from interpret_ks_test
     """
     anchor_samples = []
@@ -432,17 +437,22 @@ def plot_ks_test_temporal_cdf(
     max_diff_anchor_cdf = anchor_cdf_interp[max_diff_idx]
     max_diff_random_cdf = random_cdf_interp[max_diff_idx]
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    plt.rcParams.update(bundles.icml2024(column="half", nrows=2, ncols=1))
+    fig, (ax1, ax2) = plt.subplots(2, 1)
 
     ax1.plot(
-        anchor_sorted, anchor_cdf, label="Anchor Movies", linewidth=2, color="blue"
+        anchor_sorted,
+        anchor_cdf,
+        label="Anchor Movies",
+        linewidth=2,
+        color=rgb.tue_blue,
     )
     ax1.plot(
         random_sorted,
         random_cdf,
         label="Control Group",
         linewidth=2,
-        color="red",
+        color=rgb.tue_red,
         linestyle="--",
     )
 
@@ -456,11 +466,9 @@ def plot_ks_test_temporal_cdf(
     ax1.plot(max_diff_year, max_diff_anchor_cdf, "ko", markersize=8)
     ax1.plot(max_diff_year, max_diff_random_cdf, "ko", markersize=8)
 
-    ax1.set_xlabel("Year", fontsize=12)
-    ax1.set_ylabel("Cumulative Probability", fontsize=12)
-    ax1.set_title(
-        "Cumulative Distribution Functions (by Year)", fontsize=12, fontweight="bold"
-    )
+    ax1.set_xlabel("Year")
+    ax1.set_ylabel("Cumulative Probability")
+    ax1.set_title("Cumulative Distribution Functions (by Year)")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     ax1.set_ylim([0, 1.05])
@@ -483,68 +491,39 @@ def plot_ks_test_temporal_cdf(
         random_aligned / random_max if random_max > 0 else random_aligned
     )
 
-    x = np.arange(len(all_years_aligned))
-    width = 0.35
-
-    ax2.bar(
-        x - width / 2,
+    years = np.array(all_years_aligned)
+    ax2.scatter(
+        years,
         anchor_normalized.values,
-        width,
         label="Anchor Movies (normalized)",
         alpha=0.7,
-        color="blue",
+        color=rgb.tue_blue,
     )
-    ax2.axvline(
-        np.where(all_years_aligned == max_diff_year)[0][0],
-        color="black",
-        linestyle="--",
-        linewidth=2,
-        label=f"Max Diff Year ({int(max_diff_year)})",
-    )
-    ax2.set_xlabel("Year", fontsize=12)
-    ax2.set_ylabel("Normalized Count (Anchor Movies)", fontsize=12, color="blue")
-    ax2.tick_params(axis="y", labelcolor="blue")
-    ax2.set_title("Movie Counts per Year (Normalized)", fontsize=12, fontweight="bold")
-    ax2.set_xticks(x[:: max(1, len(x) // 10)])
-    ax2.set_xticklabels(
-        [
-            all_years_aligned[i]
-            for i in range(0, len(all_years_aligned), max(1, len(x) // 10))
-        ],
-        rotation=45,
-        ha="right",
-    )
-    ax2.grid(True, alpha=0.3, axis="y")
-
-    ax2_twin = ax2.twinx()
-    ax2_twin.bar(
-        x + width / 2,
+    ax2.scatter(
+        years,
         random_normalized.values,
-        width,
-        label="Random Movies (normalized)",
+        label="Control Group (normalized)",
         alpha=0.7,
-        color="red",
+        color=rgb.tue_red,
     )
-    ax2_twin.set_ylabel("Normalized Count (Control Group)", fontsize=12, color="red")
-    ax2_twin.tick_params(axis="y", labelcolor="red")
+    ax2.set_xlabel("Year")
+    ax2.set_ylabel("Normalized Count")
+    ax2.set_title("Movie Counts per Year (Normalized)")
+    ax2.set_ylim([0, 1.05])
+    step = max(1, len(years) // 10)
+    ax2.set_xticks(years[::step])
+    ax2.set_xticklabels(years[::step].tolist(), rotation=45, ha="right")
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(loc="best")
 
-    lines1, labels1 = ax2.get_legend_handles_labels()
-    lines2, labels2 = ax2_twin.get_legend_handles_labels()
-    ax2.legend(lines1 + lines2, labels1 + labels2, loc="best")
-
-    fig.suptitle(
-        f"{title}\nK-S Statistic: {ks_statistic:.6f}",
-        fontsize=14,
-        fontweight="bold",
-    )
+    fig.suptitle(f"{title}\nK-S Statistic: {ks_statistic:.6f}")
 
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.savefig(output_path, bbox_inches="tight")
         logger.info(f"K-S test temporal plot saved to {output_path}")
     else:
         plt.show()
 
     plt.close()
-
