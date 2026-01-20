@@ -274,12 +274,13 @@ We illustrate our approach using James Bond films as anchor movies to compare th
 
 To examine the temporal dimension, we construct cumulative distribution functions of release years for movies within the epsilon ball and compare them to the control group. Figure~\ref{fig:ks_test_temporal_bond} shows that the temporal distributions differ markedly. The left panel reveals a divergence beginning approximately in the 1960s, suggesting that the spy movie subgenre represented by the Bond anchor exhibits a distinct temporal emergence pattern compared to the broader corpus. The right panel displays normalized histograms of movie counts per year for both groups, confirming that the temporal distribution of spy-themed films diverges from the overall temporal distribution of cinema. This temporal divergence indicates that the spy film subgenre experienced a period of increased production and thematic consolidation that is not representative of general cinematic trends during the same period.
 
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/ks_test_temporal_Spectre__The_World_Is_Not_Enough__Tomorrow_Never_Dies__Casino_Royale__Casino_Royale__GoldenEye__Quantum_of_Sola__501cadb7_eps0.30.png}
-    \caption{KS test on temporal distributions for James Bond epsilon ball versus control group. Left: Cumulative distribution functions of release years showing divergence beginning in the 1960s. Right: Normalized histograms of movie counts per year, revealing distinct temporal patterns in spy film production compared to the broader corpus.}
+\begin{figure*}
+% plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=2))
+% fig, ax = plt.subplots(1, 2)
+    \includegraphics{../figures/epsilon_ball_analysis/ks_test_temporal_Spectre__The_World_Is_Not_Enough__Tomorrow_Never_Dies__Casino_Royale__Casino_Royale__GoldenEye__Quantum_of_Sola__501cadb7_eps0.28.pdf}
+    \caption{KS test on temporal distributions for James Bond epsilon ball ($\varepsilon = 0.28$) versus control group. Left: Cumulative distribution functions of release years showing divergence beginning in the 1960s. Right: Normalized histograms of movie counts per year, revealing distinct temporal patterns in spy film production compared to the broader corpus.}
     \label{fig:ks_test_temporal_bond}
-\end{figure}
+\end{figure*}
 
  % To further validate the methodology, we applied the same framework to movies focused on Middle East conflicts, using anchor movies such as \textit{Black Hawk Down}, \textit{The Hurt Locker}, \textit{Zero Dark Thirty}, and \textit{American Sniper}. Figure~\ref{fig:ks_test_temporal_middle_east} displays the temporal distribution analysis for this thematic category. The temporal shift is even more pronounced than in the spy film case, with the largest divergence occurring prior to the Gulf War period. Following this point, the frequency of movies semantically similar to the anchor movies increases rapidly. This pattern suggests that Middle East conflict films represent a temporally concentrated genre that emerged in response to specific historical events.
 

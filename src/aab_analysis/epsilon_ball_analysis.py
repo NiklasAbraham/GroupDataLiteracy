@@ -377,7 +377,7 @@ def main(
                     anchor_names_str = truncate_filename_component(anchor_names_str)
                     ks_plot_path = os.path.join(
                         output_dir,
-                        f"ks_test_distances_{anchor_names_str}_eps{epsilon:.2f}.png",
+                        f"ks_test_distances_{anchor_names_str}_eps{epsilon:.2f}.pdf",
                     )
                     plot_ks_test_cdf(
                         anchor_distances,
@@ -385,7 +385,7 @@ def main(
                         ks_stat_dist,
                         p_value_dist,
                         output_path=ks_plot_path,
-                        title=f"K-S Test: Distance Distributions (ε={epsilon})",
+                        title=f"K-S Test: Distance Distributions ($\\varepsilon$={epsilon})",
                         interpretation=interpretation_dist,
                     )
             except Exception as e:
@@ -443,7 +443,7 @@ def main(
                     anchor_names_str = truncate_filename_component(anchor_names_str)
                     ks_plot_path = os.path.join(
                         output_dir,
-                        f"ks_test_temporal_{anchor_names_str}_eps{epsilon:.2f}.png",
+                        f"ks_test_temporal_{anchor_names_str}_eps{epsilon:.2f}.pdf",
                     )
                     plot_ks_test_temporal_cdf(
                         anchor_year_counts,
@@ -451,7 +451,7 @@ def main(
                         ks_stat_temp,
                         p_value_temp,
                         output_path=ks_plot_path,
-                        title=f"K-S Test: Temporal Distributions (ε={epsilon})",
+                        title=f"K-S Test: Temporal Distributions ($\\varepsilon$={epsilon})",
                         interpretation=interpretation_temp,
                     )
             except Exception as e:
@@ -480,13 +480,13 @@ def main(
             anchor_names_str = truncate_filename_component(anchor_names_str)
             output_path = os.path.join(
                 output_dir,
-                f"epsilon_ball_over_time_{anchor_names_str}_eps{epsilon:.2f}.png",
+                f"epsilon_ball_over_time_{anchor_names_str}_eps{epsilon:.2f}.pdf",
             )
         # Use ALL movies in epsilon ball (not limited)
         plot_movies_over_time(
             results_df,
             output_path=output_path,
-            title=f"Movies in Epsilon Ball (ε={epsilon}) Over Time",
+            title=f"Movies in Epsilon Ball ($\\varepsilon$={epsilon}) Over Time",
             random_results_df=random_results_df,
         )
 
@@ -501,13 +501,13 @@ def main(
             anchor_names_str = truncate_filename_component(anchor_names_str)
             output_path = os.path.join(
                 output_dir,
-                f"epsilon_ball_distance_dist_{anchor_names_str}_eps{epsilon:.2f}.png",
+                f"epsilon_ball_distance_dist_{anchor_names_str}_eps{epsilon:.2f}.pdf",
             )
         # Use ALL movies in epsilon ball (not limited)
         plot_distance_distribution(
             results_df,
             output_path=output_path,
-            title=f"Distance Distribution in Epsilon Ball (ε={epsilon})",
+            title=f"Distance Distribution in Epsilon Ball ($\\varepsilon$={epsilon})",
         )
 
     return results_df
@@ -552,7 +552,7 @@ if __name__ == "__main__":
             "Q30931",
             "Q106440",
         ],
-        epsilon=0.32,
+        epsilon=0.3,
         start_year=1930,
         end_year=2024,
         anchor_method="average",  # or "medoid"
