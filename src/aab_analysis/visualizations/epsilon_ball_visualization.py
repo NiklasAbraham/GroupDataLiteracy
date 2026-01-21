@@ -14,6 +14,9 @@ import pandas as pd
 import tueplots.constants.color.rgb as rgb
 from tueplots import bundles
 
+# Custom orange color: RGB(255, 95, 31) normalized to [0, 1]
+CUSTOM_ORANGE = (1.0, 95 / 255, 31 / 255)
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,13 +123,13 @@ def plot_movies_over_time(
         ax1.plot(
             sma_3_normalized.index,
             sma_3_normalized.values,
-            color=rgb.tue_red,
+            color=CUSTOM_ORANGE,
             label="Anchor SMA (3)",
         )
         ax1.plot(
             sma_10_normalized.index,
             sma_10_normalized.values,
-            color=rgb.tue_red,
+            color=CUSTOM_ORANGE,
             linestyle="--",
             label="Anchor SMA (10)",
         )
@@ -146,13 +149,13 @@ def plot_movies_over_time(
             random_aligned.values,
             alpha=0.5,
             edgecolor="black",
-            color=rgb.tue_orange,
+            color=CUSTOM_ORANGE,
             label="Control Group (normalized)",
         )
         ax2.plot(
             random_sma_3_normalized.index,
             random_sma_3_normalized.values,
-            color=rgb.tue_orange,
+            color=CUSTOM_ORANGE,
             linestyle="--",
             alpha=0.6,
             label="Control Group SMA (3)",
@@ -165,8 +168,8 @@ def plot_movies_over_time(
             alpha=0.6,
             label="Control Group SMA (10)",
         )
-        ax2.set_ylabel("Normalized Count (Control Group)", color=rgb.tue_orange)
-        ax2.tick_params(axis="y", labelcolor=rgb.tue_orange)
+        ax2.set_ylabel("Normalized Count (Control Group)", color=CUSTOM_ORANGE)
+        ax2.tick_params(axis="y", labelcolor=CUSTOM_ORANGE)
 
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
@@ -186,11 +189,11 @@ def plot_movies_over_time(
             edgecolor="black",
             color=rgb.tue_blue,
         )
-        ax.plot(sma_3.index, sma_3.values, color=rgb.tue_red, label="SMA (3)")
+        ax.plot(sma_3.index, sma_3.values, color=CUSTOM_ORANGE, label="SMA (3)")
         ax.plot(
             sma_10.index,
             sma_10.values,
-            color=rgb.tue_red,
+            color=CUSTOM_ORANGE,
             linestyle="--",
             label="SMA (10)",
         )
@@ -252,7 +255,7 @@ def plot_distance_distribution(
     ax.grid(True, alpha=0.3, axis="y")
     ax.axvline(
         all_distances.mean(),
-        color=rgb.tue_red,
+        color=CUSTOM_ORANGE,
         linestyle="--",
         label=f"Mean: {all_distances.mean():.4f}",
     )
@@ -317,7 +320,7 @@ def plot_ks_test_cdf(
         random_sorted,
         random_cdf,
         label="Control Group",
-        color=rgb.tue_red,
+        color=CUSTOM_ORANGE,
         linestyle="--",
     )
 
@@ -356,7 +359,7 @@ def plot_ks_test_cdf(
         bins=bins,
         alpha=0.6,
         label="Control Group",
-        color=rgb.tue_red,
+        color=CUSTOM_ORANGE,
         density=True,
     )
     ax2.axvline(
@@ -429,7 +432,7 @@ def plot_ks_test_temporal_cdf(
     max_diff_random_cdf = random_cdf_interp[max_diff_idx]
 
     plt.rcParams.update(bundles.icml2024(column="half", nrows=2, ncols=1))
-    fig, (ax1, ax2) = plt.subplots(2, 1)
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
     ax1.plot(
         anchor_sorted,
@@ -441,7 +444,7 @@ def plot_ks_test_temporal_cdf(
         random_sorted,
         random_cdf,
         label="Control Group",
-        color=rgb.tue_red,
+        color=CUSTOM_ORANGE,
         linestyle="--",
     )
 
@@ -454,7 +457,6 @@ def plot_ks_test_temporal_cdf(
     ax1.plot(max_diff_year, max_diff_anchor_cdf, "ko", markersize=4)
     ax1.plot(max_diff_year, max_diff_random_cdf, "ko", markersize=4)
 
-    ax1.set_xlabel("Year")
     ax1.set_ylabel("Cumulative Probability")
     ax1.set_title("Cumulative Distribution Functions (by Year)")
     ax1.legend()
@@ -472,38 +474,35 @@ def plot_ks_test_temporal_cdf(
     anchor_max = anchor_aligned.max()
     random_max = random_aligned.max()
 
-    anchor_normalized = (
-        anchor_aligned / anchor_max if anchor_max > 0 else anchor_aligned
-    )
-    random_normalized = (
-        random_aligned / random_max if random_max > 0 else random_aligned
+    all_years_combined = np.concatenate([anchor_sorted, random_sorted])
+    bins = np.linspace(
+        all_years_combined.min(),
+        all_years_combined.max(),
+        50,
     )
 
-    years = np.array(all_years_aligned)
-    ax2.scatter(
-        years,
-        anchor_normalized.values,
-        label="Anchor Movies (normalized)",
+    ax2.hist(
+        anchor_sorted,
+        bins=bins,
         alpha=0.7,
+        edgecolor="black",
+        label="Anchor Movies",
         color=rgb.tue_blue,
-        s=8,
+        density=True,
     )
-    ax2.scatter(
-        years,
-        random_normalized.values,
-        label="Control Group (normalized)",
+    ax2.hist(
+        random_sorted,
+        bins=bins,
         alpha=0.7,
-        color=rgb.tue_red,
-        s=8,
+        edgecolor="black",
+        label="Control Group",
+        color=CUSTOM_ORANGE,
+        density=True,
     )
     ax2.set_xlabel("Year")
-    ax2.set_ylabel("Normalized Count")
-    ax2.set_title("Movie Counts per Year (Normalized)")
-    ax2.set_ylim([0, 1.05])
-    step = max(1, len(years) // 10)
-    ax2.set_xticks(years[::step])
-    ax2.set_xticklabels(years[::step].tolist(), rotation=45, ha="right")
-    ax2.grid(True, alpha=0.3)
+    ax2.set_ylabel("Density")
+    ax2.set_title("Movie Counts per Year")
+    ax2.grid(True, alpha=0.3, axis="y")
     ax2.legend(loc="best")
 
     fig.suptitle(f"{title}\nK-S Statistic: {ks_statistic:.6f}")
