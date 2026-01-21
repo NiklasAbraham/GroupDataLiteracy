@@ -105,8 +105,9 @@ def plot_movies_over_time(
             random_sma_10 / random_max if random_max > 0 else random_sma_10
         )
 
-        plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=1))
-        fig, ax1 = plt.subplots()
+        plt.rcParams.update(bundles.icml2024(column="half", nrows=2, ncols=1))
+        fig = plt.figure()
+        ax1 = plt.subplot2grid((2, 1), (0, 0), rowspan=2, fig=fig)
 
         ax1.bar(
             anchor_normalized.index,
@@ -120,14 +121,12 @@ def plot_movies_over_time(
             sma_3_normalized.index,
             sma_3_normalized.values,
             color=rgb.tue_red,
-            linewidth=2,
             label="Anchor SMA (3)",
         )
         ax1.plot(
             sma_10_normalized.index,
             sma_10_normalized.values,
             color=rgb.tue_red,
-            linewidth=2,
             linestyle="--",
             label="Anchor SMA (10)",
         )
@@ -154,7 +153,6 @@ def plot_movies_over_time(
             random_sma_3_normalized.index,
             random_sma_3_normalized.values,
             color=rgb.tue_orange,
-            linewidth=1.5,
             linestyle="--",
             alpha=0.6,
             label="Control Group SMA (3)",
@@ -163,7 +161,6 @@ def plot_movies_over_time(
             random_sma_10_normalized.index,
             random_sma_10_normalized.values,
             color=rgb.tue_lightorange,
-            linewidth=1.5,
             linestyle="--",
             alpha=0.6,
             label="Control Group SMA (10)",
@@ -179,31 +176,29 @@ def plot_movies_over_time(
         plt.title(f"{title} (Total: {total_movies} movies, Normalized)")
         plt.tight_layout()
     else:
-        plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=1))
-        plt.figure()
-        plt.bar(
+        plt.rcParams.update(bundles.icml2024(column="half", nrows=2, ncols=1))
+        fig = plt.figure()
+        ax = plt.subplot2grid((2, 1), (0, 0), rowspan=2, fig=fig)
+        ax.bar(
             year_counts.index,
             year_counts.values,
             alpha=0.7,
             edgecolor="black",
             color=rgb.tue_blue,
         )
-        plt.plot(
-            sma_3.index, sma_3.values, color=rgb.tue_red, linewidth=2, label="SMA (3)"
-        )
-        plt.plot(
+        ax.plot(sma_3.index, sma_3.values, color=rgb.tue_red, label="SMA (3)")
+        ax.plot(
             sma_10.index,
             sma_10.values,
             color=rgb.tue_red,
-            linewidth=2,
             linestyle="--",
             label="SMA (10)",
         )
-        plt.xlabel("Year")
-        plt.ylabel("Number of Movies")
-        plt.title(f"{title} (Total: {total_movies} movies)")
-        plt.legend()
-        plt.grid(True, alpha=0.3, axis="y")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Number of Movies")
+        ax.set_title(f"{title} (Total: {total_movies} movies)")
+        ax.legend()
+        ax.grid(True, alpha=0.3, axis="y")
         plt.tight_layout()
 
     if output_path:
@@ -240,28 +235,28 @@ def plot_distance_distribution(
         f"(distance range: {all_distances.min():.6f} to {all_distances.max():.6f})"
     )
 
-    plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=1))
-    plt.figure()
+    plt.rcParams.update(bundles.icml2024(column="half", nrows=2, ncols=1))
+    fig = plt.figure()
+    ax = plt.subplot2grid((2, 1), (0, 0), rowspan=2, fig=fig)
     # Use ALL movies in epsilon ball for histogram (not limited)
-    plt.hist(
+    ax.hist(
         all_distances,
         bins=50,
         alpha=0.7,
         edgecolor="black",
         color=rgb.tue_blue,
     )
-    plt.xlabel("Cosine Distance")
-    plt.ylabel("Number of Movies")
-    plt.title(f"{title} (Total: {total_movies} movies)")
-    plt.grid(True, alpha=0.3, axis="y")
-    plt.axvline(
+    ax.set_xlabel("Cosine Distance")
+    ax.set_ylabel("Number of Movies")
+    ax.set_title(f"{title} (Total: {total_movies} movies)")
+    ax.grid(True, alpha=0.3, axis="y")
+    ax.axvline(
         all_distances.mean(),
         color=rgb.tue_red,
         linestyle="--",
-        linewidth=2,
         label=f"Mean: {all_distances.mean():.4f}",
     )
-    plt.legend()
+    ax.legend()
     plt.tight_layout()
 
     if output_path:
@@ -309,21 +304,19 @@ def plot_ks_test_cdf(
     max_diff_anchor_cdf = anchor_cdf_interp[max_diff_idx]
     max_diff_random_cdf = random_cdf_interp[max_diff_idx]
 
-    plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=2))
-    fig, (ax1, ax2) = plt.subplots(1, 2)
+    plt.rcParams.update(bundles.icml2024(column="half", nrows=2, ncols=1))
+    fig, (ax1, ax2) = plt.subplots(2, 1)
 
     ax1.plot(
         anchor_sorted,
         anchor_cdf,
         label="Anchor Movies",
-        linewidth=2,
         color=rgb.tue_blue,
     )
     ax1.plot(
         random_sorted,
         random_cdf,
         label="Control Group",
-        linewidth=2,
         color=rgb.tue_red,
         linestyle="--",
     )
@@ -332,11 +325,10 @@ def plot_ks_test_cdf(
         [max_diff_dist, max_diff_dist],
         [max_diff_anchor_cdf, max_diff_random_cdf],
         "k-",
-        linewidth=2,
         label=f"K-S Statistic = {ks_statistic:.4f}",
     )
-    ax1.plot(max_diff_dist, max_diff_anchor_cdf, "ko", markersize=8)
-    ax1.plot(max_diff_dist, max_diff_random_cdf, "ko", markersize=8)
+    ax1.plot(max_diff_dist, max_diff_anchor_cdf, "ko", markersize=4)
+    ax1.plot(max_diff_dist, max_diff_random_cdf, "ko", markersize=4)
 
     ax1.set_xlabel("Cosine Distance")
     ax1.set_ylabel("Cumulative Probability")
@@ -371,7 +363,6 @@ def plot_ks_test_cdf(
         max_diff_dist,
         color="black",
         linestyle="--",
-        linewidth=2,
         label=f"Max Diff Point (D={ks_statistic:.4f})",
     )
     ax2.set_xlabel("Cosine Distance")
@@ -444,14 +435,12 @@ def plot_ks_test_temporal_cdf(
         anchor_sorted,
         anchor_cdf,
         label="Anchor Movies",
-        linewidth=2,
         color=rgb.tue_blue,
     )
     ax1.plot(
         random_sorted,
         random_cdf,
         label="Control Group",
-        linewidth=2,
         color=rgb.tue_red,
         linestyle="--",
     )
@@ -460,11 +449,10 @@ def plot_ks_test_temporal_cdf(
         [max_diff_year, max_diff_year],
         [max_diff_anchor_cdf, max_diff_random_cdf],
         "k-",
-        linewidth=2,
         label=f"K-S Statistic = {ks_statistic:.4f}",
     )
-    ax1.plot(max_diff_year, max_diff_anchor_cdf, "ko", markersize=8)
-    ax1.plot(max_diff_year, max_diff_random_cdf, "ko", markersize=8)
+    ax1.plot(max_diff_year, max_diff_anchor_cdf, "ko", markersize=4)
+    ax1.plot(max_diff_year, max_diff_random_cdf, "ko", markersize=4)
 
     ax1.set_xlabel("Year")
     ax1.set_ylabel("Cumulative Probability")
@@ -498,6 +486,7 @@ def plot_ks_test_temporal_cdf(
         label="Anchor Movies (normalized)",
         alpha=0.7,
         color=rgb.tue_blue,
+        s=8,
     )
     ax2.scatter(
         years,
@@ -505,6 +494,7 @@ def plot_ks_test_temporal_cdf(
         label="Control Group (normalized)",
         alpha=0.7,
         color=rgb.tue_red,
+        s=8,
     )
     ax2.set_xlabel("Year")
     ax2.set_ylabel("Normalized Count")
