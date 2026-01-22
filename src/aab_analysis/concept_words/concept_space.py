@@ -1,16 +1,16 @@
 """
 Shared concept space functionality for concept extraction methods.
 
-This module contains the common functionality for building and loading concept spaces
-from WordNet nouns filtered by Zipf frequency.
+Builds and loads concept spaces from WordNet nouns filtered by Zipf frequency.
 Used by both sparse and dense embedding concept extraction methods.
 """
 
 from pathlib import Path
-import numpy as np
-from sentence_transformers import SentenceTransformer
-from nltk.corpus import wordnet as wn
 from typing import Dict, Optional
+
+import numpy as np
+from nltk.corpus import wordnet as wn
+from sentence_transformers import SentenceTransformer
 
 try:
     import wordfreq
@@ -18,24 +18,13 @@ try:
 except ImportError:
     HAS_WORDFREQ = False
 
-# Default paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DEFAULT_CONCEPT_DIR = BASE_DIR / "data" / "concept_space"
 DEFAULT_CONCEPT_MODEL = "BAAI/bge-small-en-v1.5"
 
 
 def get_concept_space_filenames(min_zipf, max_vocab, model_name):
-    """
-    Generate filenames for concept space files based on parameters.
-    
-    Args:
-        min_zipf: Minimum Zipf frequency used for vocabulary
-        max_vocab: Maximum vocabulary size
-        model_name: Model name (slashes will be replaced with underscores)
-    
-    Returns:
-        Tuple of (words_filename, vecs_filename)
-    """
+    """Generate filenames for concept space files based on parameters."""
     model_safe = model_name.replace("/", "_").replace("\\", "_")
     words_filename = f"concept_words_zipf{min_zipf}_vocab{max_vocab}_{model_safe}.npy"
     vecs_filename = f"concept_vecs_zipf{min_zipf}_vocab{max_vocab}_{model_safe}.npy"
@@ -43,24 +32,13 @@ def get_concept_space_filenames(min_zipf, max_vocab, model_name):
 
 
 def _is_verb_like(word):
-    """
-    Check if a word is primarily a verb or verb-derived (gerund).
-    Excludes gerunds and words that are primarily verbs.
-    
-    Args:
-        word: Word to check
-    
-    Returns:
-        True if the word is verb-like and should be excluded
-    """
+    """Check if a word is primarily a verb or verb-derived (gerund)."""
     verb_synsets = wn.synsets(word, pos=wn.VERB)
     noun_synsets = wn.synsets(word, pos=wn.NOUN)
     
-    # Exclude gerunds: words ending in -ing that have verb synsets
     if word.endswith('ing') and verb_synsets:
         return True
     
-    # Exclude if word has significantly more verb synsets than noun synsets
     if verb_synsets and len(verb_synsets) > len(noun_synsets):
         return True
     
@@ -68,37 +46,18 @@ def _is_verb_like(word):
 
 
 def _is_valid_english_word(word, min_length=2):
-    """
-    Simple check if a word is valid - just basic length requirement.
-    
-    Args:
-        word: Word to check
-        min_length: Minimum word length (default 2)
-    
-    Returns:
-        True if the word meets minimum length
-    """
+    """Check if a word meets minimum length requirement."""
     return len(word) >= min_length
 
 
 def build_wordnet_concept_vocab(min_zipf=2, max_vocab=10000, filter_verbs=False, filter_generic=True):
     """
-    Build a concept vocabulary from WordNet nouns filtered by Zipf frequency.
+    Build concept vocabulary from WordNet nouns filtered by Zipf frequency.
     Only includes single-word nouns (excludes multi-word phrases).
-    
-    Args:
-        min_zipf: Minimum Zipf frequency (default 2)
-        max_vocab: Maximum vocabulary size (default 10000)
-        filter_verbs: If True, exclude verb-like words (gerunds) (default: False)
-        filter_generic: If True, exclude very generic words (default: True)
-    
-    Returns:
-        List of single-word concept nouns
     """
     if not HAS_WORDFREQ:
         raise ImportError("wordfreq is required for building concept vocabulary")
     
-    # Blacklist of very generic words that aren't useful as concepts
     generic_words = {
         # Movie/film terms
         'movie', 'film', 'story', 'storyline', 'plot', 'narrative', 'screenplay',
@@ -137,17 +96,14 @@ def build_wordnet_concept_vocab(min_zipf=2, max_vocab=10000, filter_verbs=False,
         'backpacker', 'salesman', 'philistine', 'burglary'
     }
     
-    # Collect all WordNet noun words
     words = set()
     for syn in wn.all_synsets(pos=wn.NOUN):
         for lemma in syn.lemmas():
             w = lemma.name().replace("_", " ").lower().strip()
-            # Only include single-word nouns (exclude multi-word phrases)
             if " " in w or len(w) <= 1:
                 continue
             words.add(w)
     
-    # Filter by Zipf frequency and generic words
     filtered = []
     filtered_out_generic = 0
     for word in words:
@@ -172,26 +128,12 @@ def build_wordnet_concept_vocab(min_zipf=2, max_vocab=10000, filter_verbs=False,
         print(f"Filtered out {filtered_out_generic} generic words from concept vocabulary")
     
     filtered.sort(key=lambda x: -x[1])
-    vocab = [w for w, _ in filtered[:max_vocab]]
-    return vocab
+    return [w for w, _ in filtered[:max_vocab]]
 
 
 def embed_and_save_concept_vocab(vocab, output_dir, model_name="BAAI/bge-small-en-v1.5", 
                                   batch_size=512, min_zipf=None, max_vocab=None):
-    """
-    Embed concept vocabulary and save to disk.
-    
-    Args:
-        vocab: List of concept words
-        output_dir: Directory to save .npy files
-        model_name: SentenceTransformer model name
-        batch_size: Batch size for embedding
-        min_zipf: Minimum Zipf frequency used (for filename encoding)
-        max_vocab: Maximum vocabulary size used (for filename encoding)
-    
-    Returns:
-        Tuple of (words_path, vecs_path)
-    """
+    """Embed concept vocabulary and save to disk."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -215,36 +157,19 @@ def embed_and_save_concept_vocab(vocab, output_dir, model_name="BAAI/bge-small-e
 
 
 class ConceptSpace:
-    """
-    Concept space built from WordNet nouns with Zipf filtering.
-    Used by both sparse and dense embedding concept extraction methods.
-    """
+    """Concept space built from WordNet nouns with Zipf filtering."""
+    
     def __init__(self, concept_words_path, concept_vecs_path, model_name="BAAI/bge-small-en-v1.5"):
-        """
-        Initialize ConceptSpace from saved concept vocabulary.
-        
-        Args:
-            concept_words_path: Path to .npy file containing concept words
-            concept_vecs_path: Path to .npy file containing concept embeddings
-            model_name: SentenceTransformer model name for embedding unknown lemmas
-        """
+        """Initialize ConceptSpace from saved concept vocabulary."""
         self.concept_words = np.load(concept_words_path, allow_pickle=True).tolist()
-        self.concept_vecs = np.load(concept_vecs_path).astype(np.float32)  # Shape: (N, d)
+        self.concept_vecs = np.load(concept_vecs_path).astype(np.float32)
         self.model = SentenceTransformer(model_name)
         self.word2idx = {w: i for i, w in enumerate(self.concept_words)}
     
     def map_lemmas(self, lemma2weight, top_k=10):
         """
         Map noun lemmas to concept anchors and aggregate weights.
-        
         Used by sparse embedding method to map lemmas to concepts.
-        
-        Args:
-            lemma2weight: dict[lemma] -> weight (from lexical_weights)
-            top_k: Number of top concepts to return
-        
-        Returns:
-            List of (concept_word, score) tuples, sorted by score descending
         """
         if not lemma2weight:
             return []
