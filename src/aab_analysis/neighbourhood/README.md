@@ -4,18 +4,18 @@ This module provides tools for analyzing neighborhoods in the movie embedding sp
 
 ## File Organization
 
-The module is organized with numbered files for clear execution order. Core function files use the `neighbourhood_` prefix, while analysis scripts use simple numeric prefixes.
+All files are numbered sequentially from 001 to 009 for clear organization and execution order.
 
 ### Core Functions
 
-**`neighbourhood_001_gaussian_analysis.py`**
+**`001_gaussian_analysis.py`**
 - Core functions for Gaussian distribution analysis
 - `compute_mahalanobis_distances()`: Compute Mahalanobis distances from mean
 - `analyze_gaussianity()`: Comprehensive Gaussianity analysis
 - `create_gaussianity_plots()`: Generate visualization plots (Q-Q plots, PCA, histograms)
 - `gaussian_analysis_with_embeddings()`: Complete analysis pipeline with visualizations
 
-**`neighbourhood_002_neighbor_utils.py`**
+**`002_neighbor_utils.py`**
 - Utility functions for neighbor finding
 - `find_n_closest_neighbours()`: Find n closest neighbors using cosine similarity
 - `find_most_dissimilar_movies()`: Find n most dissimilar movies using cosine distance
@@ -26,54 +26,37 @@ The module is organized with numbered files for clear execution order. Core func
 - Script to find closest neighbors to a movie or group of movies
 - Supports single QID or multiple QIDs with aggregation (mean/median)
 - Filters by year range
-- Usage (run directly):
-  ```bash
-  python src/aab_analysis/neighbourhood/003_find_neighbors.py
-  ```
-  Or modify the `main()` call at the bottom of the file with your parameters.
+- Uses functions from `002_neighbor_utils.py`
+- Usage: Run directly or modify the `main()` call at the bottom of the file
 
 **`004_find_dissimilar.py`**
 - Script to find most dissimilar movies
 - Can use a specific movie ID, embedding vector, or mean embedding as reference
 - Filters by year range
-- Usage (run directly):
-  ```bash
-  python src/aab_analysis/neighbourhood/004_find_dissimilar.py
-  ```
-  Or modify the `main()` call at the bottom of the file with your parameters.
+- Uses functions from `002_neighbor_utils.py`
+- Usage: Run directly or modify the `main()` call at the bottom of the file
 
 **`005_gaussian_fit.py`**
 - Comprehensive Gaussianity analysis script with caching
 - Supports debiasing and whitening transformations
 - Can test multiple alpha values efficiently (caches expensive computations)
 - Generates Q-Q plots, PCA analysis, and outlier detection
-- Usage (run directly):
-  ```bash
-  python src/aab_analysis/neighbourhood/005_gaussian_fit.py
-  ```
-  Or modify the `main()` call at the bottom of the file with your parameters.
+- Uses functions from `001_gaussian_analysis.py`
+- Usage: Run directly or modify the `main()` call at the bottom of the file
 
 **`006_keyword_group_analysis.py`**
 - Analyzes average cosine distance within keyword groups vs random movies
 - Supports both keyword-based and QID-based group analysis
 - Generates bar plots comparing within-group vs random distances
 - Calculates global average distance for comparison
-- Usage (run directly):
-  ```bash
-  python src/aab_analysis/neighbourhood/006_keyword_group_analysis.py
-  ```
-  Or modify the `main()` call at the bottom of the file with your parameters.
+- Usage: Run directly or modify the `main()` call at the bottom of the file
 
 **`007_neighbor_distribution.py`**
 - Analyzes neighbor distribution using epsilon balls
 - Compares distance distributions from anchor vs mean vector
 - Plots CDF and histograms of distance distributions
 - Finds most "average" movies (closest to mean embedding)
-- Usage (run directly):
-  ```bash
-  python src/aab_analysis/neighbourhood/007_neighbor_distribution.py
-  ```
-  Or modify the `main()` call at the bottom of the file with your parameters.
+- Usage: Run directly or modify the `main()` call at the bottom of the file
 
 **`008_cosine_statistics.py`**
 - Comprehensive cosine statistics analysis for hyperspherical embedding geometry
@@ -83,30 +66,20 @@ The module is organized with numbered files for clear execution order. Core func
 - Compares raw vs debiased embeddings (All-but-the-top approach)
 - Supports multiple independent runs for statistical robustness
 - Generates histograms, PCA plots, and comparison visualizations
-- Usage (run directly):
-  ```bash
-  python src/aab_analysis/neighbourhood/008_cosine_statistics.py
-  ```
-  Or modify the `main()` call at the bottom of the file with your parameters.
+- Usage: Run directly or modify the `main()` call at the bottom of the file
 
 **`009_extract_high_distance_movies.py`**
 - Extracts movies with high Mahalanobis distances from cached Gaussian analysis results
 - Works with the caching system from `005_gaussian_fit.py`
 - Useful for identifying outliers after Gaussian analysis
 - Can save results to CSV
-- Usage (run directly):
-  ```bash
-  python src/aab_analysis/neighbourhood/009_extract_high_distance_movies.py
-  ```
-  Or modify the `main()` call at the bottom of the file with your parameters.
+- Usage: Run directly or modify the `main()` call at the bottom of the file
 
-## File Naming Convention
+## File Numbering
 
-- **Core function files**: Use `neighbourhood_XXX_` prefix (e.g., `neighbourhood_001_gaussian_analysis.py`)
-  - These can be imported as Python modules
-- **Analysis scripts**: Use simple numeric prefix (e.g., `003_find_neighbors.py`)
-  - These are meant to be run directly as scripts (Python modules cannot start with numbers)
-  - To use them programmatically, import using `importlib` or modify the `main()` function calls at the bottom of each file
+All files are numbered sequentially:
+- **001-002**: Core function modules (can be imported by other scripts)
+- **003-009**: Analysis scripts (designed to be run directly)
 
 ## Dependencies
 
@@ -140,11 +113,12 @@ Most scripts share these parameters:
 
 ## Notes
 
+- Files 001-002 contain reusable functions that are imported by scripts 003-009
+- Since Python modules cannot start with numbers, scripts use `importlib` to load numbered modules
 - Gaussian analysis uses caching to avoid recomputing expensive operations (distances, PCA) when only alpha values change
 - `009_extract_high_distance_movies.py` requires cached results from `005_gaussian_fit.py` - parameters must match exactly
 - Cosine statistics analysis supports multiple runs for statistical robustness
 - All distance calculations use cosine similarity/distance
 - Embeddings are normalized before distance calculations
 - Scripts handle missing data gracefully with warnings
-- Scripts with numeric prefixes (003-009) are designed to be run directly from the command line
-- To use scripts programmatically, you can use `importlib` or modify the `main()` calls in each file
+- Scripts are designed to be run directly from the command line or by modifying the `main()` calls in each file

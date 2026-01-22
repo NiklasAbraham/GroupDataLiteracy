@@ -156,7 +156,7 @@ class Qwen3EmbeddingStrategy(AbstractEmbeddingStrategy):
             # Last resort: load directly (uses more memory but works)
             if self._transformer_model is None:
                 try:
-                    logger.warning(f"Could not access model from sentence-transformers. Loading separate model for token extraction (this uses extra memory)")
+                    logger.warning("Could not access model from sentence-transformers. Loading separate model for token extraction (this uses extra memory)")
                     self._transformer_model = AutoModel.from_pretrained(self.model_name)
                     self._transformer_model = self._transformer_model.to(device)
                     self._transformer_model.eval()
@@ -426,7 +426,7 @@ class Qwen3EmbeddingStrategy(AbstractEmbeddingStrategy):
                         result['colbert_vecs'] = colbert_vecs
                         logger.info(f"Extracted token-level embeddings for {non_empty}/{len(corpus)} documents")
                     else:
-                        logger.warning(f"Token-level extraction returned empty arrays for all documents. Falling back to dense-only mode.")
+                        logger.warning("Token-level extraction returned empty arrays for all documents. Falling back to dense-only mode.")
                 else:
                     logger.warning(f"Token-level extraction incomplete: got {len(colbert_vecs) if colbert_vecs else 0} embeddings for {len(corpus)} documents")
                 

@@ -8,21 +8,15 @@ Metrics and analysis functions for evaluating embedding methods.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy.spatial.distance import cosine
 from scipy.stats import pearsonr
 from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_score, accuracy_score, f1_score, hamming_loss
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.multioutput import MultiOutputClassifier
+from sklearn.metrics import silhouette_score
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
-import os
+from typing import Dict, List, Optional
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 # Import the general predictor function
 # calculations.py is in src/analysis/chunking/
@@ -680,7 +674,7 @@ def evaluate_method(embeddings: np.ndarray,
     Returns:
         Dict[str, float]: Dictionary of metric names to values
     """
-    print(f"    Computing metrics (parallelized)...")
+    print("    Computing metrics (parallelized)...")
     start_metrics = time.time()
     
     # Compute independent metrics in parallel

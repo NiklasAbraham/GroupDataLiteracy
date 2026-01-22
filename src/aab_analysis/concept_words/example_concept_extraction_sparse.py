@@ -116,7 +116,7 @@ def main():
     # Display results
     if top_concepts:
         print(f"\n{'='*80}")
-        print(f"TOP 30 CONCEPTS:")
+        print("TOP 30 CONCEPTS:")
         print(f"{'='*80}")
         print(f"{'Rank':<6} {'Concept':<30} {'Lexical Score':<15} {'Cosine Score':<15}")
         print(f"{'-'*80}")

@@ -16,11 +16,11 @@ import numpy as np
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, BASE_DIR)
 
-from src.aab_analysis.math_functions.cosine_distance_util import (
+from src.aab_analysis.math_functions.cosine_distance_util import (  # noqa: E402
     calculate_average_cosine_distance,
     calculate_average_cosine_distance_between_groups,
 )
-from src.utils.data_utils import (
+from src.utils.data_utils import (  # noqa: E402
     load_final_dataset,
     load_final_dense_embeddings,
     search_movies_by_keywords,

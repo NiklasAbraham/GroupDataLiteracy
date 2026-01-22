@@ -20,16 +20,22 @@ from sklearn.decomposition import PCA
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, BASE_DIR)
 
-from src.aab_analysis.math_functions.whitening import whiten_embeddings
-import importlib.util
-import sys
-gaussian_spec = importlib.util.spec_from_file_location("gaussian_analysis", os.path.join(BASE_DIR, "src/aab_analysis/neighbourhood/001_gaussian_analysis.py"))
+import importlib.util  # noqa: E402
+
+from src.aab_analysis.math_functions.whitening import whiten_embeddings  # noqa: E402
+
+gaussian_analysis_path = os.path.join(
+    os.path.dirname(__file__), "001_gaussian_analysis.py"
+)
+gaussian_spec = importlib.util.spec_from_file_location(
+    "gaussian_analysis", gaussian_analysis_path
+)
 gaussian_analysis = importlib.util.module_from_spec(gaussian_spec)
 sys.modules["gaussian_analysis"] = gaussian_analysis
 gaussian_spec.loader.exec_module(gaussian_analysis)
 analyze_gaussianity = gaussian_analysis.analyze_gaussianity
 create_gaussianity_plots = gaussian_analysis.create_gaussianity_plots
-from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings
+from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

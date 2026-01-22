@@ -622,7 +622,7 @@ async def fetch_movies(
 
     if verbose:
         print(f"\nFetched {len(all_movies)} movies total")
-        print(f"Movies ordered by popularity per year")
+        print("Movies ordered by popularity per year")
 
     return all_movies
 
@@ -663,7 +663,7 @@ async def fetch_movies_comprehensive(
 
     if verbose:
         print(f"\nFetched {len(all_movies)} movies total with comprehensive features")
-        print(f"Movies ordered by popularity per year")
+        print("Movies ordered by popularity per year")
 
     return all_movies
 

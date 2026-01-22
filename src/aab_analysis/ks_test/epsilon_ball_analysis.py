@@ -15,7 +15,7 @@ SRC_DIR = os.path.join(BASE_DIR, "src")
 sys.path.insert(0, BASE_DIR)
 sys.path.insert(0, os.path.join(BASE_DIR, "src"))
 
-from src.utils.data_utils import (
+from src.utils.data_utils import (  # noqa: E402
     load_final_dataset,
     load_final_dense_embeddings,
 )

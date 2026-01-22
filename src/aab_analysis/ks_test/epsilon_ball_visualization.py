@@ -425,9 +425,6 @@ def plot_ks_test_temporal_cdf(
     anchor_aligned.loc[anchor_year_counts.index] = anchor_year_counts.values
     random_aligned.loc[random_year_counts.index] = random_year_counts.values
 
-    anchor_max = anchor_aligned.max()
-    random_max = random_aligned.max()
-
     all_years_combined = np.concatenate([anchor_sorted, random_sorted])
     bins = np.linspace(
         all_years_combined.min(),

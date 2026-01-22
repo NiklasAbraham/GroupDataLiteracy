@@ -5,7 +5,6 @@ import pandas as pd
 from scipy.spatial.distance import cosine
 import numpy as np
 from tqdm.auto import tqdm
-from matplotlib import pyplot as plt
 
 # Get project root
 BASE_DIR = Path(__file__).parent.parent.parent

@@ -5,9 +5,6 @@ from pathlib import Path
 base_path = Path(__file__).parent.parent
 sys.path.append(str(base_path))
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
 
 from src.utils.data_utils import *
 from data_cleaning import clean_dataset

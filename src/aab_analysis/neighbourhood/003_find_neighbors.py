@@ -15,14 +15,14 @@ import numpy as np
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, BASE_DIR)
 
-import importlib.util
+import importlib.util  # noqa: E402
 neighbor_utils_path = os.path.join(os.path.dirname(__file__), "002_neighbor_utils.py")
 spec = importlib.util.spec_from_file_location("neighbor_utils", neighbor_utils_path)
 neighbor_utils = importlib.util.module_from_spec(spec)
 sys.modules["neighbor_utils"] = neighbor_utils
 spec.loader.exec_module(neighbor_utils)
 find_n_closest_neighbours = neighbor_utils.find_n_closest_neighbours
-from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings
+from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

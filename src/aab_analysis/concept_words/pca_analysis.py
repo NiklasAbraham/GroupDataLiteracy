@@ -59,11 +59,11 @@ def perform_pca(
     
     if verbose:
         explained_variance = pca.explained_variance_ratio_
-        print(f"\nPCA Results:")
+        print("\nPCA Results:")
         for i in range(n_components):
             print(f"  PC{i+1} explained variance: {explained_variance[i]:.4f} ({explained_variance[i]*100:.2f}%)")
         print(f"  Total explained variance: {explained_variance.sum():.4f} ({explained_variance.sum()*100:.2f}%)")
-        print(f"  Eigenvalues: ", end="")
+        print("  Eigenvalues: ", end="")
         for i in range(n_components):
             print(f"λ{i+1}={eigenvalues[i]:.4f}", end=", " if i < n_components - 1 else "\n")
     
@@ -90,7 +90,7 @@ def select_relevant_concepts(
     
     if verbose:
         print(f"\nSelected {len(selected_words)} most relevant concepts from concept space")
-        print(f"Top 10 selected concepts:")
+        print("Top 10 selected concepts:")
         for i, word in enumerate(selected_words[:10], 1):
             sim = similarities[top_indices[i-1]]
             print(f"  {i}. {word:20s}: similarity={sim:.4f}")

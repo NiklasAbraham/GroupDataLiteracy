@@ -185,7 +185,6 @@ def create_gaussianity_plots(
     - Dictionary mapping plot names to file paths (if saved) or empty dict
     """
     distances_squared = analysis_results["distances_squared"]
-    outlier_indices = analysis_results["outlier_indices"]
     n_dims = analysis_results["n_dims"]
     pca_explained_variance = analysis_results["pca_explained_variance"]
     pca_cumulative_variance = analysis_results["pca_cumulative_variance"]
@@ -240,7 +239,6 @@ def create_gaussianity_plots(
         plt.close(fig)
 
     if "dimensions" in qq_test_types and embeddings is not None:
-        n_samples = embeddings.shape[0]
         n_dims_to_test = min(10, n_dims)
 
         n_cols = 3

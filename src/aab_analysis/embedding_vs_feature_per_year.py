@@ -7,12 +7,10 @@ from data_utils, and creates UMAP visualizations colored by year and genre.
 
 import os
 import sys
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import umap
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -145,7 +143,7 @@ print(f"Number of unique genres: {len(set(sampled_genres))}")
 
 # Display genre distribution
 genre_counts = pd.Series(sampled_genres).value_counts()
-print(f"\nTop 20 genres in sample:")
+print("\nTop 20 genres in sample:")
 print(genre_counts.head(20))
 
 # Create UMAP reduction
@@ -347,12 +345,12 @@ plt.savefig(os.path.join(DATA_DIR, 'pca_explained_variance.png'), dpi=300, bbox_
 print("Saved: pca_explained_variance.png")
 
 print("Analysis complete!")
-print(f"\nSummary:")
+print("\nSummary:")
 print(f"  Total movies loaded: {len(all_movie_ids)}")
 print(f"  Movies sampled: {n_samples}")
 print(f"  Year range: {all_years.min()} - {all_years.max()}")
 print(f"  Unique genres: {len(set(sampled_genres))}")
-print(f"\nPlots saved to:")
+print("\nPlots saved to:")
 print(f"  {os.path.join(DATA_DIR, 'umap_by_year.png')}")
 print(f"  {os.path.join(DATA_DIR, 'umap_by_genre.png')}")
 print(f"  {os.path.join(DATA_DIR, 'tsne_by_year.png')}")

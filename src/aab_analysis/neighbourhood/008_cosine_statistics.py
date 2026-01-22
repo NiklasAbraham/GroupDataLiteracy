@@ -13,14 +13,14 @@ import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, BASE_DIR)
 
-import matplotlib.pyplot as plt
-import numpy as np
-from scipy import stats
-from sklearn.decomposition import PCA
-from sklearn.metrics.pairwise import cosine_similarity
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+from scipy import stats  # noqa: E402
+from sklearn.decomposition import PCA  # noqa: E402
+from sklearn.metrics.pairwise import cosine_similarity  # noqa: E402
 
-from src.aab_analysis.math_functions.whitening import debias_embeddings
-from src.utils.data_utils import (
+from src.aab_analysis.math_functions.whitening import debias_embeddings  # noqa: E402
+from src.utils.data_utils import (  # noqa: E402
     load_final_dataset,
     load_final_dense_embeddings,
 )
@@ -496,9 +496,6 @@ def create_cosine_plots(
     # 1. Cosine similarity histogram
     # We need to compute pairwise cosines for the histogram
     # For efficiency, sample if dataset is large
-    n_samples = results["n_samples"]
-    sample_pairs = min(10000, n_samples * (n_samples - 1) // 2)
-
     # We'll compute this in the main function and pass it
 
     # 2. Angular distribution histogram
@@ -622,8 +619,6 @@ def create_raw_vs_whitened_comparison(
 
     # Compute statistics for debiased
     debiased_mean_cosine = np.mean(debiased_cosines)
-    debiased_cosine_var = np.var(debiased_cosines)
-    debiased_angular_std = np.std(debiased_angles)
     debiased_mrl = compute_mean_resultant_length(debiased_normalized)
     debiased_R, debiased_rayleigh_stat, debiased_rayleigh_p = rayleigh_test_uniformity(
         debiased_normalized, return_p_value=True
@@ -631,8 +626,6 @@ def create_raw_vs_whitened_comparison(
 
     # Raw statistics (averaged across runs)
     raw_mean_cosine = np.mean([r["mean_cosine"] for r in raw_results])
-    raw_cosine_var = np.var(raw_cosines)
-    raw_angular_std = np.std(raw_angles)
     raw_mrl = np.mean([r["mean_resultant_length"] for r in raw_results])
     raw_rayleigh_p = np.mean([r["rayleigh_p_value"] for r in raw_results])
 

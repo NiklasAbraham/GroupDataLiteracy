@@ -556,6 +556,7 @@ def keep_selected_top_genres(df: pd.DataFrame, top_indices: List[int]) -> pd.Dat
 def keep_x_top_genres(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
     genre_counts = df["new_genre"].value_counts()
     top_n_genres = genre_counts.head(n).index.tolist()
+    return df[df["new_genre"].isin(top_n_genres)]
 
 
 def drop_nan_in_column(df: pd.DataFrame, column_name: str) -> pd.DataFrame:

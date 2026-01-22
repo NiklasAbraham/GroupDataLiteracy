@@ -6,7 +6,6 @@ Used by both sparse and dense embedding concept extraction methods.
 """
 
 from pathlib import Path
-from typing import Dict, Optional
 
 import numpy as np
 from nltk.corpus import wordnet as wn
@@ -175,7 +174,7 @@ class ConceptSpace:
             return []
         
         lemmas = list(lemma2weight.keys())
-        weights = np.array([lemma2weight[l] for l in lemmas], dtype=np.float32)
+        weights = np.array([lemma2weight[lemma] for lemma in lemmas], dtype=np.float32)
         weights /= weights.sum()
         
         known_idx = []
@@ -183,13 +182,13 @@ class ConceptSpace:
         unknown_lemmas = []
         unknown_weights = []
         
-        for l, w in zip(lemmas, weights):
-            idx = self.word2idx.get(l)
+        for lemma, w in zip(lemmas, weights):
+            idx = self.word2idx.get(lemma)
             if idx is not None:
                 known_idx.append(idx)
                 known_weights.append(w)
             else:
-                unknown_lemmas.append(l)
+                unknown_lemmas.append(lemma)
                 unknown_weights.append(w)
         
         concept_scores = np.zeros(self.concept_vecs.shape[0], dtype=np.float32)

@@ -73,7 +73,7 @@ def main():
         min_zipf_vocab, max_vocab, MODEL_NAME
     )
     concept_words_path = CONCEPT_DIR / words_filename
-    print(f"Concept space files:")
+    print("Concept space files:")
     print(f"  Words: {concept_words_path}")
     print(f"  Vectors: {CONCEPT_DIR / vecs_filename}")
     if concept_words_path.exists():
@@ -82,7 +82,7 @@ def main():
         print(f"  Loaded {len(concept_space.concept_words)} concepts")
         print(f"  Sample concepts: {', '.join(concept_space.concept_words[:10])}")
     else:
-        print(f"  Concept space will be built (this may take a while)...")
+        print("  Concept space will be built (this may take a while)...")
     print()
     
     top_concepts = extract_concepts_from_dense_embedding(

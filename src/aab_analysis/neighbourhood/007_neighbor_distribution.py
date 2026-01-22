@@ -20,8 +20,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, BASE_DIR)
 
-from src.aab_analysis.math_functions.epsilon_ball import compute_anchor_embedding
-from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings
+from src.aab_analysis.math_functions.epsilon_ball import compute_anchor_embedding  # noqa: E402
+from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
