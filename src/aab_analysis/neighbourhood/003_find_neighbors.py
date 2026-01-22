@@ -15,7 +15,13 @@ import numpy as np
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, BASE_DIR)
 
-from src.aab_analysis.neighbourhood.neighbourhood_002_neighbor_utils import find_n_closest_neighbours
+import importlib.util
+neighbor_utils_path = os.path.join(os.path.dirname(__file__), "002_neighbor_utils.py")
+spec = importlib.util.spec_from_file_location("neighbor_utils", neighbor_utils_path)
+neighbor_utils = importlib.util.module_from_spec(spec)
+sys.modules["neighbor_utils"] = neighbor_utils
+spec.loader.exec_module(neighbor_utils)
+find_n_closest_neighbours = neighbor_utils.find_n_closest_neighbours
 from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings
 
 logging.basicConfig(

@@ -517,7 +517,7 @@ if __name__ == "__main__":
             "Q30931",
             "Q106440",
         ],
-        epsilon=0.30,
+        epsilon=0.29,
         start_year=1930,
         end_year=2024,
         anchor_method="average",  # or "medoid"

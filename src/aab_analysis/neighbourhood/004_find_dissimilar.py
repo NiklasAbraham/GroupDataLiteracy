@@ -11,7 +11,13 @@ import numpy as np
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, BASE_DIR)
 
-from src.aab_analysis.neighbourhood.neighbourhood_002_neighbor_utils import find_most_dissimilar_movies
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("neighbor_utils", "src/aab_analysis/neighbourhood/002_neighbor_utils.py")
+neighbor_utils = importlib.util.module_from_spec(spec)
+sys.modules["neighbor_utils"] = neighbor_utils
+spec.loader.exec_module(neighbor_utils)
+find_most_dissimilar_movies = neighbor_utils.find_most_dissimilar_movies
 from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings
 
 logging.basicConfig(
