@@ -13,7 +13,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.insert(0, BASE_DIR)
 
 from src.aab_analysis.math_functions.cosine_distance_util import (  # noqa: E402

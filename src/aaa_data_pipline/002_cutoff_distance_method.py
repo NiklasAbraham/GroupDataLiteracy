@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 BASE_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from src.utils.data_utils import load_embeddings_as_dict
+from src.utils.data_utils import load_embeddings_as_dict  # noqa: E402
 
 DATA_DIR = os.path.join(BASE_DIR, "data", "data_final")
 CLEAN_DATA_PATH = os.path.join(DATA_DIR, "final_dataset.csv")

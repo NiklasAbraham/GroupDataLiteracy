@@ -17,7 +17,7 @@ import numpy as np
 from scipy import stats
 from sklearn.decomposition import PCA
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.insert(0, BASE_DIR)
 
 import importlib.util  # noqa: E402

@@ -17,10 +17,10 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.insert(0, BASE_DIR)
 
-from src.aab_analysis.math_functions.epsilon_ball import compute_anchor_embedding  # noqa: E402
+from src.aab_analysis.ks_test.epsilon_ball import compute_anchor_embedding  # noqa: E402
 from src.utils.data_utils import load_final_dataset, load_final_dense_embeddings  # noqa: E402
 
 logging.basicConfig(
