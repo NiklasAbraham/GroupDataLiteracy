@@ -57,6 +57,9 @@ def calculate_average_cosine_distance_between_groups(
 
     Returns:
     - Average cosine distance (float)
+
+    Important: When computing genre drift for two embedding groups we first calculate the mean embedding for each group and then call
+    this function, so the group embeddings will be dx1, so it only outputs one pair
     """
     if group1_embeddings is None or group2_embeddings is None:
         return None
