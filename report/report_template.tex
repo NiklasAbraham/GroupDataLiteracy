@@ -66,6 +66,12 @@
 %\usepackage[disable,textsize=tiny]{todonotes}
 \usepackage[textsize=tiny]{todonotes}
 
+% Control spacing around section headings
+\usepackage{titlesec}
+% Format: \titlespacing{command}{left}{before-sep}{after-sep}[right-sep]
+% Adjust the values (in pt) to control spacing before and after subsections
+% You can modify these values as needed
+\titlespacing{\subsection}{0pt}{0.9ex}{0.4ex}
 
 % The \icmltitle you define below is probably too long as a header.
 % Therefore, a short form for the running title is supplied here:
@@ -109,11 +115,11 @@
 % put your email addresses here. You can use initials to save space, 
 % e.g. if you are called Max Mustermann, you can use \icmlcorrespondingauthor{MM}{max.mustermann@uni-tuebingen.de}
 % DO USE YOUR UNIVERSITY EMAIL ADDRESS!
-\icmlcorrespondingauthor{Initials1}{ansel-heng-yu.cheung@uni-tuebingen.de} 
-\icmlcorrespondingauthor{Initials2}{alessio.villa@student.uni-tuebingen.de}
-\icmlcorrespondingauthor{Initials3}{bartol.markovinovic@student.uni-tuebingen.de}
-\icmlcorrespondingauthor{Initials4}{martin.lopez-de-ipina-munoz@student.uni-tuebingen.de}
-\icmlcorrespondingauthor{Initials5}{niklas-sebastian.abraham@student.uni-tuebingen.de}
+\icmlcorrespondingauthor{AC}{ansel-heng-yu.cheung@uni-tuebingen.de} 
+\icmlcorrespondingauthor{AV}{alessio.villa@student.uni-tuebingen.de}
+\icmlcorrespondingauthor{BM}{bartol.markovinovic@student.uni-tuebingen.de}
+\icmlcorrespondingauthor{MLDI}{martin.lopez-de-ipina-munoz@student.uni-tuebingen.de}
+\icmlcorrespondingauthor{NA}{niklas-sebastian.abraham@student.uni-tuebingen.de}
 
 % You may provide any keywords that you
 % find helpful for describing your paper; these are used to populate
@@ -135,13 +141,12 @@
 \printAffiliationsAndNotice{\icmlEqualContribution} % otherwise use the standard text.
 
 \begin{abstract}
-We analyze semantic evolution in cinema by embedding movie plot summaries (1930-2024) into a unified semantic space. Using distance distributions, novelty scores, and Kolmogorov-Smirnov tests, we quantify temporal shifts in narrative structures, revealing overall semantic stability alongside distinct emergence patterns in specific subgenres.
+Cinema serves as a cultural archive that reflects evolving societal values and narrative preferences across generations. Understanding how movie stories have changed over time provides insights into cultural evolution, but quantitative analysis of narrative structures at scale has remained challenging. We address this gap by analyzing semantic evolution in cinema through embedding movie plot summaries from 1930 to 2024 into a unified semantic space. Using distance distributions, novelty scores, and Kolmogorov-Smirnov tests, we quantify temporal shifts in narrative structures across nearly a century of filmmaking. Our analysis reveals overall semantic stability in the broader corpus, suggesting that fundamental narrative patterns remain consistent over time. However, we also identify distinct emergence patterns in specific subgenres, demonstrating how thematic categories evolve and consolidate in response to cultural and historical contexts.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
 
 Cinema provides a rich archive of narrative structures that encode evolving societal values across generations. Previous approaches employ keyword search or topic modelling \cite{dubourg2023cinema} to explore temporal trends in movie plots. While these older methods might be insightful but challenging, recent computational work \cite{xu2020cinderella} has revealed hidden cultural patterns in large narrative corpora. One such analysis conducted on the musical domain uses high dimensional embeddings to observe changes to structural properties over time \cite{DiMarco2025}. We build upon these foundations by leveraging advances in large language models (LLMs) to embed movie plot summaries \cite{sreenivasan2013quantitative} into a unified semantic space. Using novel statistical methods, we quantitatively analyze how movie narratives evolve over time.
-Common public sentiment is that the film industry is \textit{"running out of ideas"} resulting in movies that are becoming less creative and more similar to each other over time. We analyze this claim...?
 
 \section{Data and Methods}\label{sec:methods}
 
@@ -149,7 +154,7 @@ Common public sentiment is that the film industry is \textit{"running out of ide
 
 The initial dataset was constructed by querying Wikidata, an open knowledge graph structured as a network of items, connected together by properties. We used its SPARQL API to extract items classified as films with release dates ranging from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we gathered the data iteratively by release year. We first retrieved QIDs of items describing feature films, then processed them in small batches to gather the rest of relevant features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. During collection of QIDs, items classified as short film or television series episode were excluded, and final filtering of non-feature films was performed during data cleaning.
 
-Second, we enriched the dataset using TMDb, a community-driven database that offers quantitative measures of popularity and user engagement. Wikidata's external identifiers enabled direct mapping to TMDb entries, from which we programmatically retrieved vote counts, vote averages, and popularity metrics for each film. These measures served as proxies for audience engagement and cultural impact, informing downstream film filtering and weighting.
+Second, we enriched the dataset with TMDb statistics, retrieving vote counts, vote averages, and popularity for each film. These served as proxies for audience engagement and informed later filtering and weighting.
 
 The third stage, the most data-intensive, focused on obtaining full-text plot summaries. Leveraging Wikipedia sitelinks from Wikidata, we accessed each film's Wikipedia page to extract the plot section. Wikipedia's editorial standards ensure relatively uniform and neutral plot descriptions, facilitating standardized comparative semantic analysis. This step used the Wikipedia API for article retrieval, section extraction, and text normalization, transforming metadata into the dense textual data required for downstream embedding.
 
@@ -157,7 +162,7 @@ The last enrichment stage addressed limitations in TMDb voting statistics. Many 
 
 All data sources are open and appropriately licensed. Wikidata \cite{wikidata} is released under CC0 1.0 Universal (public domain). Wikipedia \cite{wikipedia} is under CC BY SA 4.0, and TMDb \cite{tmdb} under CC BY NC 4.0, allowing non-commercial research with attribution. This ensures reproducibility and legal compliance.
 
-After the data was collected in a tabular format, the textual plot descriptions required transformation into vector representations via a suitable embedding model for downstream analysis. The plot descriptions extracted from Wikipedia pages exhibit substantial variability in length, ranging from 10 to 20,479 characters, corresponding to approximately 6 to 5,296 tokens in an English tokenizer. All plot descriptions in our corpus are in English, which simplifies the embedding process by eliminating cross-lingual considerations. After performing the explicitly described data pipeline steps, the final dataset contained 141{,}119 data points (movies) with an average coverage of 81\% in the categories of actors, directors, genres, and year.
+Wikipedia plot summaries were embedded into vectors for analysis. These English texts varied widely in length, from 10 to 20,479 characters, but were all processed in the same semantic space. After data processing, our final dataset consisted of 141,119 movies with 81\% average feature coverage.
 
 \subsection{Data cleaning}
 
@@ -181,26 +186,20 @@ The most critical filtering step was the removal of movies with low-entropy plot
     \label{fig:data_cleaning_funnel}
 \end{figure}
 
-\subsubsection{Embedding of the movie plot summaries}
-
-For embedding, we selected the BGE-M3 model \cite{chen2024bgem3embeddingmultilingualmultifunctionality} based on its strong showing (28th place) on the Massive Text Embedding Benchmark (MTEB) leaderboard\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}. BGE-M3 is compact (0.5B parameters), supports 8,192-token context length, and can embed entire movie plots in a single vector.
+\textbf{Embedding of the movie plot summaries.} For embedding, we selected the BGE-M3 model \cite{chen2024bgem3embeddingmultilingualmultifunctionality} based on its strong showing (28th place) on the Massive Text Embedding Benchmark (MTEB) leaderboard\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}. BGE-M3 is compact (0.5B parameters), supports 8,192-token context length, and can embed entire movie plots in a single vector.
 
 We use a single static model for all time periods to ensure unified representation in a common latent space. Since Wikipedia summaries are modern English (maintained since 2001), linguistic drift is negligible. After evaluating chunking and pooling methods \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a, raffel2023exploringlimitstransferlearning}, we selected CLS Token (details: \cite{our_github_repo}).
 
-\subsubsection{Internal data validation}
+\textbf{Internal data validation.} To check that the embeddings meaningfully represent plot similarity, we measured cosine distances within and outside major movie franchises (Harry Potter, Star Wars, James Bond). Movies from the same franchise consistently clustered closer together (e.g., Harry Potter: 0.21 inner-group distance vs. 0.57 to random movies), while the global average distance between any two movies was 0.52. This confirms that the embeddings capture true semantic similarity.
 
-To check that the embeddings meaningfully represent plot similarity, we measured cosine distances within and outside major movie franchises (Harry Potter, Star Wars, James Bond). Movies from the same franchise consistently clustered closer together (e.g., Harry Potter: 0.21 inner-group distance vs. 0.57 to random movies), while the global average distance between any two movies was 0.52. This confirms that the embeddings capture true semantic similarity.
-
-\subsubsection{Genre Taxonomy}
-
-The raw dataset included 975 unique genre labels, many of which were redundant or highly similar. To simplify and standardize the taxonomy, we first removed genres that appeared only once, reducing the set to 463. We then embedded the Wikipedia descriptions (available for 359 genres) using the BGE-M3 model, and clustered these vectors with $k=20$ using k-means. Each cluster was manually labeled based on thematic similarity, resulting in 20 coherent genre categories used in further analyses.
+\textbf{Genre Taxonomy.} The raw dataset included 975 unique genre labels, many of which were redundant or highly similar. To simplify and standardize the taxonomy, we first removed genres that appeared only once, reducing the set to 463. We then embedded the Wikipedia descriptions (available for 359 genres) using the BGE-M3 model, and clustered these vectors with $k=20$ using k-means. Each cluster was manually labeled based on thematic similarity, resulting in 20 coherent genre categories used in further analyses.
 
 
-\subsection{Methodology}
+\section{Methodology}\label{sec:methodology}
 
 After the data was collected and cleaned, the first step was to embed the movie plot summaries into a semantic space.
 
-\subsubsection{Distance analysis}
+\textbf{Distance analysis.}
 
 Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus.
 
@@ -212,9 +211,7 @@ As movie genres provide a meaningful taxonomy with potential temporal evolution 
 
 Since our dataset contains significantly more movies in later years, the medoid and centroid embedding estimators are heavily affected by sampling variance. To mitigate this, we downsample to ensure equal sampling error across all genre-year groups and apply bootstrapping to estimate confidence intervals. 
 
-\subsubsection{Novelty analysis}
-
-To investigate the claim that movies are becoming less novel over time, we developed a metric for novelty defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
+\textbf{Novelty analysis.} To investigate the claim that movies are becoming less novel over time, we developed a metric for novelty defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
 
 \begin{equation}
     \text{Novelty}(m_i) = \min_{j: year_j < year_i} \left( 1 - \frac{E(m_i) \cdot E(m_j)}{\|E(m_i)\| \|E(m_j)\|} \right)
@@ -224,9 +221,7 @@ where \( E(m) \) denotes the embedding vector of a movie's plot.
 Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
 To compute these scores, we used the Faiss library \cite{douze2024faiss} to efficiently find the preceding nearest neighbors of movie plot embeddings based on the cosine distance.
 
-\subsubsection{Kolmogorov-Smirnov test}
-
-To compare distance distributions across movie subsets (e.g., different decades or genres), we employ the Kolmogorov-Smirnov test \cite{massey1951}. We construct $\epsilon$-balls ($\epsilon \in [0.24, 0.30]$) around anchor movies representing specific themes, collecting all movies within the distance threshold to define local semantic neighborhoods. We compare distance distributions and temporal CDFs (cumulative distribution functions of release years) within these neighborhoods to a control group (global mean embedding). Divergence indicates temporal shifts: if semantic structure remains stable, distributions should be similar across time periods.
+\textbf{Kolmogorov-Smirnov test.} To compare distance distributions across movie subsets (e.g., different decades or genres), we employ the Kolmogorov-Smirnov test \cite{massey1951}. We construct $\epsilon$-balls ($\epsilon \in [0.24, 0.30]$) around anchor movies representing specific themes, collecting all movies within the distance threshold to define local semantic neighborhoods. We compare distance distributions and temporal CDFs (cumulative distribution functions of release years) within these neighborhoods to a control group (global mean embedding). Divergence indicates temporal shifts: if semantic structure remains stable, distributions should be similar across time periods.
 
 \section{Results}\label{sec:results}
 
@@ -234,9 +229,9 @@ In this section, we present and interpret the main empirical findings of our ana
 
 \subsection{General Spatial Analysis}
 
-We begin with an overview of the global structure of the embedding space by examining the pairwise cosine distances between movie embeddings. The distribution of these distances is approximately normal, with a mean cosine distance of $\mu = 0.5195$ and a standard deviation of $\sigma = 0.0624$, measured over multiple samples. This summarizes the typical dissimilarity between movie plots and serves as a reference point for subsequent analyses.
+We begin by examining the global structure of the embedding space through pairwise cosine distances between movies. These distances are approximately normally distributed, with a mean of $\mu = 0.5195$ and a standard deviation of $\sigma = 0.0624$, capturing the typical dissimilarity between movie plots and serving as a baseline for further analysis.
 
-To assess the extent to which genre labels correspond to distinct regions in the embedding space, we analyzed separation metrics across 19 genres. The overall intra-genre distance (mean cosine distance between movies within the same genre) was 0.5042, while the overall inter-genre distance (mean cosine distance between movies from different genres) was 0.5268. This yields a separation ratio of 1.0448 and a separation gap of 0.0226. The proximity of these values, with inter-genre distances only marginally exceeding intra-genre distances, indicates substantial overlap between genre clusters in the semantic space. This interpretation is further supported by a silhouette score of $-0.0334$, where negative values indicate that genres are not well separated and exhibit significant intermingling. These findings suggest that while embeddings capture semantic similarity, genre boundaries in this high-dimensional space are relatively porous, reflecting the hybrid and overlapping nature of cinematic categorization.
+To evaluate whether genre labels map to distinct regions, we compared intra-genre (mean: 0.5042) and inter-genre (mean: 0.5268) distances across 19 genres. The resulting separation gap of 0.0226, ratio of 1.0448, and a silhouette score of $-0.0334$ indicate considerable overlap, with genres only weakly separated in the embedding space. This suggests genre boundaries are porous, consistent with the hybrid and overlapping nature of film categories.
 
 
 \subsection{Genre drift analysis}
@@ -265,19 +260,19 @@ We illustrate our approach using James Bond films as anchor movies to compare th
 
 To examine the temporal dimension, we construct cumulative distribution functions of release years for movies within the epsilon ball and compare them to the control group. Figure~\ref{fig:ks_test_temporal_bond} shows that the temporal distributions differ markedly. The left panel reveals a divergence beginning approximately in the 1960s, suggesting that the spy movie subgenre represented by the Bond anchor exhibits a distinct temporal emergence pattern compared to the broader corpus. The right panel displays normalized histograms of movie counts per year for both groups, confirming that the temporal distribution of spy-themed films diverges from the overall temporal distribution of cinema. This temporal divergence indicates that the spy film subgenre experienced a period of increased production and thematic consolidation that is not representative of general cinematic trends during the same period.
 
-\begin{figure*}
-% plt.rcParams.update(bundles.icml2024(column="full", nrows=1, ncols=2))
-% fig, ax = plt.subplots(1, 2)
-    \includegraphics{../figures/epsilon_ball_analysis/ks_test_temporal_Spectre__The_World_Is_Not_Enough__Tomorrow_Never_Dies__Casino_Royale__Casino_Royale__GoldenEye__Quantum_of_Sola__501cadb7_eps0.28.pdf}
-    \caption{KS test on temporal distributions for James Bond epsilon ball ($\varepsilon = 0.28$) versus control group. Left: Cumulative distribution functions of release years showing divergence beginning in the 1960s. Right: Normalized histograms of movie counts per year, revealing distinct temporal patterns in spy film production compared to the broader corpus.}
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\columnwidth]{../figures_final/epsilon_ball_analysis/ks_test_temporal_Spectre__The_World_Is_Not_Enough__Tomorrow_Never_Dies__Casino_Royale__Casino_Royale__GoldenEye__Quantum_of_Sola__501cadb7_eps0.29.pdf}
+    \vspace{-2em}
+    \caption{KS test of temporal distributions for James Bond epsilon ball ($\varepsilon = 0.29$) versus control group, showing temporal divergence. Left: Cumulative distribution functions. Right: Normalized yearly counts.}
     \label{fig:ks_test_temporal_bond}
-\end{figure*}
+\end{figure}
 
  % To further validate the methodology, we applied the same framework to movies focused on Middle East conflicts, using anchor movies such as \textit{Black Hawk Down}, \textit{The Hurt Locker}, \textit{Zero Dark Thirty}, and \textit{American Sniper}. Figure~\ref{fig:ks_test_temporal_middle_east} displays the temporal distribution analysis for this thematic category. The temporal shift is even more pronounced than in the spy film case, with the largest divergence occurring prior to the Gulf War period. Following this point, the frequency of movies semantically similar to the anchor movies increases rapidly. This pattern suggests that Middle East conflict films represent a temporally concentrated genre that emerged in response to specific historical events.
 
 % \begin{figure}[ht]
 %    \centering
-%    \includegraphics[width=8cm]{figures/ks_test_temporal_Black_Hawk_Down__The_Hurt_Locker__Zero_Dark_Thirty__American_Sniper__Lone_Survivor__13_Hours_The_Secret_Soldier__26dca182_eps0.28.png}
+%    \includegraphics[width=8cm]{../figures_final/epsilon_ball_analysis/ks_test_temporal_Black_Hawk_Down__The_Hurt_Locker__Zero_Dark_Thirty__American_Sniper__Lone_Survivor__13_Hours_The_Secret_Soldier__26dca182_eps0.28.png}
 %    \caption{KS test on temporal distributions for Middle East conflict films epsilon ball ($\epsilon = 0.28$) versus control group. The temporal divergence is more pronounced than in the spy film case, with the largest difference occurring before the Gulf War period, followed by rapid convergence as production of conflict-themed films increased.}
 %    \label{fig:ks_test_temporal_middle_east}
 % \end{figure}
@@ -289,8 +284,7 @@ We must acknowledge the limitations that arise from our data sources. Wikipedia 
 
 All code and data used in this project are openly available in our GitHub repository\cite{our_github_repo} and as a dedicated dataset on Hugging Face\cite{our_data_on_huggingface}.
 
-\newpage
-\newpage
+\clearpage
 
 \section*{Contribution Statement}
 \textbf{Contribution Statement:}

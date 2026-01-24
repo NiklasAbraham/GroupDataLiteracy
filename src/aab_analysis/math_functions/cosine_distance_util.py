@@ -24,20 +24,13 @@ def calculate_average_cosine_distance(embeddings):
     if len(embeddings) < 2:
         return 0.0
 
-    # Normalize embeddings
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    norms[norms == 0] = 1  # Avoid division by zero
+    norms[norms == 0] = 1
     normalized_embeddings = embeddings / norms
 
-    # Calculate pairwise cosine similarities
-    # cosine_similarity returns a matrix where entry (i,j) is the cosine similarity
-    # between embeddings[i] and embeddings[j]
     similarity_matrix = cosine_similarity(normalized_embeddings)
-
-    # Convert to distance (1 - similarity)
     distance_matrix = 1 - similarity_matrix
 
-    # Get upper triangle (excluding diagonal) to avoid counting pairs twice
     n = len(embeddings)
     upper_triangle_indices = np.triu_indices(n, k=1)
     distances = distance_matrix[upper_triangle_indices]
@@ -73,14 +66,12 @@ def calculate_average_cosine_distance_between_groups(
             np.any(np.isnan(group2_embeddings))):
         return None
 
-    # 3. Reshape 1D vectors to 2D matrices (1, D) to satisfy axis=1 requirement
     if group1_embeddings.ndim == 1:
         group1_embeddings = np.expand_dims(group1_embeddings, axis=0)
 
     if group2_embeddings.ndim == 1:
         group2_embeddings = np.expand_dims(group2_embeddings, axis=0)
 
-    # Normalize embeddings
     norms1 = np.linalg.norm(group1_embeddings, axis=1, keepdims=True)
     norms1[norms1 == 0] = 1
     normalized_group1 = group1_embeddings / norms1
@@ -89,13 +80,9 @@ def calculate_average_cosine_distance_between_groups(
     norms2[norms2 == 0] = 1
     normalized_group2 = group2_embeddings / norms2
 
-    # Calculate pairwise cosine similarities between groups
     similarity_matrix = cosine_similarity(normalized_group1, normalized_group2)
-
-    # Convert to distance (1 - similarity)
     distance_matrix = 1 - similarity_matrix
 
-    # Return mean of all pairwise distances
     return np.mean(distance_matrix)
 
 
@@ -109,7 +96,6 @@ def find_nearest_and_furthest_medoid(embeddings: np.ndarray) -> tuple[int, int]:
     :rtype: tuple[int, ndarray[Any, Any]]
     """
 
-    # Calculate pairwise cosine distance matrix
     pairwise_distance_matrix = cdist(embeddings, embeddings, metric="cosine")
     most_sim_medoid_index = np.argmin(pairwise_distance_matrix.sum(axis=0))
     most_dissim_medoid_index = np.argmax(pairwise_distance_matrix.sum(axis=0))
@@ -131,7 +117,12 @@ def get_medoid_embedding(embeddings: np.ndarray) -> np.ndarray:
 
 def get_average_embedding(embeddings: np.ndarray) -> np.ndarray:
     """
-    I made this function because # Clean Code
+    Compute the average embedding across all embeddings.
+
+    Parameters:
+    - embeddings: Array of embeddings (shape: [n_samples, embedding_dim])
+
+    Returns:
+    - Average embedding vector (shape: [embedding_dim])
     """
-    average_embedding = np.mean(embeddings, axis=0)
-    return average_embedding
+    return np.mean(embeddings, axis=0)

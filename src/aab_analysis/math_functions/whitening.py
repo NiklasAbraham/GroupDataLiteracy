@@ -49,24 +49,19 @@ def whiten_embeddings(
     """
     n_samples, n_dims = embeddings.shape
 
-    # Mean-center the data
     centered = mean_center_embeddings(embeddings)
 
-    # Determine number of components
     if n_components is None:
         n_components = min(n_samples, n_dims)
     else:
         n_components = min(n_components, n_samples, n_dims)
 
-    # Apply PCA with whitening
-    # whiten=True scales components by sqrt(eigenvalues) to make variance=1
     pca = PCA(n_components=n_components, whiten=True)
     whitened = pca.fit_transform(centered)
 
-    # Optionally re-normalize to unit length (for cosine similarity analysis)
     if normalize:
         norms = np.linalg.norm(whitened, axis=1, keepdims=True)
-        norms = np.maximum(norms, 1e-10)  # Avoid division by zero
+        norms = np.maximum(norms, 1e-10)
         whitened = whitened / norms
 
     return whitened
@@ -103,34 +98,22 @@ def debias_embeddings(
     """
     n_samples, n_dims = embeddings.shape
 
-    # Compute global mean
     mean = np.mean(embeddings, axis=0)
-
-    # Mean-center the data
     centered = embeddings - mean
 
-    # Fit PCA on the full embedding set
     pca = PCA(n_components=min(k, n_dims, n_samples - 1))
     pca.fit(centered)
 
-    # Get top k principal components (u1, ..., uk)
-    # pca.components_ has shape (n_components, n_features)
-    # Each row is a principal component
-    top_pcs = pca.components_[:k]  # Shape: (k, n_dims)
+    top_pcs = pca.components_[:k]
 
-    # For each embedding, project out the dominant directions
-    # x' = x - Σ⟨x, u_i⟩u_i for i=1 to k
     debiased = centered.copy()
     for i in range(k):
-        # Compute projection onto PC i: ⟨x, u_i⟩
-        projections = np.dot(centered, top_pcs[i])  # Shape: (n_samples,)
-        # Subtract the projection: x - ⟨x, u_i⟩u_i
+        projections = np.dot(centered, top_pcs[i])
         debiased = debiased - np.outer(projections, top_pcs[i])
 
-    # Optionally re-normalize to unit length
     if normalize:
         norms = np.linalg.norm(debiased, axis=1, keepdims=True)
-        norms = np.maximum(norms, 1e-10)  # Avoid division by zero
+        norms = np.maximum(norms, 1e-10)
         debiased = debiased / norms
 
     return debiased

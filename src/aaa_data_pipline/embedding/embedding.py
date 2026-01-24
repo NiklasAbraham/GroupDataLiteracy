@@ -143,7 +143,7 @@ class EmbeddingService:
         
         # Log what keys are available for debugging
         if not results:
-            logger.error(f"encode_corpus returned empty dictionary. Expected keys: 'dense', 'sparse', 'colbert_vecs'")
+            logger.error("encode_corpus returned empty dictionary. Expected keys: 'dense', 'sparse', 'colbert_vecs'")
             return np.array([])
         
         logger.info(f"encode_corpus returned keys: {list(results.keys())}")

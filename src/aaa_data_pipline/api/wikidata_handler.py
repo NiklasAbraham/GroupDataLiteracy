@@ -14,7 +14,6 @@ import asyncio
 import aiohttp
 import os
 import logging
-import urllib.parse
 import re
 import json
 import pandas as pd
@@ -509,7 +508,7 @@ async def get_movies_by_year(
                 else:
                     try:
                         error_text = await response.text()
-                    except:
+                    except Exception:
                         error_text = f"Status {response.status}"
                     logger.error(f"Year {year}: Step 1 HTTP Error {response.status} - {error_text}")
                     return []
@@ -559,7 +558,6 @@ async def get_movies_by_year(
                         
                         results = data['results']['bindings']
                         
-                        dropped_no_title = 0
                         total_processed = len(results)
                         
                         if verbose:
@@ -591,7 +589,7 @@ async def get_movies_by_year(
                             error_text = await response.text()
                             if len(error_text) > 500:
                                 error_text = error_text[:500] + "..."
-                        except:
+                        except Exception:
                             error_text = f"Status {response.status}"
                         
                         logger.error(f"Year {year}: Step 2 batch {current_batch_num} HTTP Error {response.status} - {error_text} \n--- Failing Query: ---\n{enrichment_query}\n--- End Query ---")

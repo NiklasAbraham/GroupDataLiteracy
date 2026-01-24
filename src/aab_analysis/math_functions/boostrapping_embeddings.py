@@ -16,11 +16,8 @@ def get_bootstrapped_embeddings(n_bootstrap_samples: int, embeddings_series: pd.
 
     bootstrapped_results = []
     for _ in range(n_bootstrap_samples):
-        # Create a bootstrap sample (resample with replacement)
         indices = np.random.choice(num_movies, num_movies, replace=True)
         sample_embeddings = all_embeddings[indices]
-
-        # Calculate the representative embedding for the sample
         bootstrapped_embedding = grouping_function(sample_embeddings)
         bootstrapped_results.append(bootstrapped_embedding)
 

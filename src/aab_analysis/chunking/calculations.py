@@ -8,21 +8,18 @@ Metrics and analysis functions for evaluating embedding methods.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy.spatial.distance import cosine
 from scipy.stats import pearsonr
 from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_score, accuracy_score, f1_score, hamming_loss
+from sklearn.metrics import silhouette_score, accuracy_score, f1_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.multioutput import MultiOutputClassifier
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
-import os
+from typing import Dict, List, Optional
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 # Import the general predictor function
 # calculations.py is in src/analysis/chunking/
@@ -299,14 +296,57 @@ def compute_genre_classification_metrics(embeddings: np.ndarray, genres: np.ndar
     Returns:
         Dict[str, float]: Dictionary with 'genre_accuracy' (subset accuracy) and 'genre_f1_score' (micro-averaged)
     """
-    # Use the general predictor function
-    return predict_genres_logistic_regression(
-        embeddings=embeddings,
-        genres=genres,
-        test_size=test_size,
-        random_state=random_state,
-        return_model=False
+    # Convert genres to multi-label format
+    mlb = MultiLabelBinarizer()
+    
+    # Process genres into list of lists format
+    genre_lists = []
+    valid_indices = []
+    for idx, genre in enumerate(genres):
+        if genre is None or (isinstance(genre, float) and np.isnan(genre)):
+            continue
+        if isinstance(genre, str):
+            # Split by comma if multiple genres
+            genre_list = [g.strip() for g in genre.split(',')]
+        elif isinstance(genre, list):
+            genre_list = [str(g).strip() for g in genre]
+        else:
+            genre_list = [str(genre).strip()]
+        
+        if genre_list:
+            genre_lists.append(genre_list)
+            valid_indices.append(idx)
+    
+    if len(genre_lists) < 2:
+        return {'genre_accuracy': np.nan, 'genre_f1_score': np.nan}
+    
+    # Get valid embeddings and encode genres
+    valid_embeddings = embeddings[valid_indices]
+    y_multilabel = mlb.fit_transform(genre_lists)
+    
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(
+        valid_embeddings, y_multilabel, test_size=test_size, random_state=random_state
     )
+    
+    # Train multi-label classifier
+    clf = LogisticRegression(random_state=random_state, max_iter=1000)
+    clf.fit(X_train, y_train)
+    
+    # Predict
+    y_pred = clf.predict(X_test)
+    
+    # Compute metrics
+    # Subset accuracy (exact match)
+    subset_accuracy = accuracy_score(y_test, y_pred)
+    
+    # Micro-averaged F1
+    micro_f1 = f1_score(y_test, y_pred, average='micro', zero_division=0)
+    
+    return {
+        'genre_accuracy': subset_accuracy,
+        'genre_f1_score': micro_f1
+    }
 
 def compute_cosine_distance(row):
     if np.all(pd.isna(row['next_avg_embedding'])):
@@ -680,7 +720,7 @@ def evaluate_method(embeddings: np.ndarray,
     Returns:
         Dict[str, float]: Dictionary of metric names to values
     """
-    print(f"    Computing metrics (parallelized)...")
+    print("    Computing metrics (parallelized)...")
     start_metrics = time.time()
     
     # Compute independent metrics in parallel

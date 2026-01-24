@@ -5,11 +5,9 @@ manager.py
 Orchestrates the embedding bias-variance experiment across all chunking methods.
 """
 
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -22,13 +20,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
 from src.aab_analysis.chunking import calculations  # noqa: E402
-from src.aab_analysis.chunking.chunk_base_class import ChunkBase  # noqa: E402
 from src.aab_analysis.chunking.chunk_first_then_embed import ChunkFirstEmbed  # noqa: E402
 from src.aab_analysis.chunking.chunk_late_chunking import LateChunking  # noqa: E402
 from src.aab_analysis.chunking.chunk_mean_pooling import MeanPooling  # noqa: E402
 from src.aab_analysis.chunking.chunk_no_chunking_cls_token import CLSToken  # noqa: E402
 from src.aaa_data_pipline.embedding.embedding import EmbeddingService  # noqa: E402
-from src.aaa_data_pipline.embedding.util_embeddings import verify_gpu_setup  # noqa: E402
 from src.utils.data_utils import load_final_dataset  # noqa: E402
 
 # ============================================================================
@@ -197,7 +193,7 @@ def main():
         norms = np.linalg.norm(X, axis=1)
         print(f"    Sanity check [{name}]: unit-norm (min={norms.min():.6f} max={norms.max():.6f} mean={norms.mean():.6f} zeros={(norms<1e-8).sum()}/{len(norms)})")
         if not np.allclose(norms, 1.0, rtol=1e-3):
-            print(f"    WARNING: Not all embeddings are unit-norm!")
+            print("    WARNING: Not all embeddings are unit-norm!")
         return norms
     
     # Run each method
@@ -239,7 +235,6 @@ def main():
         all_embeddings[method_name] = embeddings
         
         # Clear CUDA cache after each method to free memory
-        import torch
         import gc
         if torch.cuda.is_available():
             # Clean up separate transformer model if it exists (for Qwen3)
@@ -305,7 +300,7 @@ def main():
     calculations.plot_length_norm_correlation_combined(
         all_embeddings, text_lengths, str(output_dir / "length_norm_corr.png")
     )
-    print(f"Saved combined length-norm correlation plot")
+    print("Saved combined length-norm correlation plot")
     
     calculations.plot_isotropy(all_metrics, str(output_dir / "pca_isotropy.png"))
     

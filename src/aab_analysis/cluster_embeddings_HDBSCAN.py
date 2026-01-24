@@ -14,14 +14,14 @@ import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, BASE_DIR)
 
-import hdbscan
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.metrics.pairwise import cosine_similarity, pairwise_distances
+import hdbscan  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+from sklearn.decomposition import PCA  # noqa: E402
+from sklearn.metrics.pairwise import cosine_similarity, pairwise_distances  # noqa: E402
 
-from src.utils.data_utils import (
+from src.utils.data_utils import (  # noqa: E402
     load_final_dataset,
     load_final_dense_embeddings,
     preprocess_genres,

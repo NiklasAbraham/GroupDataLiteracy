@@ -10,102 +10,52 @@ Group 3 project for ML4102 Data Literacy at the University of Tübingen.
 - **Martín López de Ipiña** (Matrikelnummer 7293076, MSc Machine Learning) - martin.lopez-de-ipina-munoz@student.uni-tuebingen.de
 - **Niklas Abraham** (Matrikelnummer 7307188, MSc Machine Learning) - niklas-sebastian.abraham@student.uni-tuebingen.de
 
+## Project Goal
+
+This project analyzes how movie narratives have evolved over nearly a century of cinema (1930-2024). A common sentiment suggests that the film industry is "running out of ideas," with movies becoming less creative and more similar over time. We investigate this claim by embedding movie plot summaries into a unified semantic space and using quantitative methods to measure temporal shifts in narrative structures.
+
+**Key Research Questions:**
+- How have movie plot structures evolved semantically over time?
+- Are movies becoming less novel and more similar to previous works?
+- Do specific genres or thematic clusters exhibit distinct temporal emergence patterns?
+
+**Approach:**
+We embed movie plot summaries from Wikipedia into a unified semantic space using the BGE-M3 model. Using distance distributions, novelty scores, and Kolmogorov-Smirnov tests, we quantify temporal shifts in narrative structures, revealing overall semantic stability alongside distinct emergence patterns in specific subgenres.
+
 ## Abstract
 
 We analyze semantic evolution in cinema by embedding movie plot summaries from 1930 to 2024 into a unified semantic space. Using distance distributions, novelty scores, and statistical tests, we quantify how genres and thematic clusters shift over time. Our analysis reveals periods of semantic stability and reorganization, providing quantitative measures of cultural change in narrative structures across nearly a century of cinema.
 
 ## Lab Book
 
-After the lecture, we discussed whether or not to include a lab book, since we prepared weekly slides for each tutorial. Every week, we used these slides to plan and document our progress on the project. As a result, the slides serve as a record of all the steps we took including many intermediate ideas and experiments that did not end up in the final report and provide a broader picture of our workflow. Although the slides are somewhat informal and contain the occasional meme, we ultimately decided to include them. We believe they give a fuller view of the project process and also reflect the fun and humor we experienced working together.
+The lab book documenting our weekly progress, intermediate experiments, and workflow is available at:
 
-## Project Workflow
+**`lab_book/LabBook.pdf`**
 
-The project follows a clear data flow through the folder structure:
-
-### 1. Data Collection (`src/aaa_data_pipline/`)
-
-**Flow**: `001_data_pipeline.py` → `api/` → `embedding/` → `data/data_final/`
-
-- **`001_data_pipeline.py`**: Main orchestrator that runs the complete pipeline
-- **`api/`**: External data sources
-  - `wikidata_handler.py`: Fetches movie metadata (1930-2024)
-  - `moviedb_handler.py`: Enriches with TMDb ratings and popularity
-  - `wikipedia_handler.py`: Retrieves plot summaries
-- **`003_imdb_ratings_addiction.py`**: Adds IMDb ratings data
-- **`004_data_cleaning.py`**: Filters and cleans the dataset (entropy-based filtering, removes non-features, etc.)
-- **`embedding/`**: Generates BGE-M3 embeddings
-  - `embedding.py`: EmbeddingService for parallel GPU encoding
-  - `models/`: Strategy pattern for different embedding models
-
-**Output**: Raw data → `data/data_final/wikidata_movies_YYYY.csv` and `movie_embeddings_YYYY_*.npy`
-
-### 2. Data Processing (`src/utils/`)
-
-**Flow**: `data_utils.py` → Consolidated files in `data/data_final/`
-
-- **`data_utils.py`**: Utilities for loading and processing
-  - `load_final_data_with_embeddings()`: Primary function to load complete dataset
-  - `cluster_genres()`: Genre normalization and clustering
-  - Consolidates per-year files into `final_dataset.csv` and `final_dense_embeddings.npy`
-
-**Output**: Consolidated dataset ready for analysis
-
-### 3. Analysis (`src/aab_analysis/`)
-
-**Flow**: Load data → Run analyses → Generate visualizations
-
-- **`genre_classifier.py`**: Clusters 975 raw genres into 20 coherent categories
-- **`genre_drift_utils.py`**: Analyzes genre evolution over time
-- **`stats_data.py`**: Statistical analysis (distance distributions, KS tests)
-- **`gaussian_fit.py`**: Gaussian distribution fitting for distance analysis
-- **`projection_analysis.ipynb`**: PCA analysis with concept space projection
-- **`concept_extraction.py`**: Maps plot nouns to semantic concept space
-- **`chunking/`**: Experimental framework comparing embedding aggregation methods
-
-**Output**: Analysis results and visualizations in `figures/`
-
-### 4. Concept Space (`data/concept_space/`)
-
-- Pre-computed WordNet-based concept vocabulary (~20,000 nouns)
-- Used for semantic mapping in concept extraction and PCA analysis
+This document contains weekly slides from our tutorials that served as both planning documents and progress records. While somewhat informal, the lab book provides a complete view of our project process, including many intermediate ideas and experiments that did not make it into the final report. It reflects the collaborative workflow and iterative development of our analysis methods.
 
 ## Project Structure
 
 ```
 GroupDataLiteracy/
 ├── data/
-│   ├── data_final/                # Processed data (per-year + consolidated)
-│   │   ├── final_dataset.csv      # Consolidated movie dataset
-│   │   ├── final_dense_embeddings.npy
-│   │   ├── wikidata_movies_YYYY.csv
-│   │   └── movie_embeddings_YYYY_*.npy
-│   └── concept_space/             # Concept vocabulary for semantic mapping
+│   ├── data_final/          # Processed movie data and embeddings
+│   └── concept_space/       # Concept vocabulary for semantic mapping
 │
 ├── src/
-│   ├── aaa_data_pipline/          # STEP 1: Data collection
-│   │   ├── 001_data_pipeline.py   # Main pipeline
-│   │   ├── 002_cutoff_distance_method.py
-│   │   ├── 003_imdb_ratings_addiction.py
-│   │   ├── 004_data_cleaning.py
-│   │   ├── api/                   # External APIs
-│   │   └── embedding/             # Embedding generation
-│   │
-│   ├── utils/                     # STEP 2: Data utilities
-│   │   └── data_utils.py          # Loading and consolidation
-│   │
-│   └── aab_analysis/              # STEP 3: Analysis
-│       ├── genre_classifier.py
-│       ├── genre_drift_utils.py
-│       ├── stats_data.py
-│       ├── gaussian_fit.py
-│       ├── projection_analysis.ipynb
-│       ├── concept_extraction.py
-│       └── chunking/               # Embedding experiments
+│   ├── aaa_data_pipline/    # Data collection and processing
+│   ├── utils/               # Data loading utilities
+│   └── aab_analysis/        # Analysis scripts and notebooks
 │
-├── report/                        # LaTeX report
-├── figures/                       # Analysis visualizations
-└── tests/                         # Test suite
+├── report/                  # LaTeX report and figures
+├── lab_book/               # Weekly progress documentation
+└── figures/                # Analysis visualizations
 ```
+
+**Main Components:**
+- **Data Pipeline** (`src/aaa_data_pipline/`): Collects data from Wikidata, TMDb, Wikipedia, and generates BGE-M3 embeddings
+- **Analysis** (`src/aab_analysis/`): Genre classification, novelty analysis, statistical tests, and visualizations
+- **Report** (`report/`): Final LaTeX report with all findings
 
 ## Environment Setup
 

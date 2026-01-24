@@ -1,24 +1,25 @@
 """
 Concept extraction from text using sparse lexical weights.
 
-This module provides functionality to extract semantic concepts from text by:
+Extracts semantic concepts by:
 1. Extracting noun lemmas and their weights from lexical weights
 2. Filtering by Zipf frequency to remove obscure words
 3. Mapping to concepts using WordNet hypernyms or embedding similarity
 """
 
-from pathlib import Path
-import numpy as np
 from collections import defaultdict
-from typing import Dict, List, Tuple, Optional, Union
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
 
 from .concept_space import (
     ConceptSpace,
     DEFAULT_CONCEPT_DIR,
     DEFAULT_CONCEPT_MODEL,
-    get_concept_space_filenames,
     build_wordnet_concept_vocab,
-    embed_and_save_concept_vocab
+    embed_and_save_concept_vocab,
+    get_concept_space_filenames,
 )
 
 try:
@@ -32,15 +33,6 @@ def build_noun_lemma_weights(text, lexical_weights, tokenizer, nlp):
     """
     Project BGE-M3 lexical_weights (sparse) onto noun lemmas in the text.
     Aggregates all overlapping subword tokens for each spaCy word.
-    
-    Args:
-        text: Input text string
-        lexical_weights: Dict mapping token_id (str or int) to weight (float)
-        tokenizer: Transformer tokenizer
-        nlp: spaCy language model
-    
-    Returns:
-        dict[lemma] -> aggregated weight (normalized)
     """
     doc = nlp(text)
     
@@ -89,16 +81,7 @@ def build_noun_lemma_weights(text, lexical_weights, tokenizer, nlp):
 
 
 def filter_by_zipf(lemma2weight, zipf_threshold=2.5):
-    """
-    Filter lemma2weight to only include lemmas with Zipf frequency >= threshold.
-    
-    Args:
-        lemma2weight: dict[lemma] -> weight
-        zipf_threshold: Minimum Zipf frequency (default 2.5, higher = more common words)
-    
-    Returns:
-        Filtered dict[lemma] -> weight, renormalized
-    """
+    """Filter lemma2weight to only include lemmas with Zipf frequency >= threshold."""
     if not HAS_WORDFREQ:
         return lemma2weight
     
@@ -132,26 +115,7 @@ def extract_concepts_from_text(
     min_zipf_vocab: float = 4.0,
     max_vocab: int = 20000
 ) -> List[Tuple[str, float]]:
-    """
-    Extract top concepts from text using lexical weights and concept space mapping.
-    
-    Args:
-        text: Input text string
-        lexical_weights: Dict mapping token_id (str or int) to weight (float)
-        tokenizer: Transformer tokenizer
-        nlp: spaCy language model (used for both text processing and concept space building)
-        concept_space: Optional pre-loaded ConceptSpace instance
-        concept_dir: Directory containing concept space files (default: data/concept_space)
-        concept_model: SentenceTransformer model name for concept space (default: BAAI/bge-small-en-v1.5)
-        top_k: Number of top concepts to return (default: 30)
-        zipf_threshold: Minimum Zipf frequency for filtering lemmas (default: 4.0)
-        build_concept_space: If True, build concept space if it doesn't exist (default: True)
-        min_zipf_vocab: Minimum Zipf frequency for building concept vocabulary (default: 4.0)
-        max_vocab: Maximum vocabulary size for concept space (default: 20000)
-    
-    Returns:
-        List of (concept, score) tuples sorted by score descending
-    """
+    """Extract top concepts from text using lexical weights and concept space mapping."""
     lemma2weight = build_noun_lemma_weights(text, lexical_weights, tokenizer, nlp)
     
     if not lemma2weight:
@@ -176,7 +140,12 @@ def extract_concepts_from_text(
         
         if not concept_words_path.exists() or not concept_vecs_path.exists():
             if build_concept_space:
-                vocab = build_wordnet_concept_vocab(min_zipf=min_zipf_vocab, max_vocab=max_vocab, filter_verbs=True, filter_generic=True)
+                vocab = build_wordnet_concept_vocab(
+                    min_zipf=min_zipf_vocab, 
+                    max_vocab=max_vocab, 
+                    filter_verbs=True, 
+                    filter_generic=True
+                )
                 embed_and_save_concept_vocab(
                     vocab, concept_dir, 
                     model_name=concept_model,
@@ -188,9 +157,7 @@ def extract_concepts_from_text(
         
         concept_space = ConceptSpace(concept_words_path, concept_vecs_path, model_name=concept_model)
     
-    top_concepts = concept_space.map_lemmas(filtered_lemma2weight, top_k=top_k)
-    
-    return top_concepts
+    return concept_space.map_lemmas(filtered_lemma2weight, top_k=top_k)
 
 
 def extract_concepts_from_embedding_results(
@@ -209,26 +176,7 @@ def extract_concepts_from_embedding_results(
 ) -> List[Tuple[str, float]]:
     """
     Extract concepts from embedding service results.
-    
-    Convenience wrapper that extracts lexical_weights from embedding_results
-    and calls extract_concepts_from_text.
-    
-    Args:
-        text: Input text string
-        embedding_results: Dictionary returned by EmbeddingService.encode_corpus()
-        tokenizer: Transformer tokenizer
-        nlp: spaCy language model
-        concept_space: Optional pre-loaded ConceptSpace instance
-        concept_dir: Directory containing concept space files
-        concept_model: SentenceTransformer model name for concept space
-        top_k: Number of top concepts to return
-        zipf_threshold: Minimum Zipf frequency for filtering lemmas
-        build_concept_space: If True, build concept space if it doesn't exist
-        min_zipf_vocab: Minimum Zipf frequency for building concept vocabulary
-        max_vocab: Maximum vocabulary size for concept space
-    
-    Returns:
-        List of (concept, score) tuples sorted by score descending
+    Convenience wrapper that extracts lexical_weights from embedding_results.
     """
     lexical_weights = embedding_results.get('lexical_weights')
     if lexical_weights is None:
