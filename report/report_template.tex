@@ -177,7 +177,7 @@ After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first 
 % \end{itemize}
 
 
-The most critical filtering step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and compute the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
+The most critical filtering step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and computed the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
 
 \begin{figure}[ht]
     \centering
@@ -188,7 +188,7 @@ The most critical filtering step was the removal of movies with low-entropy plot
 
 \textbf{Embedding of the movie plot summaries.} For embedding, we selected the BGE-M3 model \cite{chen2024bgem3embeddingmultilingualmultifunctionality} based on its strong showing (28th place) on the Massive Text Embedding Benchmark (MTEB) leaderboard\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}. BGE-M3 is compact (0.5B parameters), supports 8,192-token context length, and can embed entire movie plots in a single vector.
 
-We use a single static model for all time periods to ensure unified representation in a common latent space. Since Wikipedia summaries are modern English (maintained since 2001), linguistic drift is negligible. After evaluating chunking and pooling methods \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a, raffel2023exploringlimitstransferlearning}, we selected CLS Token (details: \cite{our_github_repo}).
+We used a single static model for all time periods to ensure unified representation in a common latent space. Since Wikipedia summaries are modern English (maintained since 2001), linguistic drift is negligible. After evaluating chunking and pooling methods \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a, raffel2023exploringlimitstransferlearning}, we selected CLS Token (details: \cite{our_github_repo}).
 
 \textbf{Internal data validation.} To check that the embeddings meaningfully represent plot similarity, we measured cosine distances within and outside major movie franchises (Harry Potter, Star Wars, James Bond). Movies from the same franchise consistently clustered closer together (e.g., Harry Potter: 0.21 inner-group distance vs. 0.57 to random movies), while the global average distance between any two movies was 0.52. This confirms that the embeddings capture true semantic similarity.
 
@@ -197,21 +197,19 @@ We use a single static model for all time periods to ensure unified representati
 
 \section{Methodology}\label{sec:methodology}
 
-After the data was collected and cleaned, the first step was to embed the movie plot summaries into a semantic space.
+With data collected and cleaned, we embed movie plot summaries into a semantic space and analyze the resulting embeddings using three complementary approaches: distance-based drift analysis, novelty scoring, and Kolmogorov-Smirnov tests.
 
-\textbf{Distance analysis.}
+\textbf{Distance analysis.} Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus.
 
-Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus.
+As movie genres provide a meaningful taxonomy with potential temporal evolution patterns, we examine semantic drift across different time periods of an arbitrary number of years. To this end, embeddings are first grouped by genre $g$ into discrete time periods $\tau$, forming the set $\mathcal{M}_g^{(\tau)}$ of plot embeddings. For each group, two alternative representative embeddings are computed: the \textbf{centroid} (arithmetic mean) $\bar{\mathbf{e}}_g^{(\tau)}$ and the \textbf{medoid} (cosine distance minimizer embedding) $\tilde{\mathbf{e}}_g^{(\tau)}$. We employ the following metrics to analyse the drift dynamics across the groups: (i) genre drift and acceleration, and (ii) inter-genre distance.
 
-As movie genres provide a meaningful taxonomy with potential temporal evolution patterns, we examine semantic drift across different time periods of an arbitrary number of years. To this end, embeddings are first grouped by genre $g$ into discrete time periods $\tau$, forming the set $\mathcal{M}_g^{(\tau)}$ of plot embeddings. For each group, two alternative representative embeddings are computed: the \textbf{centroid} (arithmetic mean) $\bar{\mathbf{e}}_g^{(\tau)}$ and the \textbf{medoid} (cosine distance minimizer embedding) $\tilde{\mathbf{e}}_g^{(\tau)}$. We computed the following metrics to analyse the drift dynamics across the groups:
+Genre drift measures the cosine distance between representative embeddings of consecutive periods, capturing how much a genre's semantic center evolves over two time periods. Acceleration quantifies the change in drift between consecutive periods.
 
-\textbf{Genre drift and acceleration: }drift measures the cosine distance between representative embeddings of consecutive periods, capturing how much a genre's semantic center evolves over two time periods. Acceleration quantifies the change in drift between consecutive periods.
-
-\textbf{Inter-genre distance: }determines cosine distance between representatives of each pair of genres for each time period, enabling pairwise comparison between specific genres.
+Inter-genre distance determines cosine distance between representatives of each pair of genres for each time period, enabling pairwise comparison between specific genres.
 
 Since our dataset contains significantly more movies in later years, the medoid and centroid embedding estimators are heavily affected by sampling variance. To mitigate this, we downsample to ensure equal sampling error across all genre-year groups and apply bootstrapping to estimate confidence intervals. 
 
-\textbf{Novelty analysis.} To investigate the claim that movies are becoming less novel over time, we developed a metric for novelty defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
+\textbf{Novelty analysis.} To investigate the claim that movies are becoming less novel over time, we propose a novelty metric defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
 
 \begin{equation}
     \text{Novelty}(m_i) = \min_{j: year_j < year_i} \left( 1 - \frac{E(m_i) \cdot E(m_j)}{\|E(m_i)\| \|E(m_j)\|} \right)
@@ -219,7 +217,7 @@ Since our dataset contains significantly more movies in later years, the medoid 
 
 where \( E(m) \) denotes the embedding vector of a movie's plot.
 Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
-To compute these scores, we used the Faiss library \cite{douze2024faiss} to efficiently find the preceding nearest neighbors of movie plot embeddings based on the cosine distance.
+To compute these scores, we leverage the Faiss library \cite{douze2024faiss} to efficiently find the preceding nearest neighbors of movie plot embeddings based on the cosine distance.
 
 \textbf{Kolmogorov-Smirnov test.} To compare distance distributions across movie subsets (e.g., different decades or genres), we employ the Kolmogorov-Smirnov test \cite{massey1951}. We construct $\epsilon$-balls ($\epsilon \in [0.24, 0.30]$) around anchor movies representing specific themes, collecting all movies within the distance threshold to define local semantic neighborhoods. We compare distance distributions and temporal CDFs (cumulative distribution functions of release years) within these neighborhoods to a control group (global mean embedding). Divergence indicates temporal shifts: if semantic structure remains stable, distributions should be similar across time periods.
 
@@ -241,7 +239,7 @@ After normalization, the cosine distance of each time group representative embed
 
 \subsection{Spread analysis}
 
-There were 3 metrics used to analyze the spread of movies each year: (1) Mean L2 norm, (2) Frobenius and (3) Spectral norm of each movie to its yearly centroid as defined in section 3.5. All 3 metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms) \cite{yamagiwa2024norm}. We could not interpret much from the results of this analysis of movie spread over the years. Mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively. Spectral norm had a slight increase from 2.1 to 2.8. We interpreted this as the overall spread of movies remaining relatively constant over the years with outliers becoming more polarizing. It was hard to determine what these polarizing axes were, as they changed yearly and were a combination of multiple dimensions.
+We analyzed the spread of movies per year using three metrics: mean L2 norm, Frobenius norm, and spectral norm of each movie embedding relative to its yearly centroid. All metrics were computed on centered yearly embeddings (i.e. yearly centroid was subtracted from each movie embedding before computing the norms) \cite{yamagiwa2024norm}. As with the drift analysis, no interpretable patterns emerged: mean L2 norm and Frobenius norm stayed relatively constant at 0.7 and 12.4 respectively, whereas spectral norm had a slight increase from 2.1 to 2.8. This indicates that the overall spread of movies remains relatively constant over the years with outliers becoming more polarizing. The nature of these polarizing axes proved difficult to characterize, as they changed yearly and were a combination of multiple dimensions.
 
 \subsection{Novelty score}
 
@@ -258,7 +256,7 @@ In order to assess if temporal trends of novelty scores exist, we plot the avera
 
 We illustrate our approach using James Bond films as anchor movies to compare their distance distributions against all other movies. The cumulative distribution of cosine distances from Bond anchors rises steeply only for a small set of closely related films, while most movies remain more distant. This contrasts with the global mean embedding, which is closer on average to all movies, as it represents an average narrative rather than a specific subgenre.
 
-To examine the temporal dimension, we construct cumulative distribution functions of release years for movies within the epsilon ball and compare them to the control group. Figure~\ref{fig:ks_test_temporal_bond} shows that the temporal distributions differ markedly. The left panel reveals a divergence beginning approximately in the 1960s, suggesting that the spy movie subgenre represented by the Bond anchor exhibits a distinct temporal emergence pattern compared to the broader corpus. The right panel displays normalized histograms of movie counts per year for both groups, confirming that the temporal distribution of spy-themed films diverges from the overall temporal distribution of cinema. This temporal divergence indicates that the spy film subgenre experienced a period of increased production and thematic consolidation that is not representative of general cinematic trends during the same period.
+To examine the temporal dimension, we constructed cumulative distribution functions of release years for movies within the epsilon ball and compared them to the control group. Figure~\ref{fig:ks_test_temporal_bond} shows that the temporal distributions differ markedly. The left panel reveals a divergence beginning approximately in the 1960s, suggesting that the spy movie subgenre represented by the Bond anchor exhibits a distinct temporal emergence pattern compared to the broader corpus. The right panel displays normalized histograms of movie counts per year for both groups, confirming that the temporal distribution of spy-themed films diverges from the overall temporal distribution of cinema. This temporal divergence indicates that the spy film subgenre experienced a period of increased production and thematic consolidation that is not representative of general cinematic trends during the same period.
 
 \begin{figure}[ht]
     \centering
