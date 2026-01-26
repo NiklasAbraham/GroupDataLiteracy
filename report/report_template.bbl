@@ -5,86 +5,64 @@
   \providecommand{\doi}[1]{doi: #1}\else
   \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
 
-\bibitem[Chen et~al.(2024)Chen, Xiao, Zhang, Luo, Lian, and
-  Liu]{chen2024bgem3embeddingmultilingualmultifunctionality}
+\bibitem[Chen et~al.(2024)Chen, Xiao, Zhang, Luo, Lian, and Liu]{chen2024bgem3embeddingmultilingualmultifunctionality}
 Chen, J., Xiao, S., Zhang, P., Luo, K., Lian, D., and Liu, Z.
-\newblock Bge m3-embedding: Multi-lingual, multi-functionality,
-  multi-granularity text embeddings through self-knowledge distillation, 2024.
+\newblock Bge m3-embedding: Multi-lingual, multi-functionality, multi-granularity text embeddings through self-knowledge distillation, 2024.
 \newblock URL \url{https://arxiv.org/abs/2402.03216}.
 
-\bibitem[Devlin et~al.(2018)Devlin, Chang, Lee, and
-  Toutanova]{DBLP:journals/corr/abs-1810-04805}
+\bibitem[Devlin et~al.(2018)Devlin, Chang, Lee, and Toutanova]{DBLP:journals/corr/abs-1810-04805}
 Devlin, J., Chang, M., Lee, K., and Toutanova, K.
-\newblock {BERT:} pre-training of deep bidirectional transformers for language
-  understanding.
+\newblock {BERT:} pre-training of deep bidirectional transformers for language understanding.
 \newblock \emph{CoRR}, abs/1810.04805, 2018.
 \newblock URL \url{http://arxiv.org/abs/1810.04805}.
 
-\bibitem[Di~Marco et~al.(2025)Di~Marco, Loru, Galeazzi, Cinelli, and
-  Quattrociocchi]{DiMarco2025}
+\bibitem[Di~Marco et~al.(2025)Di~Marco, Loru, Galeazzi, Cinelli, and Quattrociocchi]{DiMarco2025}
 Di~Marco, N., Loru, E., Galeazzi, A., Cinelli, M., and Quattrociocchi, W.
 \newblock Decoding musical evolution through network science, 2025.
 \newblock URL \url{https://arxiv.org/abs/2501.07557}.
 
-\bibitem[Douze et~al.(2024)Douze, Guzhva, Deng, Johnson, Szilvasy, Mazaré,
-  Lomeli, Hosseini, and Jégou]{douze2024faiss}
-Douze, M., Guzhva, A., Deng, C., Johnson, J., Szilvasy, G., Mazaré, P.-E.,
-  Lomeli, M., Hosseini, L., and Jégou, H.
+\bibitem[Douze et~al.(2024)Douze, Guzhva, Deng, Johnson, Szilvasy, Mazaré, Lomeli, Hosseini, and Jégou]{douze2024faiss}
+Douze, M., Guzhva, A., Deng, C., Johnson, J., Szilvasy, G., Mazaré, P.-E., Lomeli, M., Hosseini, L., and Jégou, H.
 \newblock The faiss library.
 \newblock 2024.
 
 \bibitem[Dubourg et~al.(2023)Dubourg, Mogoutov, and Baumard]{dubourg2023cinema}
 Dubourg, E., Mogoutov, A., and Baumard, N.
-\newblock Is cinema becoming less and less innovative with time? using neural
-  network text embedding model to measure cultural innovation.
-\newblock In Šeļa, A., Jannidis, F., and Romanowska, I. (eds.),
-  \emph{Proceedings of the Computational Humanities Research Conference 2023},
-  volume 3558 of \emph{CEUR Workshop Proceedings}, pp.\  676--686, Paris,
-  France, December 2023.
+\newblock Is cinema becoming less and less innovative with time? using neural network text embedding model to measure cultural innovation.
+\newblock In Šeļa, A., Jannidis, F., and Romanowska, I. (eds.), \emph{Proceedings of the Computational Humanities Research Conference 2023}, volume 3558 of \emph{CEUR Workshop Proceedings}, pp.\  676--686, Paris, France, December 2023.
 \newblock URL \url{https://ceur-ws.org/Vol-3558/paper7806.pdf}.
 
 \bibitem[Gong et~al.(2019)Gong, He, Li, Qin, Wang, and Liu]{pmlr-v97-gong19a}
 Gong, L., He, D., Li, Z., Qin, T., Wang, L., and Liu, T.
 \newblock Efficient training of {BERT} by progressively stacking.
-\newblock In Chaudhuri, K. and Salakhutdinov, R. (eds.), \emph{Proceedings of
-  the 36th International Conference on Machine Learning}, volume~97 of
-  \emph{Proceedings of Machine Learning Research}, pp.\  2337--2346. PMLR,
-  09--15 Jun 2019.
+\newblock In Chaudhuri, K. and Salakhutdinov, R. (eds.), \emph{Proceedings of the 36th International Conference on Machine Learning}, volume~97 of \emph{Proceedings of Machine Learning Research}, pp.\  2337--2346. PMLR, 09--15 Jun 2019.
 \newblock URL \url{https://proceedings.mlr.press/v97/gong19a.html}.
 
 \bibitem[Group(2025{\natexlab{a}})]{our_data_on_huggingface}
 Group, D.~L.
 \newblock Movie plot embeddings dataset.
-\newblock
-  \url{https://huggingface.co/datasets/NiklasAbraham/MoviePlotEmbeddingsDataset},
-  2025{\natexlab{a}}.
+\newblock \url{https://huggingface.co/datasets/NiklasAbraham/MoviePlotEmbeddingsDataset}, 2025{\natexlab{a}}.
 \newblock Licensed under MIT License.
 
 \bibitem[Group(2025{\natexlab{b}})]{our_github_repo}
 Group, D.~L.
 \newblock Our github repository.
-\newblock \url{https://github.com/NiklasAbraham/GroupDataLiteracy},
-  2025{\natexlab{b}}.
+\newblock \url{https://github.com/NiklasAbraham/GroupDataLiteracy}, 2025{\natexlab{b}}.
 \newblock Licensed under MIT License.
 
 \bibitem[Massey(1951)]{massey1951}
 Massey, F.~J.
 \newblock The kolmogorov--smirnov test for goodness of fit.
-\newblock \emph{Journal of the American Statistical Association}, 46\penalty0
-  (253):\penalty0 68--78, 1951.
+\newblock \emph{Journal of the American Statistical Association}, 46\penalty0 (253):\penalty0 68--78, 1951.
 
-\bibitem[Raffel et~al.(2023)Raffel, Shazeer, Roberts, Lee, Narang, Matena,
-  Zhou, Li, and Liu]{raffel2023exploringlimitstransferlearning}
-Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou,
-  Y., Li, W., and Liu, P.~J.
-\newblock Exploring the limits of transfer learning with a unified text-to-text
-  transformer, 2023.
+\bibitem[Raffel et~al.(2023)Raffel, Shazeer, Roberts, Lee, Narang, Matena, Zhou, Li, and Liu]{raffel2023exploringlimitstransferlearning}
+Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou, Y., Li, W., and Liu, P.~J.
+\newblock Exploring the limits of transfer learning with a unified text-to-text transformer, 2023.
 \newblock URL \url{https://arxiv.org/abs/1910.10683}.
 
 \bibitem[Sreenivasan(2013)]{sreenivasan2013quantitative}
 Sreenivasan, S.
-\newblock Quantitative analysis of the evolution of novelty in cinema through
-  crowdsourced keywords.
+\newblock Quantitative analysis of the evolution of novelty in cinema through crowdsourced keywords.
 \newblock \emph{Scientific Reports}, 3\penalty0 (2758), 2013.
 \newblock \doi{10.1038/srep02758}.
 \newblock URL \url{https://www.nature.com/articles/srep02758}.
@@ -95,12 +73,9 @@ Sreenivasan, S.
 \newblock \url{https://www.themoviedb.org}, 2024.
 \newblock Licensed under CC BY-NC 4.0 for non-commercial use.
 
-\bibitem[Wenzek et~al.(2019)Wenzek, Lachaux, Conneau, Chaudhary, Guzmán,
-  Joulin, and Grave]{wenzek2019ccnetextractinghighquality}
-Wenzek, G., Lachaux, M.-A., Conneau, A., Chaudhary, V., Guzmán, F., Joulin,
-  A., and Grave, E.
-\newblock Ccnet: Extracting high quality monolingual datasets from web crawl
-  data, 2019.
+\bibitem[Wenzek et~al.(2019)Wenzek, Lachaux, Conneau, Chaudhary, Guzmán, Joulin, and Grave]{wenzek2019ccnetextractinghighquality}
+Wenzek, G., Lachaux, M.-A., Conneau, A., Chaudhary, V., Guzmán, F., Joulin, A., and Grave, E.
+\newblock Ccnet: Extracting high quality monolingual datasets from web crawl data, 2019.
 \newblock URL \url{https://arxiv.org/abs/1911.00359}.
 
 \bibitem[{Wikimedia Foundation}(2024{\natexlab{a}})]{wikidata}
@@ -117,15 +92,13 @@ Wenzek, G., Lachaux, M.-A., Conneau, A., Chaudhary, V., Guzmán, F., Joulin,
 
 \bibitem[Xu et~al.(2020)Xu, Zhang, Wu, and Wang]{xu2020cinderella}
 Xu, H., Zhang, Z., Wu, L., and Wang, C.-J.
-\newblock The cinderella complex: Word embeddings reveal gender stereotypes in
-  movies and books.
+\newblock The cinderella complex: Word embeddings reveal gender stereotypes in movies and books.
 \newblock \emph{PLOS ONE}, 15\penalty0 (e0225385), 2020.
 \newblock \doi{10.1371/journal.pone.0225385}.
 
 \bibitem[Yamagiwa \& Shimodaira(2024)Yamagiwa and Shimodaira]{yamagiwa2024norm}
 Yamagiwa, H. and Shimodaira, H.
-\newblock Norm of mean contextualized embeddings determines their variance,
-  2024.
+\newblock Norm of mean contextualized embeddings determines their variance, 2024.
 \newblock URL \url{https://arxiv.org/abs/2409.11253}.
 \newblock Accepted to COLING 2025.
 

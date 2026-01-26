@@ -135,7 +135,9 @@ Cinema provides a rich archive of narrative structures that encode evolving soci
 
 \subsection{Data Collection}
 
-The initial dataset was constructed by querying Wikidata, an open knowledge graph structured as a network of items, connected together by properties. We used its SPARQL API to extract items classified as films with release dates ranging from 1930 to 2024. In order to adhere to Wikidata's query size limitations, we gathered the data iteratively by release year. We first retrieved QIDs of items describing feature films, then processed them in small batches to gather the rest of relevant features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. During collection of QIDs, items classified as short film or television series episode were excluded, and final filtering of non-feature films was performed during data cleaning.
+The initial dataset was constructed by querying Wikidata, an open knowledge graph structured as a network of items, connected together by properties. We used its SPARQL API to extract items classified as films with release dates ranging from 1930 to 2024.
+% In order to adhere to Wikidata's query size limitations, we gathered the data iteratively by release year. 
+We first retrieved QIDs of items describing feature films, then processed them in small batches to gather the rest of relevant features including title, release date, duration, genres, directors, actors, English Wikipedia link, and very importantly links to external movie databases TMDb and IMDb. During collection of QIDs, items classified as short film or television series episode were excluded, and final filtering of non-feature films was performed during data cleaning.
 
 Second, we enriched the dataset with TMDb statistics, retrieving vote counts, vote averages, and popularity for each film. These served as proxies for audience engagement and informed later filtering and weighting.
 
@@ -193,10 +195,14 @@ Inter-genre distance determines cosine distance between representatives of each 
 Since our dataset contains significantly more movies in later years, the medoid and centroid embedding estimators are heavily affected by sampling variance. To mitigate this, we downsample to ensure equal sampling error across all genre-year groups and apply bootstrapping to estimate confidence intervals. 
 
 \textbf{Novelty analysis.} To investigate the claim that movies are becoming less novel over time, we propose a novelty metric defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
+
+\vspace{-1.5em}
 \begin{equation}
-    \text{Novelty}(m_i) = \min_{j: year_j < year_i} \left( 1 - \frac{E(m_i) \cdot E(m_j)}{\|E(m_i)\| \|E(m_j)\|} \right)
-\end{equation} 
-where \( E(m) \) denotes the embedding vector of a movie's plot.
+\label{novelty}
+    \text{Novelty}(m_i) = \min_{j: \text{year}_j < \text{year}_i} \left( 1 - \frac{emb_i \cdot emb_j}{\|emb_i\| \|emb_j\|} \right)
+\end{equation}
+
+where \( emb_i \) denotes the embedding vector of $i$-th movie's plot.
 Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
 To compute these scores, we leverage the Faiss library \cite{douze2024faiss} to efficiently find the preceding nearest neighbors of movie plot embeddings based on the cosine distance.
 
@@ -224,14 +230,16 @@ We analyzed the spread of movies per year using three metrics: mean L2 norm, Fro
 
 \subsection{Novelty score}
 
-In order to assess if temporal trends of novelty scores exist, we plot the average novelty score per year alongside scattered individual movie scores in Figure \ref{fig:novelty_over_time}. 
+In order to judge whether movies are becoming less novel over time, we computed novelty scores as defined in \ref{novelty}, and plotted them against release years in Figure~\ref{fig:novelty_over_time}.
 
 \begin{figure}[ht]
     \centering
-    \includegraphics[width=8cm]{figures/novelty_over_time.png}
-    \caption{Novelty scores of movies over time. The blue line represents the average novelty score per year, while individual movie scores are shown as scattered points.}
+    \includegraphics{figures/oscar_novelty_scatter.pdf}
+    \caption{Novelty scores of all movies (blue) and Best Original Screenplay Oscar nominees (orange) over time. The lines represent yearly averages.}
     \label{fig:novelty_over_time}
 \end{figure}
+
+Fitting a linear regression to the average yearly novelty scores of all movies results in a slope of $3.3 \cdot 10^{-4}$ and $R^2$ value of $0.56$, indicating that the yearly averages have stayed almost constant over time. Additionally, we compared these averages to the yearly averages of Best Original Screenplay Oscar nominees by computing the Mean Absolute Error (MAE) between the two time series. The resulting MAE of $0.0098 \pm 0.008$ suggests that the scores of nominees do not significantly differ from the yearly novelty averages of all movies.
 
 \subsection{Kolmogorov-Smirnov test}
 
