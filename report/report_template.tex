@@ -145,7 +145,7 @@ The last enrichment stage addressed limitations in TMDb voting statistics. Many 
 
 All data sources are open and appropriately licensed. Wikidata \cite{wikidata} is released under CC0 1.0 Universal (public domain). Wikipedia \cite{wikipedia} is under CC BY SA 4.0, and TMDb \cite{tmdb} under CC BY NC 4.0, allowing non-commercial research with attribution. This ensures reproducibility and legal compliance.
 
-Wikipedia plot summaries were embedded into vectors for analysis. These English texts varied widely in length, from 10 to 20,479 characters, but were all processed in the same semantic space. After data processing, our final dataset consisted of 141,119 movies with 81\% average feature coverage.
+After data processing, our final dataset consisted of 141,119 movies with 81\% average feature coverage.
 
 \subsection{Data cleaning}
 
@@ -193,11 +193,9 @@ Inter-genre distance determines cosine distance between representatives of each 
 Since our dataset contains significantly more movies in later years, the medoid and centroid embedding estimators are heavily affected by sampling variance. To mitigate this, we downsample to ensure equal sampling error across all genre-year groups and apply bootstrapping to estimate confidence intervals. 
 
 \textbf{Novelty analysis.} To investigate the claim that movies are becoming less novel over time, we propose a novelty metric defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
-
 \begin{equation}
     \text{Novelty}(m_i) = \min_{j: year_j < year_i} \left( 1 - \frac{E(m_i) \cdot E(m_j)}{\|E(m_i)\| \|E(m_j)\|} \right)
 \end{equation} 
-
 where \( E(m) \) denotes the embedding vector of a movie's plot.
 Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
 To compute these scores, we leverage the Faiss library \cite{douze2024faiss} to efficiently find the preceding nearest neighbors of movie plot embeddings based on the cosine distance.
