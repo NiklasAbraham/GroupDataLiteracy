@@ -1,3 +1,5 @@
+%!TEX root = report_template.tex
+
 %%%%%%%% DATA LITERACY 2025 LATEX PROJECT TEMPLATE FILE %%%%%%%%%%%%%%%%%
 %%% Based on the 2025 ICML template, available at https://icml.cc/Conferences/2025/AuthorInstructions %%%
 
@@ -8,8 +10,15 @@
 \usepackage{graphicx}
 \usepackage{subfigure}
 \usepackage{booktabs} % for professional tables
+\usepackage{makecell} % for multi-line table cells
+\usepackage{amsmath}   % For \text{}, align environments, better math spacing
+\usepackage{amssymb}   % For \mathbb, extra symbols (optional but common)
+\usepackage{booktabs}
+\usepackage{multirow}
+
 
 \usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, fit}
 % Corporate Design of the University of Tübingen
 % Primary Colors
 \definecolor{TUred}{RGB}{165,30,55}
@@ -57,6 +66,12 @@
 %\usepackage[disable,textsize=tiny]{todonotes}
 \usepackage[textsize=tiny]{todonotes}
 
+% Control spacing around section headings
+\usepackage{titlesec}
+% Format: \titlespacing{command}{left}{before-sep}{after-sep}[right-sep]
+% Adjust the values (in pt) to control spacing before and after subsections
+% You can modify these values as needed
+\titlespacing{\subsection}{0pt}{0.9ex}{0.4ex}
 
 % The \icmltitle you define below is probably too long as a header.
 % Therefore, a short form for the running title is supplied here:
@@ -91,18 +106,20 @@
 \end{icmlauthorlist}
 
 % fill in your matrikelnummer, email address, degree, for each group member
-% \icmlaffiliation{first}{Matrikelnummer 12345678, MSc Machine Learning}
-% \icmlaffiliation{second}{Matrikelnummer 12345678, MSc Computer Science}
-% \icmlaffiliation{third}{Matrikelnummer 12345678, MSc Media Informatics}
-% \icmlaffiliation{fourth}{Matrikelnummer 12345678, MSc Medical Informatics}
-% \icmlaffiliation{fifth}{Matrikelnummer 12345678, MSc QDS}
+\icmlaffiliation{first}{Matrikelnummer 7274374, MSc Machine Learning}
+\icmlaffiliation{second}{Matrikelnummer 7306912, MSc Computer Science}
+\icmlaffiliation{third}{Matrikelnummer 7324790, MSc Machine Learning}
+\icmlaffiliation{fourth}{Matrikelnummer 7293076, MSc Machine Learning}
+\icmlaffiliation{fifth}{Matrikelnummer 7307188, MSc Machine Learning}
 
 % put your email addresses here. You can use initials to save space, 
 % e.g. if you are called Max Mustermann, you can use \icmlcorrespondingauthor{MM}{max.mustermann@uni-tuebingen.de}
 % DO USE YOUR UNIVERSITY EMAIL ADDRESS!
-
-% for the Data Literacy report, to save space, you can here list the student email address of one author, who is willing to be contacted about this work in the future (e.g. in case we would like to use your report as an example for future course iterations)
 \icmlcorrespondingauthor{AC}{ansel-heng-yu.cheung@uni-tuebingen.de} 
+\icmlcorrespondingauthor{AV}{alessio.villa@student.uni-tuebingen.de}
+\icmlcorrespondingauthor{BM}{bartol.markovinovic@student.uni-tuebingen.de}
+\icmlcorrespondingauthor{MLDI}{martin.lopez-de-ipina-munoz@student.uni-tuebingen.de}
+\icmlcorrespondingauthor{NA}{niklas-sebastian.abraham@student.uni-tuebingen.de}
 
 % You may provide any keywords that you
 % find helpful for describing your paper; these are used to populate
@@ -249,7 +266,7 @@ To examine the temporal dimension, we constructed cumulative distribution functi
     \label{fig:ks_test_temporal_bond}
 \end{figure}
 
-    % To further validate the methodology, we applied the same framework to movies focused on Middle East conflicts, using anchor movies such as \textit{Black Hawk Down}, \textit{The Hurt Locker}, \textit{Zero Dark Thirty}, and \textit{American Sniper}. Figure~\ref{fig:ks_test_temporal_middle_east} displays the temporal distribution analysis for this thematic category. The temporal shift is even more pronounced than in the spy film case, with the largest divergence occurring prior to the Gulf War period. Following this point, the frequency of movies semantically similar to the anchor movies increases rapidly. This pattern suggests that Middle East conflict films represent a temporally concentrated genre that emerged in response to specific historical events.
+ % To further validate the methodology, we applied the same framework to movies focused on Middle East conflicts, using anchor movies such as \textit{Black Hawk Down}, \textit{The Hurt Locker}, \textit{Zero Dark Thirty}, and \textit{American Sniper}. Figure~\ref{fig:ks_test_temporal_middle_east} displays the temporal distribution analysis for this thematic category. The temporal shift is even more pronounced than in the spy film case, with the largest divergence occurring prior to the Gulf War period. Following this point, the frequency of movies semantically similar to the anchor movies increases rapidly. This pattern suggests that Middle East conflict films represent a temporally concentrated genre that emerged in response to specific historical events.
 
 % \begin{figure}[ht]
 %    \centering
@@ -284,7 +301,7 @@ Overall, all authors contributed equally to the project. This is reflected in th
 
 \bibliography{bibliography}
 \bibliographystyle{icml2025}
-    
+
 \end{document}
 
 % This document was modified from the files available at https://icml.cc/Conferences/2025/AuthorInstructions
