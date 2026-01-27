@@ -164,6 +164,48 @@ After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first 
 
 The most critical filtering step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and computed the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
 
+% \begin{figure}[ht]
+% \centering
+% \begin{tikzpicture}[font=\small]
+
+%     % Define Styles
+%     \tikzset{
+%         node_bar/.style={line width=2pt},
+%         flow/.style={opacity=0.3, line join=round}
+%     }
+
+%     % --- STAGE 1: Unclean Dataset ---
+%     \draw[node_bar, blue!80!black] (0, -1.5) -- (0, 1.5) node[centered, align=center, pos=0.5, black] {Unclean\\dataset\\141,119};
+
+%     % Branch A: Movies without a plot (Exits Up)
+%     \fill[flow, blue!60!gray] (0, 1.5) .. controls (1, 1.5) and (1, 2.0) .. (2, 2.0) -- (2, 1.0) .. controls (1, 1.0) and (1, 0.5) .. (0, 0.5) -- cycle;
+%     \draw[node_bar, orange] (2, 1.0) -- (2, 2.0) node[centered, align=center, pos=0.5, rotate=90] {No plot\\41783};
+
+%     % Branch B: Movies with plot (Continues Right)
+%     \fill[flow, blue!60!gray] (0, 0.5) .. controls (1, 0.5) and (1, 0.8) .. (2, 0.8) -- (2, -1.5) 
+%         .. controls (1, -1.5) and (1, -1.5) .. (0, -1.5) -- cycle;
+%     \draw[node_bar, orange] (2, -1.5) -- (2, 0.8) node[pos=0.5, fill=white, inner sep=1pt, shift={(0.2,0)}] {99k};
+
+%     % --- STAGE 2: Filtering Actual Movies ---
+%     % Main Flow to Stage 3
+%     \fill[flow, orange!60] (2, 0.8) .. controls (3, 0.8) and (3, 1.0) .. (4, 1.0) -- (4, -0.8) 
+%         .. controls (3, -0.8) and (3, -1.2) .. (2, -1.2) -- cycle;
+%     \draw[node_bar, red] (4, -0.8) -- (4, 1.0) node[pos=0.5, fill=white, inner sep=1pt] {98k};
+
+%     % Small Branch Down: Wrong Class
+%     \fill[flow, orange!40] (2, -1.2) .. controls (2.5, -1.2) and (3, -1.5) .. (4, -1.8) -- (4, -1.75) 
+%         .. controls (3, -1.45) and (2.5, -1.5) .. (2, -1.5) -- cycle;
+%     \node[right] at (4, -1.8) {Wrong class: 823};
+
+%     % --- STAGE 3: Final Dataset ---
+%     \fill[flow, purple!40] (4, 1.0) .. controls (5, 1.0) and (5, 0.8) .. (6, 0.8) -- (6, -0.6) 
+%         .. controls (5, -0.6) and (5, -0.8) .. (4, -0.8) -- cycle;
+%     \draw[node_bar, brown!60!black] (6, -0.6) -- (6, 0.8) node[right, black, align=left] {Final\\92,374};
+
+% \end{tikzpicture}
+\caption{Dataset curation flow (Sankey diagram style).}
+\end{figure}
+
 \begin{figure}[ht]
     \centering
     \includegraphics[width=8cm]{figures/funnel_chart_data_cleaning.png}
