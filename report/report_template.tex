@@ -145,7 +145,7 @@ The third stage, the most data-intensive, focused on obtaining full-text plot su
 
 The last enrichment stage addressed limitations in TMDb voting statistics. Many movies in the corpus lacked TMDb ratings or vote counts, and when available, these counts were often substantially lower than those reported by other platforms. To address this issue, we enriched the dataset with IMDb vote averages and vote counts, obtained from IMDb's non-commercial data files and merged using the IMDb title identifier. The inclusion of IMDb data ensures broader coverage and higher vote volumes, resulting in a more stable measure of audience reception.
 
-All data sources are open and appropriately licensed. Wikidata \cite{wikidata} is released under CC0 1.0 Universal (public domain). Wikipedia \cite{wikipedia} is under CC BY SA 4.0, and TMDb \cite{tmdb} under CC BY NC 4.0, allowing non-commercial research with attribution. This ensures reproducibility and legal compliance.
+All data sources are open and appropriately licensed. Wikidata \cite{wikidata} is released under CC0 1.0 Universal (public domain). Wikipedia \cite{wikipedia} is under CC BY SA 4.0, and TMDb \cite{tmdb} under CC BY NC 4.0, allowing non-commercial research with attribution.
 
 After data processing, our final dataset consisted of 141,119 movies with 81\% average feature coverage.
 
@@ -215,7 +215,7 @@ The most critical filtering step was the removal of movies with low-entropy plot
 
 \textbf{Embedding of the movie plot summaries.} For embedding, we selected the BGE-M3 model \cite{chen2024bgem3embeddingmultilingualmultifunctionality} based on its strong showing (28th place) on the Massive Text Embedding Benchmark (MTEB) leaderboard\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}. BGE-M3 is compact (0.5B parameters), supports 8,192-token context length, and can embed entire movie plots in a single vector.
 
-We used a single static model for all time periods to ensure unified representation in a common latent space. Since Wikipedia summaries are modern English (maintained since 2001), linguistic drift is negligible. After evaluating chunking and pooling methods \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a, raffel2023exploringlimitstransferlearning}, we selected CLS Token (details: \cite{our_github_repo}).
+We used a single static model for all text to ensure unified representation in a common latent space. Since Wikipedia plots are modern English (maintained since 2001), linguistic drift is negligible. After evaluating chunking and pooling methods \cite{DBLP:journals/corr/abs-1810-04805, pmlr-v97-gong19a, raffel2023exploringlimitstransferlearning}, we selected CLS Token \cite{our_github_repo}.
 
 \textbf{Internal data validation.} To check that the embeddings meaningfully represent plot similarity, we measured cosine distances within and outside major movie franchises (Harry Potter, Star Wars, James Bond). Movies from the same franchise consistently clustered closer together (e.g., Harry Potter: 0.21 inner-group distance vs. 0.57 to random movies), while the global average distance between any two movies was 0.52. This confirms that the embeddings capture true semantic similarity.
 
