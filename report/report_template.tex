@@ -31,6 +31,14 @@
 \definecolor{TUorange}{RGB}{210,150,0}
 \definecolor{TUbrown}{RGB}{145,105,70}
 
+\definecolor{node1}{HTML}{002838} % Midnight Petrol (Very Dark)
+\definecolor{node2}{HTML}{004F63} % Deep Teal
+\definecolor{node3}{HTML}{007B8C} % Ocean Blue-Green
+\definecolor{node4}{HTML}{48A9A6} % Muted Aquamarine
+\definecolor{node5}{HTML}{82C0CC} % Steel Blue (Distinct & Visible)
+
+\definecolor{node_filtered}{HTML}{C1121F} % Dark Crimson (Classic "Remove" Contrast)
+
 % hyperref makes hyperlinks in the resulting PDF.
 % If your build breaks (sometimes temporarily if a hyperlink spans a page)
 % please comment out the following usepackage line and replace
@@ -164,53 +172,100 @@ After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first 
 
 The most critical filtering step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a LLM to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model, we tokenized the plots with the BGE-M3 tokenizer and computed the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
 
-% \begin{figure}[ht]
-% \centering
-% \begin{tikzpicture}[font=\small]
-
-%     % Define Styles
-%     \tikzset{
-%         node_bar/.style={line width=2pt},
-%         flow/.style={opacity=0.3, line join=round}
-%     }
-
-%     % --- STAGE 1: Unclean Dataset ---
-%     \draw[node_bar, blue!80!black] (0, -1.5) -- (0, 1.5) node[centered, align=center, pos=0.5, black] {Unclean\\dataset\\141,119};
-
-%     % Branch A: Movies without a plot (Exits Up)
-%     \fill[flow, blue!60!gray] (0, 1.5) .. controls (1, 1.5) and (1, 2.0) .. (2, 2.0) -- (2, 1.0) .. controls (1, 1.0) and (1, 0.5) .. (0, 0.5) -- cycle;
-%     \draw[node_bar, orange] (2, 1.0) -- (2, 2.0) node[centered, align=center, pos=0.5, rotate=90] {No plot\\41783};
-
-%     % Branch B: Movies with plot (Continues Right)
-%     \fill[flow, blue!60!gray] (0, 0.5) .. controls (1, 0.5) and (1, 0.8) .. (2, 0.8) -- (2, -1.5) 
-%         .. controls (1, -1.5) and (1, -1.5) .. (0, -1.5) -- cycle;
-%     \draw[node_bar, orange] (2, -1.5) -- (2, 0.8) node[pos=0.5, fill=white, inner sep=1pt, shift={(0.2,0)}] {99k};
-
-%     % --- STAGE 2: Filtering Actual Movies ---
-%     % Main Flow to Stage 3
-%     \fill[flow, orange!60] (2, 0.8) .. controls (3, 0.8) and (3, 1.0) .. (4, 1.0) -- (4, -0.8) 
-%         .. controls (3, -0.8) and (3, -1.2) .. (2, -1.2) -- cycle;
-%     \draw[node_bar, red] (4, -0.8) -- (4, 1.0) node[pos=0.5, fill=white, inner sep=1pt] {98k};
-
-%     % Small Branch Down: Wrong Class
-%     \fill[flow, orange!40] (2, -1.2) .. controls (2.5, -1.2) and (3, -1.5) .. (4, -1.8) -- (4, -1.75) 
-%         .. controls (3, -1.45) and (2.5, -1.5) .. (2, -1.5) -- cycle;
-%     \node[right] at (4, -1.8) {Wrong class: 823};
-
-%     % --- STAGE 3: Final Dataset ---
-%     \fill[flow, purple!40] (4, 1.0) .. controls (5, 1.0) and (5, 0.8) .. (6, 0.8) -- (6, -0.6) 
-%         .. controls (5, -0.6) and (5, -0.8) .. (4, -0.8) -- cycle;
-%     \draw[node_bar, brown!60!black] (6, -0.6) -- (6, 0.8) node[right, black, align=left] {Final\\92,374};
-
-% \end{tikzpicture}
-% \caption{Dataset curation flow (Sankey diagram style).}
-% \end{figure}
 
 \begin{figure}[ht]
-    \centering
-    \includegraphics[width=8cm]{figures/funnel_chart_data_cleaning.png}
-    \caption{Data cleaning pipeline: number of movies retained after each filtering step.}
-    \label{fig:data_cleaning_funnel}
+\centering
+\begin{tikzpicture}[font=\small]
+    \tikzset{
+        node_bar/.style={line width=2pt},
+        flow/.style={opacity=0.3, line join=round}
+    }
+
+    % Unclean -> No plot
+    \fill[flow, node1, opacity=0.4] (0, 2.0) .. controls (0.9, 2.0) and (0.9, 2.8) .. (1.8, 2.8) -- (1.8, 1.4) .. controls (0.9, 1.4) and (0.9, 0.6) .. (0, 0.6) -- cycle;
+    % Unclean -> With plot
+    \fill[flow, node1, opacity=0.4] (0, 0.6) .. controls (0.9, 0.6) and (0.9, 0.2) .. (1.8, 0.2) -- (1.8, -2.4) .. controls (0.9, -2.4) and (0.9, -2) .. (0, -2) -- cycle;
+
+    % With plot -> Feature movies
+    \fill[flow, node2, opacity=0.4] (1.8, -2.38) .. controls (2.7, -2.38) and (2.7, -1.98) .. (3.6, -1.98) -- (3.6, 0.6) .. controls (2.7, 0.6) and (2.7, 0.2) .. (1.8, 0.2) -- cycle;
+    % With plot -> Non-feature movies
+    \fill[flow, node2, opacity=0.4] (1.8, -2.4) .. controls (2.7, -2.4) and (2.7, -2.62) .. (3.6, -2.62) -- (3.6, -2.6) .. controls (2.7, -2.6) and (2.7, -2.38) .. (1.8, -2.38) -- cycle;
+
+    % Feature movies -> Too long plots
+    \fill[flow, node3, opacity=1.0] (3.6, 0.59) .. controls (4.5, 0.59) and (4.5, 2.79) .. (5.4, 2.79) -- (5.4, 2.8) .. controls (4.5, 2.8) and (4.5, 0.6) .. (3.6, 0.6);
+    % Feature movies -> Low entropy plots
+    \fill[flow, node3, opacity=0.4] (3.6, 0.46) .. controls (4.5, 0.46) and (4.5, 1.67) .. (5.4, 1.67) -- (5.4, 1.8) .. controls (4.5, 1.8) and (4.5, 0.58) .. (3.6, 0.58) -- cycle;
+    % Feature movies -> Feasible plots
+    \fill[flow, node3, opacity=0.4] (3.6, -1.98) .. controls (4.5, -1.98) and (4.5, -2.14) .. (5.4, -2.14) -- (5.4, 0.3) .. controls (4.5, 0.3) and (4.5, 0.46) .. (3.6, 0.46) -- cycle;
+
+    % Feasible plots -> Final Dataset
+    \fill[flow, node4, opacity=0.4] (5.4, -2.12) .. controls (6.3, -2.12) and (6.3, -1.6) .. (7.2, -1.6) -- (7.2, 0.8) .. controls (6.3, 0.8) and (6.3, 0.3) .. (5.4, 0.3) -- cycle;
+    % Feasible plots -> Explicit content
+    \fill[flow, node4, opacity=0.4] (5.4, -2.14) .. controls (6.3, -2.14) and (6.3, -2.42) .. (7.2, -2.42) -- (7.2, -2.38) .. controls (6.3, -2.38) and (6.3, -2.12) .. (5.4, -2.12) -- cycle;
+
+    % Unclean Dataset
+    \draw[node_bar, node1] (0, -2) -- (0, 2) node[
+        centered, align=center, pos=0.5, anchor=center, fill=white, text=black, opacity=0.9,
+        inner sep=1pt, rounded corners=1pt,
+    ] {Unclean\\dataset\\141,119};
+
+    % Movies without a plot 
+    \draw[node_bar, node_filtered] (1.8, 1.4) -- (1.8, 2.8) node[
+        centered, align=left, pos=0.5, fill=white, text=black, opacity=0.9,
+        inner sep=1pt, rounded corners=1pt, anchor=west
+    ] {No Wikipedia plot\\41,783};
+
+    % Movies with plot
+    \draw[node_bar, node2] (1.8, -2.4) -- (1.8, 0.2) node[
+        centered, align=center, pos=0.5, fill=white, text=black, opacity=0.9,
+        inner sep=1pt, rounded corners=1pt,
+    ] {Movies\\with a plot\\99,336};
+
+    % Feature movies only
+    \draw[node_bar, node3] (3.6, -1.98) -- (3.6, 0.6) node[
+        centered, align=center, pos=0.5, fill=white, text=black, opacity=0.9,
+        inner sep=1pt, rounded corners=1pt,
+    ] {Feature\\movies\\98,513};
+
+    % Non feature movies
+    \draw[node_bar, node_filtered] (3.6, -2.62) -- (3.6, -2.6) node[
+        centered, align=center, pos=0.5, anchor=north, fill=white, text=black, opacity=0.9,
+        inner sep=1pt, rounded corners=1pt, xshift=-3pt
+    ] {Non-feature movies\\823};
+
+    % Feasible plots only
+    \draw[node_bar, node4] (5.4, -2.14) -- (5.4, 0.3) node[
+        centered, align=center, pos=0.5, fill=white, text=black, opacity=0.9,
+        inner sep=1pt, rounded corners=1pt,
+    ] {Feasible\\plots\\93,696};
+
+    % Too long plots
+    \draw[node_bar, node_filtered] (5.4, 2.79) -- (5.4, 2.8) node[
+        centered, align=left, pos=0.5, text=black, opacity=0.9,
+        inner sep=2pt, rounded corners=1pt, anchor=west
+    ] {Too long plots\\19};
+
+    % Low entropy plots
+    \draw[node_bar, node_filtered] (5.4, 1.67) -- (5.4, 1.8) node[
+        centered, align=left, pos=0.5, text=black, opacity=0.9,
+        inner sep=2pt, rounded corners=1pt, anchor=west
+    ] {Low entropy plots\\4,798};
+
+    % Final Dataset
+    \draw[node_bar, node5] (7.2, -1.6) -- (7.2, 0.8) node[
+        centered, align=center, pos=0.5, fill=white, text=black, opacity=0.9,
+        inner sep=1pt, rounded corners=1pt,
+    ] {Final\\dataset\\92,374};
+
+    % Explicit content
+    \draw[node_bar, node_filtered] (7.2, -2.42) -- (7.2, -2.38) node[
+        centered, align=right, text=black, opacity=0.9,
+        inner sep=2pt, rounded corners=1pt, anchor=north east, xshift=4.5pt
+    ] {Explicit content\\1,322};
+
+\end{tikzpicture}
+\caption{Data cleaning pipeline: Filtering steps with remaining movie counts after each stage.}
+\label{fig:data_cleaning_funnel}
 \end{figure}
 
 \textbf{Embedding of the movie plot summaries.} For embedding, we selected the BGE-M3 model \cite{chen2024bgem3embeddingmultilingualmultifunctionality} based on its strong showing (28th place) on the Massive Text Embedding Benchmark (MTEB) leaderboard\footnote{\url{https://huggingface.co/spaces/mteb/leaderboard}}. BGE-M3 is compact (0.5B parameters), supports 8,192-token context length, and can embed entire movie plots in a single vector.
