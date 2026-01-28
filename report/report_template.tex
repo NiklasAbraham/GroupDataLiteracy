@@ -151,7 +151,7 @@ After data processing, our final dataset consisted of 141,119 movies with 81\% a
 
 \subsection{Data cleaning}
 
-After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first ensured that our dataset does not contain any duplicates with respect to Wikidata QIDs and Wikipedia links, and then applied several filtering steps described in Figure \ref{fig:data_cleaning_funnel}.
+After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first ensured that our dataset is free of duplicates with respect to Wikidata QIDs and Wikipedia links, and then applied filtering steps described in Figure \ref{fig:data_cleaning_funnel}.
 
 % \begin{itemize}
 %     \item \textbf{Filtering out movies without a Wikipedia plot.}
@@ -162,7 +162,7 @@ After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first 
 % \end{itemize}
 
 
-The most critical filtering step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a Large Language model to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model trained on high quality data, we tokenized the plots with the BGE-M3 tokenizer and computed the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
+The most critical filtering step was the removal of movies with low-entropy plots. Raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a LLM to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model, we tokenized the plots with the BGE-M3 tokenizer and computed the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
 
 % \begin{figure}[ht]
 % \centering
@@ -281,7 +281,7 @@ In order to judge whether movies are becoming less novel over time, we computed 
     \label{fig:novelty_over_time}
 \end{figure}
 
-Fitting a linear regression to the average yearly novelty scores of all movies results in a slope of $3.3 \cdot 10^{-4}$ and $R^2$ value of $0.56$, indicating that the yearly averages have stayed almost constant over time. Additionally, we compared these averages to the yearly averages of Best Original Screenplay Oscar nominees by computing the Mean Absolute Error (MAE) between the two time series. The resulting MAE of $0.0098 \pm 0.008$ suggests that the scores of nominees do not significantly differ from the yearly novelty averages of all movies.
+Fitting a linear regression to the average yearly novelty scores of all movies results in a slope of $3.3 \cdot 10^{-4}$ and $R^2$ value of $0.56$, indicating that the yearly averages have stayed constant over time. Additionally, we compared these averages to the yearly averages of Best Original Screenplay Oscar nominees by computing the Mean Absolute Error (MAE) between the two time series. The resulting MAE of $0.0098 \pm 0.008$ suggests that the scores of nominees don't significantly differ from the yearly novelty averages of all movies.
 
 \subsection{Kolmogorov-Smirnov test}
 
