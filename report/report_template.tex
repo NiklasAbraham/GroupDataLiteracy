@@ -291,18 +291,15 @@ Inter-genre distance determines cosine distance between representatives of each 
 Since our dataset has significantly more movies in recent years, the medoid and centroid embedding estimators are heavily affected by sampling variance. To mitigate this, we downsample to ensure equal sampling error across all genre-year groups and apply bootstrapping to estimate confidence intervals. 
 
 \textbf{Novelty analysis.} To investigate the claim that movies are becoming less novel over time, we propose a novelty metric defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
-
-\vspace{-1.5em}
 \begin{equation}
 \label{novelty}
     \text{Novelty}(m_i) = \min_{j: \text{year}_j < \text{year}_i} \left( 1 - \frac{emb_i \cdot emb_j}{\|emb_i\| \|emb_j\|} \right)
 \end{equation}
-
 where \( emb_i \) denotes the embedding vector of $i$-th movie's plot.
 Intuitively, a higher novelty score indicates that the movie's plot is more dissimilar from prior movies, while a lower score implies existence of a very similar movie released earlier.
 To compute these scores, we leverage the Faiss library \cite{douze2024faiss} to efficiently find the preceding nearest neighbors of movie plot embeddings based on the cosine distance.
 
-\textbf{Kolmogorov-Smirnov test.} To compare distance distributions across movie subsets (e.g., different decades or genres), we use the Kolmogorov-Smirnov test \cite{massey1951}. We construct $\epsilon$-balls ($\epsilon \in [0.24, 0.30]$) around anchor movies representing specific themes, collecting all movies within the distance threshold to define local semantic neighborhoods. We compare distance distributions and temporal CDFs (cumulative distribution functions of release years) within these neighborhoods to a control group (global mean embedding). Divergence indicates temporal shifts: if semantic structure remains stable, distributions should be similar across periods.
+\textbf{Kolmogorov-Smirnov test.} To compare distance distributions across movie subsets, we use the Kolmogorov-Smirnov test \cite{massey1951}. We construct $\epsilon$-balls ($\epsilon \in [0.24, 0.30]$) around anchor movies representing specific themes, collecting all movies within the distance threshold to define local semantic neighborhoods. We compare distance distributions and temporal CDFs (cumulative distribution functions of release years) within these neighborhoods to a control group (global mean embedding). Divergence indicates temporal shifts: if semantic structure remains stable, distributions should be similar across periods.
 
 \section{Results}\label{sec:results}
 
@@ -325,11 +322,9 @@ In order to judge whether movies are becoming less novel over time, we computed 
     \label{fig:novelty_over_time}
 \end{figure}
 
-Fitting a linear regression to the average yearly novelty scores of all movies results in a slope of $3.3 \cdot 10^{-4}$ and $R^2$ value of $0.56$, indicating that the yearly averages have stayed constant over time. Additionally, we compared these averages to the yearly averages of Best Original Screenplay Oscar nominees by computing the Mean Absolute Error (MAE) between the two time series. The resulting MAE of $0.0098 \pm 0.008$ suggests that the scores of nominees don't significantly differ from the yearly novelty averages of all movies.
+Fitting a linear regression to the average yearly novelty scores of all movies (slope of $3.3 \cdot 10^{-4}$ and $R^2$ value of $0.56$) indicates that the yearly averages have stayed constant over time. Additionally, we compared these averages to the yearly averages of Best Original Screenplay Oscar nominees by computing the Mean Absolute Error (MAE) between the two time series. The resulting MAE of $0.0098 \pm 0.008$ suggests that the scores of nominees don't significantly differ from the yearly novelty averages of all movies.
 
-\textbf{Kolmogorov-Smirnov test.} We illustrate our approach using James Bond films as anchor movies to compare their distance distributions against all other movies. The cumulative distribution of cosine distances from Bond anchors rises steeply only for a small set of closely related films, while most movies remain more distant. This contrasts with the global mean embedding, which is closer on average to all movies, as it represents an average narrative rather than a specific subgenre.
-
-To examine the temporal dimension, we constructed cumulative distribution functions of release years for movies within the epsilon ball and compared them to the control group. Figure~\ref{fig:ks_test_temporal_bond} shows that the temporal distributions differ markedly. The left panel reveals a divergence beginning approximately in the 1960s, suggesting that the spy movie subgenre represented by the Bond anchor exhibits a distinct temporal emergence pattern compared to the broader corpus. The right panel displays normalized histograms of movie counts per year for both groups, confirming that the temporal distribution of spy-themed films diverges from the overall temporal distribution of cinema. This temporal divergence indicates that the spy film subgenre experienced a period of increased production and thematic consolidation that is not representative of general cinematic trends during the same period.
+\textbf{Kolmogorov-Smirnov test.} We illustrate our approach using James Bond films as anchor movies to compare their distance distributions against all other movies. The cumulative distribution of cosine distances from Bond anchors rises steeply only for a small set of closely related films, while most movies remain more distant. To examine the temporal dimension, we constructed cumulative distribution functions of release years for movies within the epsilon ball and compared them to the control group. Figure~\ref{fig:ks_test_temporal_bond} shows that the temporal distributions differ. The left panel reveals a divergence beginning approximately in the 1960s, suggesting that the spy movie subgenre represented by the Bond anchor exhibits a distinct temporal emergence pattern compared to the broader corpus. The right panel displays normalized histograms of movie counts per year for both groups, confirming that the temporal distribution of spy-themed films diverges from the overall temporal distribution. This temporal divergence indicates that the spy film subgenre experienced a period of increased production and thematic consolidation that is not representative of general cinematic trends during the same period.
 
 \begin{figure}[ht]
     \centering
