@@ -110,7 +110,7 @@
 % DO USE YOUR UNIVERSITY EMAIL ADDRESS!
 
 % for the Data Literacy report, to save space, you can here list the student email address of one author, who is willing to be contacted about this work in the future (e.g. in case we would like to use your report as an example for future course iterations)
-\icmlcorrespondingauthor{AC}{ansel-heng-yu.cheung@uni-tuebingen.de} 
+\icmlcorrespondingauthor{NA}{niklas-sebastian.abraham@student.uni-tuebingen.de} 
 
 % You may provide any keywords that you
 % find helpful for describing your paper; these are used to populate
@@ -282,7 +282,7 @@ With data collected and cleaned, we embed movie plot summaries into a semantic s
 
 \textbf{Distance analysis.} Once movie plots are embedded into a unified semantic space, quantitative analysis of their geometric relationships becomes possible through distance metrics. The cosine distance between embeddings provides a natural measure of semantic dissimilarity, enabling the construction of cumulative distribution functions over pairwise distances within defined subsets of the corpus.
 
-As movie genres provide a meaningful taxonomy with potential temporal evolution patterns, we examine semantic drift across different time periods of an arbitrary number of years. To this end, embeddings are first grouped by genre $g$ into discrete time periods $\tau$, forming the set $\mathcal{M}_g^{(\tau)}$ of plot embeddings. For each group, two alternative representative embeddings are computed: the \textbf{centroid} (arithmetic mean) $\bar{\mathbf{e}}_g^{(\tau)}$ and the \textbf{medoid} (cosine distance minimizer embedding) $\tilde{\mathbf{e}}_g^{(\tau)}$. We employ the following metrics to analyse the drift dynamics across the groups: (i) genre drift and acceleration, and (ii) inter-genre distance.
+As movie genres provide a meaningful taxonomy with potential temporal evolution patterns, we examine semantic drift across different time periods of an arbitrary number of years. To this end, embeddings are first grouped by genres into decades. For each group, two alternative representative embeddings are computed: the \textbf{centroid} (arithmetic mean) and the \textbf{medoid} (cosine distance minimizer embedding). We employ the following metrics to analyse the drift dynamics across the groups: (i) genre drift and acceleration, and (ii) inter-genre distance.
 
 Genre drift measures the cosine distance between representative embeddings of consecutive periods, capturing how much a genre's semantic center evolves over two time periods. Acceleration quantifies the change in drift between consecutive periods.
 
