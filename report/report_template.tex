@@ -291,7 +291,7 @@ Genre drift measures the cosine distance between representative embeddings of co
 
 Inter-genre distance determines cosine distance between representatives of each pair of genres for each time period, measuring pairwise similarity between specific genres over time.
 
-Since our dataset has significantly more movies in recent years, the medoid and centroid embedding estimators are heavily affected by sampling variance. To mitigate this, we downsample to ensure equal sampling error across all genre-year groups and apply bootstrapping to estimate confidence intervals. 
+Since our dataset has significantly more movies in recent years, the medoid and centroid embedding estimators are heavily affected by sampling variance. To mitigate this, we downsample to ensure equal sampling error across all genre-year groups and apply bootstrapping.
 
 \textbf{Novelty analysis.} To investigate the claim that movies are becoming less novel over time, we propose a novelty metric defined as the minimal cosine distance between a specific movie's plot embedding and the embeddings of all movies in the dataset released prior to it. This can be formally written as:
 \begin{equation}
