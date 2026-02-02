@@ -148,7 +148,7 @@ Using distances between these embeddings, we investigate relationships between m
 
 The initial dataset was constructed by querying Wikidata, an open knowledge graph structured as a network of items, connected together by properties. We used its SPARQL API to extract items classified as films with release dates ranging from 1930 to 2024.
 % In order to adhere to Wikidata's query size limitations, we gathered the data iteratively by release year. 
-We first retrieved QIDs of items describing feature films, then processed them in small batches to gather the rest of relevant features including title, release date, duration, genres, directors, actors, English Wikipedia link, and more significantly, links to external movie databases TMDb and IMDb. During collection of QIDs, items classified as short film or television series episode were excluded, and final filtering of non-feature films was performed during data cleaning.
+We first retrieved QIDs of items describing feature films, then processed them in small batches to gather the rest of relevant features including title, release date, duration, genres, directors, actors, English Wikipedia link, and more significantly, links to external movie databases TMDb and IMDb. During collection of QIDs, items classified as short film or television series episode were excluded, and final filtering of non-feature films was performed during data cleaning, based on the Wikidata class property.
 
 In the second stage, we enriched the dataset with TMDb statistics, retrieving vote counts, vote averages, and popularity for each film. These served as proxies for audience engagement and informed later filtering and weighting.
 
@@ -173,7 +173,7 @@ After collecting the raw movie data from Wikidata, TMDb and Wikipedia, we first 
 % \end{itemize}
 
 
-A critical step was the removal of movies with low-entropy plots. The raw dataset contained a significant number of incomplete or overly brief plots (e.g. \href{https://en.wikipedia.org/wiki/1982_(2013_film)}{this}). To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a LLM to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} utilized perplexity of a 5 gram language model, we tokenized the plots with the BGE-M3 tokenizer and computed the Shannon entropy of the token distribution for each plot. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
+A critical step was the removal of movies with low-entropy plots. The raw dataset contained a significant number of incomplete or overly brief plots. To identify and remove such movies we employed a filtering method inspired by \cite{wenzek2019ccnetextractinghighquality}, who used perplexity of a LLM to filter out low quality documents. While \cite{wenzek2019ccnetextractinghighquality} discarded documents with low LLM perplexity score, we tokenized the movie plots with the BGE-M3 tokenizer and filtered out the samples with low Shannon entropy of the token distribution. To determine the optimal entropy threshold, we sampled 150 movies from the borderline entropy region of $[4.0, 5.5]$ and manually annotated them as either \textit{good} or \textit{bad} quality. The threshold of $4.8398$ was chosen to maximize the $F\beta$ score with $\beta=0.5$ prioritizing precision over recall.
 
 
 \begin{figure}[ht]
@@ -267,7 +267,7 @@ A critical step was the removal of movies with low-entropy plots. The raw datase
     ] {Explicit content\\1,322};
 
 \end{tikzpicture}
-\caption{Data cleaning pipeline: Filtering steps with remaining movie counts after each stage.}
+\caption{Data cleaning pipeline: Filtering steps with remaining movie counts after each stage. Long plots are defined by Wikipedia as those exceeding 14,000 characters.}
 \label{fig:data_cleaning_funnel}
 \end{figure}
 
@@ -316,14 +316,15 @@ To evaluate whether genre labels map to distinct regions, we compared intra-genr
 
 \textbf{Novelty score.} To judge whether movies are becoming less novel over time, we computed novelty scores as defined in \ref{novelty}, and plotted them against release years in Figure~\ref{fig:novelty_over_time}.
 
+
+Fitting a linear regression to the average yearly novelty scores of all movies (slope of $3.3 \cdot 10^{-4}$ and $R^2$ value of $0.56$) indicates that the yearly averages have stayed constant over time. Additionally, we compared these averages to the yearly averages of Best Original Screenplay Oscar nominees by computing the Mean Absolute Error (MAE) between the two time series. The resulting MAE of $0.0098 \pm 0.008$ suggests that the scores of nominees don't significantly differ from the yearly novelty averages of all movies.
+
 \begin{figure}[ht]
     \centering
     \includegraphics{figures/oscar_novelty_scatter.pdf}
     \caption{Novelty scores of all movies (blue) and Best Original Screenplay Oscar nominees (orange) over time. Each dot represents a movie and the lines represent yearly average novelty scores.}
     \label{fig:novelty_over_time}
 \end{figure}
-
-Fitting a linear regression to the average yearly novelty scores of all movies (slope of $3.3 \cdot 10^{-4}$ and $R^2$ value of $0.56$) indicates that the yearly averages have stayed constant over time. Additionally, we compared these averages to the yearly averages of Best Original Screenplay Oscar nominees by computing the Mean Absolute Error (MAE) between the two time series. The resulting MAE of $0.0098 \pm 0.008$ suggests that the scores of nominees don't significantly differ from the yearly novelty averages of all movies.
 
 \textbf{Kolmogorov-Smirnov test.} We demonstrate our approach by using James Bond films as anchor movies and comparing their distance distributions to those of all other movies. The cumulative distribution of cosine distances from the Bond anchors rises steeply only for a small subset of closely related films, while most movies are more distant. To analyze temporal trends, we constructed cumulative distribution functions of release years for movies within the $\epsilon$-ball around the anchors and compared them to a control group. Figure~\ref{fig:ks_test_temporal_bond} shows a difference in temporal distributions. The left panel reveals a divergence beginning around the 1960s, indicating that the spy movie subgenre represented by the Bond anchor displays a distinctive pattern of temporal emergence compared to the broader corpus. The right panel displays normalized histograms of movie counts per year for both groups, confirming that the temporal distribution of spy-themed films differs from that of all movies overall. This temporal divergence suggests that the spy film subgenre experienced a period of increased production and thematic consolidation that is not seen in general cinematic trends of the same period. We conducted the same analysis for other subgenres, such as movies about American soldiers in the Middle East, time travel, and the Wild West. In each case, a clear pattern shift is observed; for example, the American soldiers in the Middle East subgenre began to emerge in the 1990s and grew after 2001, while Wild West movies have steadily declined since the 1980s.
 
