@@ -13,14 +13,18 @@ import sys
 import warnings
 from itertools import combinations
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional, List, Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.spatial.distance import cosine as another_cosine
-from scipy.stats import cosine
+from scipy.spatial.distance import cosine as cosine
+#from scipy.stats import cosine
+
+from src.aab_analysis.math_functions.boostrapping_embeddings import get_bootstrapped_embeddings
+from src.aab_analysis.math_functions.cosine_distance_util import get_average_embedding
+from src.aab_analysis.normalization_strategy import DriftNormalizationStrategy, NoNormalization
 
 # Setup logging
 logging.basicConfig(
@@ -501,82 +505,225 @@ def calculate_binned_inter_genre_distance(group_df, bin_size):
 
     return convergence_df
 
-
-def calculate_genre_convergence(group_df, bin_size=5, target_genres=None):
+def calculate_genre_convergence(
+    df: pd.DataFrame,
+    bin_size: int = 5,
+    downsample: bool = True,
+    random_seed: int = 42,
+) -> pd.DataFrame:
     """
-    Calculate cosine distance between genres to analyse convergence / divergence
-    """
+    Pairwise cosine distance between genre average embeddings per time bin.
 
-    df_filtered = group_df.copy()
-    df_filtered["year_interval"] = (df_filtered["year"] // bin_size) * bin_size
-    position_vectors_df = (
-        df_filtered.groupby(["year_interval", "new_genre"])["avg_embedding"]
+    Args:
+        df: Raw DataFrame with 'embedding', 'new_genre', 'year' columns.
+        bin_size: Years per time bin.
+        target_genres: Genres to include (None = all).
+        downsample: If True, downsample all (genre, year_group) groups to the min group size.
+        random_seed: Seed for downsampling reproducibility.
+    """
+    df["year_group"] = (df["year"] // bin_size) * bin_size
+
+    # Downsample all groups to min size
+    if downsample:
+        group_sizes = df.groupby(["new_genre", "year_group"]).size()
+        min_size = group_sizes.min()
+        print(f"[Downsampling] All groups to {min_size} samples")
+        df = (
+            df.groupby(["new_genre", "year_group"])
+            .apply(lambda x: x.sample(n=min(len(x), min_size), random_state=random_seed))
+            .reset_index(drop=True)
+        )
+
+    # Average embedding per (genre, year_group)
+    grouped = (
+        df.groupby(["new_genre", "year_group"])["embedding"]
         .apply(lambda x: np.mean(np.vstack(x), axis=0))
         .reset_index(name="avg_embedding")
     )
 
-    # Identify genre pairs
-    unique_genres = position_vectors_df["new_genre"].unique()
+    # Pairwise cosine distance
+    unique_genres = grouped["new_genre"].unique()
     genre_pairs = list(combinations(unique_genres, 2))
-    distance_results = []
+    results = []
 
-    # Easy lookup: {interval: {genre: vector, ...}, ...}
-    pivot_table = position_vectors_df.pivot_table(
-        index="year_interval",
-        columns="new_genre",
-        values="avg_embedding",
-        aggfunc="first",
-    )
+    for year in sorted(grouped["year_group"].unique()):
+        year_data = grouped[grouped["year_group"] == year]
+        genre_embs = dict(zip(year_data["new_genre"], year_data["avg_embedding"]))
 
-    for g1, g2 in genre_pairs:
-        vectors_g1 = pivot_table[g1]
-        vectors_g2 = pivot_table[g2]
+        for g1, g2 in genre_pairs:
+            if g1 not in genre_embs or g2 not in genre_embs:
+                continue
+            results.append({
+                "Genre_A": g1,
+                "Genre_B": g2,
+                "Year_Interval_Start": year,
+                "Cosine_Distance": cosine(genre_embs[g1], genre_embs[g2]),
+            })
 
-        # Filter only intervals in which both genres have data
-        comparison_df = pd.DataFrame({"v1": vectors_g1, "v2": vectors_g2}).dropna()
-
-        if comparison_df.empty:
-            continue
-
-        distances = comparison_df.apply(
-            lambda row: another_cosine(row["v1"], row["v2"]), axis=1
-        )
-        for interval, distance in distances.items():
-            distance_results.append(
-                {
-                    "Genre_A": g1,
-                    "Genre_B": g2,
-                    "Year_Interval_Start": interval,
-                    "Cosine_Distance": distance,
-                }
-            )
-
-    if not distance_results:
+    if not results:
         return pd.DataFrame()
 
-    convergence_df = pd.DataFrame(distance_results)
-
-    # Order by pair and time
-    convergence_df = convergence_df.sort_values(
-        by=["Genre_A", "Genre_B", "Year_Interval_Start"]
-    ).reset_index(drop=True)
-
-    return convergence_df
+    return (
+        pd.DataFrame(results)
+        .sort_values(by=["Genre_A", "Genre_B", "Year_Interval_Start"])
+        .reset_index(drop=True)
+    )
 
 
-def unpivot_convergence_df(convergence_df):
+def unpivot_convergence_df(convergence_df: pd.DataFrame) -> pd.DataFrame:
     """
-    A,B comparison -> A vs B && B vs A
+    Unpivot so each A-B pair appears twice: once with A as main genre, once with B.
+    Automatically carries all columns (including bootstrap columns if present).
     """
-    # Version A main genre
-    df_a = convergence_df.rename(columns={"Genre_A": "Genre", "Genre_B": "Compared_To"})
-    df_a = df_a[["Year_Interval_Start", "Genre", "Compared_To", "Cosine_Distance"]]
+    df_a = convergence_df.rename(
+        columns={"Genre_A": "Genre", "Genre_B": "Compared_To"}
+    )
+    df_b = convergence_df.rename(
+        columns={"Genre_B": "Genre", "Genre_A": "Compared_To"}
+    )
+    return pd.concat([df_a, df_b], ignore_index=True)
 
-    # Version B main genre
-    df_b = convergence_df.rename(columns={"Genre_B": "Genre", "Genre_A": "Compared_To"})
-    df_b = df_b[["Year_Interval_Start", "Genre", "Compared_To", "Cosine_Distance"]]
 
-    return pd.concat([df_a, df_b])
+# =============================================================================
+# Plotting
+# =============================================================================
+
+
+def plot_mean_convergence(
+    convergence_df: pd.DataFrame,
+    bin_size: int,
+    target_genres: Optional[List[str]] = None,
+):
+    """
+    Plot the mean cosine distance of each genre vs. all others, with optional 95% CI.
+    """
+    if convergence_df.empty:
+        print("No data to plot.")
+        return
+
+    is_bootstrapped = "Cosine_Distance_Samples" in convergence_df.columns
+    unpivoted_df = unpivot_convergence_df(convergence_df)
+
+    if target_genres is not None:
+        unpivoted_df = unpivoted_df[unpivoted_df["Genre"].isin(target_genres)]
+
+    if is_bootstrapped:
+        # For each (year, genre): average bootstrap sample arrays across all comparisons
+        # This gives the bootstrap distribution of the mean distance
+        mean_bootstrap = (
+            unpivoted_df.groupby(["Year_Interval_Start", "Genre"])[
+                "Cosine_Distance_Samples"
+            ]
+            .apply(lambda samples: np.mean(np.vstack(samples.values), axis=0))
+            .reset_index(name="Mean_Samples")
+        )
+        mean_bootstrap["Mean_Distance"] = mean_bootstrap["Mean_Samples"].apply(
+            np.median
+        )
+        mean_bootstrap["CI_Lower"] = mean_bootstrap["Mean_Samples"].apply(
+            lambda x: np.percentile(x, 2.5)
+        )
+        mean_bootstrap["CI_Upper"] = mean_bootstrap["Mean_Samples"].apply(
+            lambda x: np.percentile(x, 97.5)
+        )
+        plot_df = mean_bootstrap
+    else:
+        plot_df = (
+            unpivoted_df.groupby(["Year_Interval_Start", "Genre"])["Cosine_Distance"]
+            .mean()
+            .reset_index(name="Mean_Distance")
+        )
+
+    # --- Plot ---
+    sns.set_theme(style="whitegrid")
+    plt.figure(figsize=(14, 7))
+
+    if is_bootstrapped:
+        genres = plot_df["Genre"].unique()
+        palette = sns.color_palette(n_colors=len(genres))
+        genre_colors = dict(zip(genres, palette))
+
+        for genre in genres:
+            subset = plot_df[plot_df["Genre"] == genre].sort_values(
+                "Year_Interval_Start"
+            )
+            plt.fill_between(
+                subset["Year_Interval_Start"],
+                subset["CI_Lower"],
+                subset["CI_Upper"],
+                color=genre_colors[genre],
+                alpha=0.15,
+            )
+
+    sns.lineplot(
+        data=plot_df,
+        x="Year_Interval_Start",
+        y="Mean_Distance",
+        hue="Genre",
+        marker="o",
+        linewidth=2,
+    )
+
+    ci_text = " (with 95% CI)" if is_bootstrapped else ""
+    plt.title(
+        f"Mean Cosine Distance of Each Genre vs. Others ({bin_size}-Year Bins){ci_text}",
+        fontsize=16,
+    )
+    plt.xlabel("Year Interval Start", fontsize=12)
+    plt.ylabel("Mean Cosine Distance", fontsize=12)
+    plt.legend(title="Genre", bbox_to_anchor=(1.05, 1), loc="upper left")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+def plot_pairwise_convergence(
+    convergence_df: pd.DataFrame,
+    target_genres: Optional[List[str]] = None,
+):
+    """Subplot per genre showing its pairwise distance to every other genre."""
+    if convergence_df.empty:
+        print("No data to plot.")
+        return
+
+    unpivoted = unpivot_convergence_df(convergence_df)
+
+    if target_genres is None:
+        target_genres = sorted(unpivoted["Genre"].unique())
+
+    n_genres = len(target_genres)
+    cols = min(3, n_genres)
+    rows = (n_genres + cols - 1) // cols
+
+    fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 4.5 * rows), sharex=True, sharey=True)
+    if n_genres == 1:
+        axes = np.array([axes])
+    axes = axes.flatten()
+
+    fig.suptitle("Pairwise Cosine Distance by Genre Over Time", fontsize=16, y=1.02)
+
+    last_plotted = 0
+    for i, genre in enumerate(target_genres):
+        df_plot = unpivoted[unpivoted["Genre"] == genre].dropna(subset=["Cosine_Distance"])
+        if df_plot.empty:
+            continue
+
+        sns.lineplot(
+            data=df_plot, x="Year_Interval_Start", y="Cosine_Distance",
+            hue="Compared_To", ax=axes[i], marker="o", linewidth=1.5,
+        )
+        axes[i].set_title(f"Main Genre: {genre}", fontsize=12)
+        axes[i].set_xlabel("Interval Start", fontsize=10)
+        axes[i].set_ylabel("Cosine Distance", fontsize=10)
+        axes[i].legend(title="Compared To", fontsize=8)
+        axes[i].grid(True, alpha=0.3)
+        last_plotted = i
+
+    for j in range(last_plotted + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.tight_layout(rect=[0, 0, 1, 0.98])
+    plt.show()
+
 
 
 def unpivot_distance_for_plotting(convergence_df):
@@ -859,99 +1006,6 @@ def plot_clustermap(heatmap_matrix: pd.DataFrame, target_genre, bin_size):
         f'Drift of genre "{target_genre}" ({bin_size} Years) - Dimensional Clustering',
         fontsize=16,
     )
-    plt.show()
-
-
-def plot_mean_convergence(convergence_df, bin_size):
-    """
-    Plots the mean distance of each genre relative to the average of all others.
-    """
-    if convergence_df.empty:
-        print("No mean convergence data to plot.")
-        return
-
-    unpivoted_df = unpivot_distance_for_plotting(convergence_df)
-    mean_distance_df = (
-        unpivoted_df.groupby(["Year_Interval_Start", "Genre"])["Cosine_Distance"]
-        .mean()
-        .reset_index(name="Mean_Distance")
-    )
-
-    plt.figure(figsize=(12, 7))
-    sns.lineplot(
-        data=mean_distance_df,
-        x="Year_Interval_Start",
-        y="Mean_Distance",
-        hue="Genre",
-        marker="o",
-        linewidth=2,
-    )
-
-    plt.title(
-        f"Mean Cosine Distance of Each Genre vs. the Rest of the Group ({bin_size} Years)",
-        fontsize=16,
-    )
-    plt.xlabel("Interval Start Year", fontsize=12)
-    plt.ylabel("Mean Cosine Distance", fontsize=12)
-    plt.legend(title="Genre", bbox_to_anchor=(1.05, 1), loc="upper left")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_pairwise_convergence(convergence_df, target_genres=None):
-    """
-    Subplot per each genre
-    """
-
-    # Unpivot the DF to facilitate filtering by main genre
-    unpivoted_df = unpivot_convergence_df(convergence_df)
-
-    if target_genres is None:
-        target_genres = unpivoted_df["Genre"].unique()
-
-    # Calculate the number of subplots needed
-    n_genres = len(target_genres)
-    cols = 3
-    rows = (n_genres + cols - 1) // cols
-
-    fig, axes = plt.subplots(
-        rows, cols, figsize=(5 * cols, 4 * rows), sharex=True, sharey=True
-    )
-    axes = axes.flatten()
-
-    fig.suptitle("Pairwise Cosine Distance by Genre Over Time", fontsize=16, y=1.02)
-
-    for i, genre in enumerate(target_genres):
-        df_plot = unpivoted_df[unpivoted_df["Genre"] == genre]
-
-        # Remove comparisons that no longer have data after filtering
-        df_plot = df_plot.dropna(subset=["Cosine_Distance"])
-
-        if df_plot.empty:
-            continue
-
-        sns.lineplot(
-            data=df_plot,
-            x="Year_Interval_Start",
-            y="Cosine_Distance",
-            hue="Compared_To",  # The color is the genre it is compared with
-            ax=axes[i],
-            marker="o",
-            linewidth=1.5,
-        )
-
-        axes[i].set_title(f"Main Genre: {genre}", fontsize=12)
-        axes[i].set_xlabel("Interval Start", fontsize=10)
-        axes[i].set_ylabel("Cosine Distance", fontsize=10)
-        axes[i].legend(title="Compared To", fontsize=8)
-        axes[i].grid(True)
-
-    # Hide empty axes
-    for j in range(i + 1, len(axes)):
-        fig.delaxes(axes[j])
-
-    plt.tight_layout(rect=[0, 0, 1, 0.98])
     plt.show()
 
 

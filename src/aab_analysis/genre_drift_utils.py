@@ -239,7 +239,6 @@ def calculate_cumulative_change_of_column(
 def calculate_drift_metrics(
     df: pd.DataFrame,
     n_years_per_group: int = 1,
-    max_movies_per_group: int = None,
     grouping_function: Callable[[Any], Any] = get_average_embedding,
     n_boostrap_samples: int = None,
     normalization_strategy: DriftNormalizationStrategy = NoNormalization(),
@@ -274,10 +273,10 @@ def calculate_drift_metrics(
     calculate_movies_drift(df=df)
 
     # Acceleration -> Calculate velocity change in group per year
-    # df = calculate_movies_drift_acceleration(df=df)
+    df = calculate_movies_drift_acceleration(df=df)
 
     # Cumulative change of velocity
-    # df = calculate_cumulative_change_of_column(df=df, column_to_cum="drift_velocity", columns_to_group_by=["new_genre"])
+    df = calculate_cumulative_change_of_column(df=df, column_to_cum="drift_velocity", columns_to_group_by=["new_genre"])
 
     return df
 
