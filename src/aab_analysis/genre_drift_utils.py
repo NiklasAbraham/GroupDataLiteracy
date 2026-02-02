@@ -239,7 +239,6 @@ def calculate_cumulative_change_of_column(
 def calculate_drift_metrics(
     df: pd.DataFrame,
     n_years_per_group: int = 1,
-    max_movies_per_group: int = None,
     grouping_function: Callable[[Any], Any] = get_average_embedding,
     n_boostrap_samples: int = None,
     normalization_strategy: DriftNormalizationStrategy = NoNormalization(),
