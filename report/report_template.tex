@@ -132,7 +132,7 @@
 \printAffiliationsAndNotice{\icmlEqualContribution} % otherwise use the standard text.
 
 \begin{abstract}
-Cinema serves as a cultural archive that reflects evolving societal values and narrative preferences across generations. Understanding how movie stories have changed over time provides insights into cultural evolution, but quantitative analysis of narrative structures at scale has remained challenging. We address this gap by analyzing semantic evolution in cinema through embedding movie plot summaries from 1930 to 2024 into a unified semantic space. Using distance distributions, novelty scores, and Kolmogorov-Smirnov tests, we quantify temporal shifts in narrative structures across nearly a century of filmmaking. Our analysis reveals overall semantic stability in the broader corpus, suggesting that fundamental narrative patterns remain consistent over time. However, we also identify distinct emergence patterns in specific subgenres, demonstrating how thematic categories evolve and consolidate in response to cultural and historical contexts.
+Cinema has been a medium for storytelling through visualization, and the evolution of films could tell us about the evolution of culture and societal values. Many sought to quantify this evolution using older natural language methods. We contribute to this ongoing film evolution analysis by scraping and combining multiple sources of data (Wikipedia, IMDB, TMDB) from 1930 to 2024 and embedding the plots with a language model. Using distance distributions, new novelty score and Kolmogorov-Smirnov tests, we show that movie text embeddings are temporally stable with the exception of specific subgenres which demonstrate how movie production changes with respect to cultural and historical contexts.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -333,9 +333,9 @@ Fitting a linear regression to the average yearly novelty scores of all movies (
 \end{figure}
 
 \section{Discussion \& Conclusion}\label{sec:conclusion}
-We have utilized modern embedding methods and multiple statistical tools to analyze the evolution of movie plot embeddings over nearly a century of cinema. Our findings indicate that while the overall semantic structure of movie plots remains relatively stable, specific thematic subgenres exhibit distinct temporal emergence patterns. 
+We have utilized modern embedding methods and multiple statistical tools to analyze the evolution of movie plot embeddings over nearly a century of cinema. Our findings indicate that while the overall semantic structure of movie plots remains relatively stable, there were declines and growth of subgenres which were statistically sound and could be explained by real world occurrences, e.g. the decline in number of spy movies after the Cold War.
 
-We must acknowledge the limitations that arise from our data sources. Wikipedia plot summaries, while standardized, may not fully capture the nuances of original narratives, potentially introducing bias. Additionally, our reliance on a single embedding model, while ensuring a unified semantic space, may overlook temporal linguistic shifts. More importantly, the evolution of cinema is not only reflected in plot summaries but also in cinematography, direction, music, feeling, acting and other non-textual elements. Future work could explore multimodal embeddings that integrate visual and auditory features alongside textual data.
+We must acknowledge the limitations that arise from temporal analysis using text embeddings. Wikipedia plot summaries were already temporally normalized and may not fully capture the essence of the actual movie, potentially introducing bias of the article authors. Additionally, using a single embedding model, while ensuring a unified semantic space, may overlook temporal linguistic shifts. More importantly, the evolution of cinema is not only reflected in plot summaries but also in cinematography, direction, music, feeling, acting performance, basically other non-textual elements. Future work could explore multimodal embeddings that combines visual and auditory features alongside textual data.
 
 All code and data used in this project are openly available in our GitHub repository\cite{our_github_repo} and as a dedicated dataset on Hugging Face\cite{our_data_on_huggingface}.
 
@@ -345,7 +345,7 @@ All code and data used in this project are openly available in our GitHub reposi
 \textbf{Contribution Statement:}
 
 \begin{itemize}
-    \item \textbf{Ansel Cheung:} Performed genre classification analysis, classification of movie plots into genres, and conducted genre drift and PCA analysis of the movie plots.
+    \item \textbf{Ansel Cheung:} Performed genre classification analysis, classification of movie plots into genres, and conducted spread and PCA analysis of the movie plots.
     \item \textbf{Alessio Villa:} Developed and maintained the IMDb and TMDb API pipelines, and contributed to the related work research and methods background sections.
     \item \textbf{Bartol Markovinović:} Defined the data pipeline cutoff and carried out resulting data cleaning, managed the integration of Wikidata, and conducted novelty score analysis.
     \item \textbf{Martín López de Ipiña:} Carried out genre drift statistical analysis on the general embedding space, performed general spatial analysis of embeddings, and analyzed the cosine distance distributions.
